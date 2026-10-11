@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps
+  annotations:
+    # Never let an app's prune remove the shared namespace
+    argocd.argoproj.io/sync-options: Prune=false
