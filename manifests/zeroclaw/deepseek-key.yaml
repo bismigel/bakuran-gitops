@@ -1,0 +1,18 @@
+# DeepSeek API key from Bitwarden (scaffolded with a dummy value; set the real
+# one in Bitwarden and ESO re-syncs).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: deepseek-api-key
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: deepseek-api-key
+  data:
+    - secretKey: api_key
+      remoteRef:
+        key: deepseek-api-key

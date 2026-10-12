@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zeroclaw
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zeroclaw-data
+  namespace: zeroclaw
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zeroclaw
+  namespace: zeroclaw
+  labels:
+    app: zeroclaw
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # ZeroClaw is single-writer per workspace
+  selector:
+    matchLabels:
+      app: zeroclaw
+  template:
+    metadata:
+      labels:
+        app: zeroclaw
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: zeroclaw
+          image: ghcr.io/zeroclaw-labs/zeroclaw:debian
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: gateway
+              containerPort: 42617
+          env:
+            - name: ZEROCLAW_gateway__host
+              value: "0.0.0.0"
+            - name: ZEROCLAW_gateway__allow_public_bind
+              value: "true"
+            # keep the pairing gate on: the web UI needs a paircode to get in
+            - name: ZEROCLAW_gateway__require_pairing
+              value: "true"
+            # DeepSeek API key comes from Bitwarden (dummy until you set the real one)
+            - name: ZEROCLAW_providers__models__openai__deepseek__api_key
+              valueFrom:
+                secretKeyRef:
+                  name: deepseek-api-key
+                  key: api_key
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /zeroclaw-data
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 50m
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: zeroclaw-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zeroclaw
+  namespace: zeroclaw
+spec:
+  selector:
+    app: zeroclaw
+  ports:
+    - name: gateway
+      port: 42617
+      targetPort: 42617
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zeroclaw
+  namespace: zeroclaw
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: agent.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zeroclaw
+                port:
+                  number: 42617
