@@ -133,18 +133,26 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              set -e
-              apk add --no-cache curl tar gzip >/dev/null
-              cd /opt/bin
-              curl -fsSL -o kubectl https://dl.k8s.io/release/v1.37.1/bin/linux/amd64/kubectl
-              curl -fsSL -o gh.tgz https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz
-              tar xzf gh.tgz --strip-components=2 gh_2.102.0_linux_amd64/bin/gh
-              rm gh.tgz
-              curl -fsSL -o jq https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64
-              chmod +x kubectl gh jq
+              # Best-effort: cache tools on the PVC and never block pod startup.
+              set +e
+              CACHE=/zeroclaw-data/tools
+              mkdir -p "$CACHE" /opt/bin 2>/dev/null
+              if [ ! -x "$CACHE/kubectl" ] || [ ! -x "$CACHE/gh" ] || [ ! -x "$CACHE/jq" ]; then
+                apk add --no-cache curl tar gzip >/dev/null 2>&1
+                cd "$CACHE" || exit 0
+                curl -fsSL --retry 3 -o kubectl https://dl.k8s.io/release/v1.37.1/bin/linux/amd64/kubectl
+                curl -fsSL --retry 3 -o gh.tgz https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz
+                [ -s gh.tgz ] && tar xzf gh.tgz --strip-components=2 gh_2.102.0_linux_amd64/bin/gh 2>/dev/null
+                rm -f gh.tgz
+                curl -fsSL --retry 3 -o jq https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64
+                chmod +x kubectl gh jq 2>/dev/null
+              fi
+              cp -f "$CACHE"/* /opt/bin/ 2>/dev/null
+              chmod +x /opt/bin/* 2>/dev/null
               mkdir -p /zeroclaw-data/run
-              chown 65534:1000 /zeroclaw-data/run
-              chmod 700 /zeroclaw-data/run
+              chown 65534:1000 /zeroclaw-data/run 2>/dev/null
+              chmod 700 /zeroclaw-data/run 2>/dev/null
+              exit 0
           volumeMounts:
             - name: tools
               mountPath: /opt/bin
@@ -157,6 +165,20 @@ spec:
           ports:
             - name: gateway
               containerPort: 42617
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: gateway
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: gateway
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 6
           env:
             - name: PATH
               value: /opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
