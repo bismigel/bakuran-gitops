@@ -147,9 +147,9 @@ spec:
               value: "0.0.0.0"
             - name: ZEROCLAW_gateway__allow_public_bind
               value: "true"
-            # private dir for the daemon's local IPC socket (/run is not writable here)
+            # daemon RPC socket in a private dir (/run is not writable here)
             - name: ZEROCLAW_SOCKET
-              value: /zeroclaw-data/run
+              value: /zeroclaw-data/run/zeroclaw.sock
             # keep the pairing gate on: the web UI needs a paircode to get in
             - name: ZEROCLAW_gateway__require_pairing
               value: "true"
