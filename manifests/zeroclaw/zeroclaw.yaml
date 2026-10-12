@@ -4,6 +4,25 @@ metadata:
   name: zeroclaw
 ---
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zeroclaw
+  namespace: zeroclaw
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: zeroclaw-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: zeroclaw
+    namespace: zeroclaw
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: zeroclaw-data
@@ -16,6 +35,58 @@ spec:
   resources:
     requests:
       storage: 2Gi
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: github-token
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: github-token
+  data:
+    - secretKey: gh-token
+      remoteRef:
+        key: github-pat
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homelab-context
+  namespace: zeroclaw
+data:
+  AGENTS.md: |
+    # Homelab context
+    This pod runs the ZeroClaw agent with full control of the Bakuran homelab.
+    - `kubectl` is authenticated by the in-cluster ServiceAccount (cluster-admin).
+    - `gh` is authenticated via GH_TOKEN.
+    - Human-readable docs are mounted at /context/ (SYSTEM.md, INVENTORY.md).
+    GitOps: everything lives in bismigel/bakuran-gitops (ArgoCD on sitaw-amd). Change
+    manifests in Git, never the cluster; ArgoCD reconciles them.
+  SYSTEM.md: |
+    # Bakuran homelab
+    NixOS hosts, k3s, ArgoCD GitOps, Cloudflare Tunnel + Access.
+    - sitaw-amd (192.168.2.82): hosting + platform + the single ArgoCD control plane,
+      ingress-nginx (NodePort 32080/32443), cloudflared.
+    - calamansi-intel (192.168.2.81): media-only (Jellyfin/QuickSync, *arrs, qBittorrent),
+      registered as an external cluster in the one ArgoCD.
+    Secrets: machine = Bitwarden Secrets Manager + External Secrets Operator
+    (ClusterSecretStore "bitwarden"); host = SOPS/age (sops-nix).
+    Public ingress: Cloudflare Tunnel -> ingress, subdomains on *.bismigel.dev, gated by
+    Cloudflare Access (Zero Trust).
+  INVENTORY.md: |
+    # Repos (github.com/bismigel)
+    - bakuran-infra: NixOS hosts + deploy-rs + SOPS + scripts + docs/REBUILD.md
+    - bakuran-gitops: ArgoCD desired state (applications/ + manifests/) for both clusters
+    - bismigel-site: Org -> pandoc -> Hugo blog
+    - homelab-app-template, status-api, private-api
+    # Applications managed by ArgoCD
+    media (calamansi-intel), monitoring (Grafana/Prometheus), external-secrets,
+    ingress-headers, node-exporter (appset), zeroclaw.
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -36,6 +107,7 @@ spec:
       labels:
         app: zeroclaw
     spec:
+      serviceAccountName: zeroclaw
       securityContext:
         fsGroup: 1000
       containers:
@@ -53,7 +125,14 @@ spec:
             # keep the pairing gate on: the web UI needs a paircode to get in
             - name: ZEROCLAW_gateway__require_pairing
               value: "true"
-            # DeepSeek API key comes from Bitwarden (dummy until you set the real one)
+            # reuse the GitHub token from Bitwarden
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-token
+                  key: gh-token
+                  optional: true
+            # DeepSeek key from Bitwarden (dummy until you set the real one)
             - name: ZEROCLAW_providers__models__openai__deepseek__api_key
               valueFrom:
                 secretKeyRef:
@@ -63,6 +142,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /zeroclaw-data
+            - name: context
+              mountPath: /context
+              readOnly: true
           resources:
             requests:
               memory: 256Mi
@@ -73,6 +155,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: zeroclaw-data
+        - name: context
+          configMap:
+            name: homelab-context
 ---
 apiVersion: v1
 kind: Service
