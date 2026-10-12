@@ -167,8 +167,8 @@ spec:
               value: credential.helper
             - name: GIT_CONFIG_VALUE_2
               value: "!/usr/bin/env gh auth git-credential"
-            # DeepSeek key from Bitwarden (dummy until you set the real one)
-            - name: ZEROCLAW_providers__models__openai__deepseek__api_key
+            # DeepSeek key from Bitwarden -> providers.models.deepseek.default.api_key
+            - name: ZEROCLAW_providers__models__deepseek__default__api_key
               valueFrom:
                 secretKeyRef:
                   name: deepseek-api-key
