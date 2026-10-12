@@ -1,0 +1,30 @@
+# The Bitwarden SDK server must serve HTTPS. cert-manager (installed on this
+# cluster) issues its serving cert into the Secret the SDK server mounts
+# (bitwarden-tls-certs). Long-lived so the caBundle we put in the SecretStore
+# stays valid.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: bitwarden-sdk-server-selfsigned
+  namespace: external-secrets
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: bitwarden-tls-certs
+  namespace: external-secrets
+spec:
+  secretName: bitwarden-tls-certs
+  duration: 87600h      # 10y
+  renewBefore: 8760h    # 1y
+  issuerRef:
+    name: bitwarden-sdk-server-selfsigned
+    kind: Issuer
+  commonName: bitwarden-sdk-server.external-secrets.svc.cluster.local
+  dnsNames:
+    - bitwarden-sdk-server
+    - bitwarden-sdk-server.external-secrets
+    - bitwarden-sdk-server.external-secrets.svc
+    - bitwarden-sdk-server.external-secrets.svc.cluster.local
