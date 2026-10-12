@@ -1,0 +1,30 @@
+# Shared across every registered cluster (sitaw-amd "in-cluster" + calamansi-intel).
+# The cluster generator enumerates the ArgoCD cluster Secrets, so adding a
+# cluster to ArgoCD automatically enrolls it here.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: node-exporter
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - clusters: {}
+  template:
+    metadata:
+      name: 'node-exporter-{{.name}}'
+    spec:
+      project: default
+      source:
+        repoURL: git@github.com:bismigel/bakuran-gitops.git
+        targetRevision: main
+        path: manifests/node-exporter
+      destination:
+        server: '{{.server}}'
+        namespace: monitoring
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
