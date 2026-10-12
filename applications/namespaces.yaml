@@ -10,7 +10,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:prawnfarmerdev/bakuran-gitops.git
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
     path: manifests/namespaces
   destination:
