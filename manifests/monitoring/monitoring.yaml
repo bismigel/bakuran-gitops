@@ -244,12 +244,12 @@ spec:
               value: admin
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: admin
-            # Auto-login behind the ingress (Cloudflare Access is the real gate):
-            # trust the X-WEBAUTH-USER header injected by ingress-nginx.
+            # Per-user auto-login: trust the identity Cloudflare Access injects
+            # (each person gets their own Grafana account).
             - name: GF_AUTH_PROXY_ENABLED
               value: "true"
             - name: GF_AUTH_PROXY_HEADER_NAME
-              value: X-WEBAUTH-USER
+              value: Cf-Access-Authenticated-User-Email
             - name: GF_AUTH_PROXY_HEADER_PROPERTY
               value: username
             - name: GF_AUTH_PROXY_AUTO_SIGN_UP
