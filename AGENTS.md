@@ -17,9 +17,11 @@ There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pul
 2. **One `Application` per workload**, in `applications/<cluster>/<name>.yaml`.
 3. **Shared workloads** (run on every cluster) are an `ApplicationSet` with a
    `clusters` generator (see `applications/node-exporter-appset.yaml`).
-4. Secrets must be **Sealed Secrets** (`SealedSecret` CRs) — safe to commit.
-   Never commit plaintext `Secret`s, tokens, or keys. (The ArgoCD cluster
-   registration in `clusters/` is applied out-of-band and redacted in git.)
+4. Never commit plaintext `Secret`s, tokens, or keys. In-cluster secrets are
+   **Bitwarden Secrets Manager + External Secrets Operator**
+   (`ExternalSecret`/`PushSecret` against `ClusterSecretStore/bitwarden`). Host
+   secrets are **SOPS/age** (`sops-nix`). (The ArgoCD cluster registration in
+   `clusters/` is applied out-of-band and redacted in git.)
 
 ## Layout
 
@@ -65,6 +67,10 @@ manifests/<app>/*.yaml           # raw Kubernetes manifests referenced by apps
 
 3. Commit. ArgoCD (on sitaw-amd) picks it up within ~3 minutes.
 
+> If the manifests live **in this repo** instead of the app repo, set
+> `repoURL: git@github.com:bismigel/bakuran-gitops.git` and `path: manifests/<app>`
+> (this is how `media`, `monitoring`, `zeroclaw`, etc. are wired).
+
 ## Cluster targeting
 
 - **sitaw-amd (local):** `destination.server: https://kubernetes.default.svc`
@@ -89,11 +95,23 @@ kubectl -n argocd get application <name> -o jsonpath='{.status.conditions}'
 kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite
 ```
 
-## Sealing a secret
+## Secrets (Bitwarden + ESO)
 
-```bash
-kubeseal --format yaml < secret.yaml > sealed-secret.yaml
+Reference a Bitwarden Secrets Manager secret with an `ExternalSecret`:
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: my-secret, namespace: apps }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: my-secret }
+  data:
+    - secretKey: token
+      remoteRef: { key: my-secret }   # the Bitwarden secret's name
 ```
 
-Each cluster has its **own** sealing key, so a `SealedSecret` must be sealed for
-the cluster that will run it.
+Create/rotate the real value in the **Bitwarden web vault** (Secrets Manager), or
+push one up with a `PushSecret`. Secrets materialize on the cluster; nothing is
+committed. Sealed Secrets is no longer used.

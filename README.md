@@ -1,41 +1,58 @@
 # bakuran-gitops
 
-**Source of truth for the *cluster* state** of the Bakuran homelab. ArgoCD
-watches this repo and reconciles everything here. It contains **no application
-code and no secrets in plaintext**.
+**Source of truth for the *cluster* state** of the Bakuran homelab. **One ArgoCD**
+runs on `sitaw-amd` (.82) and reconciles everything here across **both** clusters.
+It contains **no application code and no plaintext secrets**.
+
+## Layout
 
 ```
-bootstrap/root-app.yaml        # app-of-apps (points ArgoCD at ./applications)
-applications/                  # one ArgoCD Application per thing to deploy
-├── ciceley-site.yaml          # app  (points at an app repo's deploy/k8s)
-└── sealed-secrets.yaml        # infra add-on
-infra/                         # reference Applications not yet adopted
-└── ingress-nginx.yaml
+bootstrap/root-app.yaml     # app-of-apps: points ArgoCD at ./applications (applied once)
+applications/               # one ArgoCD Application per workload (recurse)
+├── sitaw/                  # -> sitaw-amd (.82, in-cluster): sites, APIs, platform
+├── calamansi-intel/        # -> calamansi-intel (.81, external cluster): media
+└── node-exporter-appset.yaml  # ApplicationSet -> every registered cluster
+manifests/<app>/            # raw Kubernetes manifests for apps that live here
+clusters/<name>.yaml        # ArgoCD cluster registrations (redacted bootstrap)
 ```
+
+`manifests/` currently holds: `media`, `monitoring`, `observability`,
+`external-secrets`, `ingress-headers`, `namespaces`, `homepage`, `zeroclaw`,
+`node-exporter`. Some apps point at their **own** repo's `deploy/k8s/`
+(`ciceley-site`, `miguelarbis-site`, `private-api`, `status-api`) or a Helm chart
+(`ingress-nginx`, `cert-manager`, `external-secrets`, `opentelemetry-operator`).
 
 ## How it works
 
-1. `bootstrap/root-app.yaml` is applied **once** (see below).
+1. `bootstrap/root-app.yaml` is applied **once** (see `bootstrap/README.md`).
 2. The root Application reconciles everything under `applications/` (recursed).
-3. Each `Application` points at either an app repo's `deploy/k8s` path or a Helm
-   chart, and ArgoCD keeps it in sync.
-4. Sync waves (`argocd.argoproj.io/sync-wave`) order infra before apps.
+3. Each `Application` points at a path in this repo, an app repo's `deploy/k8s`,
+   or a Helm chart; ArgoCD keeps it in sync (auto-sync + self-heal).
+4. Sync waves (`argocd.argoproj.io/sync-wave`) order infra (`"0"`) before apps (`"1"`).
 
-**Adding an application** = add one file in `applications/` pointing at a repo +
-path. That's it.
+**Adding a workload** = add one file under `applications/<cluster>/`. That's it.
 
-## Bootstrap (once per cluster)
+## Clusters
+
+- **sitaw-amd** (.82, AMD) — hosting + platform; the ArgoCD control plane runs here.
+  Target with `destination.server: https://kubernetes.default.svc`.
+- **calamansi-intel** (.81, Intel) — media stack; registered as an external cluster.
+  Target with `destination.name: calamansi-intel`.
+
+## Secrets
+
+- **Never commit plaintext secrets.** In-cluster secrets come from **Bitwarden
+  Secrets Manager via External Secrets Operator** (`ClusterSecretStore/bitwarden`)
+  using `ExternalSecret` / `PushSecret` CRs — see `manifests/external-secrets/`.
+- Host secrets (cloudflared creds, age identity) are **SOPS/age** (`sops-nix`),
+  not in this repo's plaintext either.
+- Sealed Secrets is **no longer used**.
+
+## Commands
 
 ```bash
-kubectl apply -f bootstrap/root-app.yaml
+# run against the control plane (sitaw-amd)
+kubectl -n argocd get applications
+kubectl -n argocd get application <name> -o jsonpath='{.status.sync.status}'
+kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite
 ```
-
-ArgoCD needs read access to this (private) repo via a deploy key stored as a
-repo secret in the `argocd` namespace.
-
-## Conventions
-
-- One `Application` per app; filename = app name.
-- Apps live in their **own** repos and own their `deploy/k8s` manifests.
-- Infra add-ons get `sync-wave: "0"`, apps `sync-wave: "1"`.
-- Secrets are **Sealed Secrets** (safe to commit) — never plaintext.
