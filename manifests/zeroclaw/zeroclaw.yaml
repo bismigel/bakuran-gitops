@@ -53,6 +53,23 @@ spec:
       remoteRef:
         key: github-pat
 ---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: telegram-bot-token
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: telegram-bot-token
+  data:
+    - secretKey: bot-token
+      remoteRef:
+        key: telegram-bot-token
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -181,6 +198,13 @@ spec:
                 secretKeyRef:
                   name: deepseek-api-key
                   key: api_key
+                  optional: true
+            # Telegram bot token from Bitwarden -> channels.telegram.default.bot_token
+            - name: ZEROCLAW_channels__telegram__default__bot_token
+              valueFrom:
+                secretKeyRef:
+                  name: telegram-bot-token
+                  key: bot-token
                   optional: true
           volumeMounts:
             - name: data
