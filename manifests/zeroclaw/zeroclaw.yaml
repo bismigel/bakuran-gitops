@@ -152,12 +152,22 @@ spec:
               mkdir -p /zeroclaw-data/run
               chown 65534:1000 /zeroclaw-data/run 2>/dev/null
               chmod 700 /zeroclaw-data/run 2>/dev/null
+              # Seed a baseline config only when the PVC has none (fresh/restored).
+              CONF=/zeroclaw-data/.zeroclaw/config.toml
+              if [ ! -s "$CONF" ]; then
+                mkdir -p /zeroclaw-data/.zeroclaw
+                cp /config-seed/config.toml "$CONF" 2>/dev/null
+                chown -R 65534:1000 /zeroclaw-data/.zeroclaw 2>/dev/null
+              fi
               exit 0
           volumeMounts:
             - name: tools
               mountPath: /opt/bin
             - name: data
               mountPath: /zeroclaw-data
+            - name: config-seed
+              mountPath: /config-seed
+              readOnly: true
       containers:
         - name: zeroclaw
           image: ghcr.io/zeroclaw-labs/zeroclaw:debian
@@ -251,6 +261,9 @@ spec:
             name: homelab-context
         - name: tools
           emptyDir: {}
+        - name: config-seed
+          configMap:
+            name: zeroclaw-config-seed
 ---
 apiVersion: v1
 kind: Service
