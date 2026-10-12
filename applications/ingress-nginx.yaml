@@ -16,6 +16,8 @@ spec:
     helm:
       values: |
         controller:
+          # allow the miguelarbis.dev 301 redirect snippet (all Ingresses are ours)
+          allowSnippetAnnotations: true
           service:
             type: NodePort
             nodePorts:
