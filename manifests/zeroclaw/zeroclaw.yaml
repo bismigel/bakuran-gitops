@@ -125,9 +125,14 @@ spec:
               rm gh.tgz
               curl -fsSL -o jq https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64
               chmod +x kubectl gh jq
+              mkdir -p /zeroclaw-data/run
+              chown 65534:1000 /zeroclaw-data/run
+              chmod 700 /zeroclaw-data/run
           volumeMounts:
             - name: tools
               mountPath: /opt/bin
+            - name: data
+              mountPath: /zeroclaw-data
       containers:
         - name: zeroclaw
           image: ghcr.io/zeroclaw-labs/zeroclaw:debian
@@ -142,6 +147,9 @@ spec:
               value: "0.0.0.0"
             - name: ZEROCLAW_gateway__allow_public_bind
               value: "true"
+            # private dir for the daemon's local IPC socket (/run is not writable here)
+            - name: ZEROCLAW_SOCKET
+              value: /zeroclaw-data/run
             # keep the pairing gate on: the web UI needs a paircode to get in
             - name: ZEROCLAW_gateway__require_pairing
               value: "true"
