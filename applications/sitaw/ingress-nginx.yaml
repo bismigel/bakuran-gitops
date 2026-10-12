@@ -16,6 +16,10 @@ spec:
     helm:
       values: |
         controller:
+          # Auto-login behind Cloudflare Access: inject identity headers on every
+          # proxied request (apps that trust proxy auth then skip their login).
+          config:
+            proxy-set-headers: "ingress-nginx/headers"
           service:
             type: NodePort
             nodePorts:

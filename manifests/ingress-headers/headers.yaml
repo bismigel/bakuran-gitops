@@ -1,0 +1,10 @@
+# Headers ingress-nginx adds to every proxied request (referenced by
+# controller.config.proxy-set-headers). Apps configured for proxy auth then
+# auto-login as this identity once Cloudflare Access has let the request in.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headers
+  namespace: ingress-nginx
+data:
+  X-WEBAUTH-USER: "admin"

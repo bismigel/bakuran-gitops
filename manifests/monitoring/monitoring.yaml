@@ -244,6 +244,24 @@ spec:
               value: admin
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: admin
+            # Auto-login behind the ingress (Cloudflare Access is the real gate):
+            # trust the X-WEBAUTH-USER header injected by ingress-nginx.
+            - name: GF_AUTH_PROXY_ENABLED
+              value: "true"
+            - name: GF_AUTH_PROXY_HEADER_NAME
+              value: X-WEBAUTH-USER
+            - name: GF_AUTH_PROXY_HEADER_PROPERTY
+              value: username
+            - name: GF_AUTH_PROXY_AUTO_SIGN_UP
+              value: "true"
+            - name: GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN
+              value: "false"
+            - name: GF_AUTH_PROXY_WHITELIST
+              value: "10.42.0.0/16 10.43.0.0/16"
+            - name: GF_USERS_AUTO_ASSIGN_ORG
+              value: "true"
+            - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
+              value: "Admin"
           resources:
             requests:
               memory: 128Mi
@@ -251,3 +269,22 @@ spec:
         - name: datasources
           configMap:
             name: grafana-datasources
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
