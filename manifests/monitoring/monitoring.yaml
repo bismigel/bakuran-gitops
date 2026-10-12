@@ -257,7 +257,7 @@ spec:
             - name: GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN
               value: "false"
             - name: GF_AUTH_PROXY_WHITELIST
-              value: "10.42.0.0/16 10.43.0.0/16"
+              value: "10.42.0.0/16,10.43.0.0/16"
             - name: GF_USERS_AUTO_ASSIGN_ORG
               value: "true"
             - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
