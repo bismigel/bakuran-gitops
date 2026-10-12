@@ -152,6 +152,21 @@ spec:
                   name: github-token
                   key: gh-token
                   optional: true
+            # git identity + credential helper (uses gh -> GH_TOKEN), declarative
+            - name: GIT_CONFIG_COUNT
+              value: "3"
+            - name: GIT_CONFIG_KEY_0
+              value: user.name
+            - name: GIT_CONFIG_VALUE_0
+              value: ZeroClaw Agent
+            - name: GIT_CONFIG_KEY_1
+              value: user.email
+            - name: GIT_CONFIG_VALUE_1
+              value: bismigel@pm.me
+            - name: GIT_CONFIG_KEY_2
+              value: credential.helper
+            - name: GIT_CONFIG_VALUE_2
+              value: "!/usr/bin/env gh auth git-credential"
             # DeepSeek key from Bitwarden (dummy until you set the real one)
             - name: ZEROCLAW_providers__models__openai__deepseek__api_key
               valueFrom:
