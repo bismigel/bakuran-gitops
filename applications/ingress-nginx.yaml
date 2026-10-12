@@ -18,6 +18,8 @@ spec:
         controller:
           # allow the miguelarbis.dev 301 redirect snippet (all Ingresses are ours)
           allowSnippetAnnotations: true
+          extraArgs:
+            allow-snippet-annotations: "true"
           service:
             type: NodePort
             nodePorts:
