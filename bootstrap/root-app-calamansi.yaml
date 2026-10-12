@@ -1,0 +1,29 @@
+# Bootstrap Application for the calamansi (.81) cluster — the media box.
+# Apply once to the .81 cluster's ArgoCD:
+#   kubectl -n argocd apply -f bootstrap/root-app-calamansi.yaml
+# It watches applications-calamansi/ and is the app-of-apps for .81 only
+# (sitaw/.82 uses bootstrap/root-app.yaml -> applications/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: applications-calamansi
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
