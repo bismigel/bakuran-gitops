@@ -110,6 +110,24 @@ spec:
       serviceAccountName: zeroclaw
       securityContext:
         fsGroup: 1000
+      initContainers:
+        - name: fetch-tools
+          image: alpine:3.20
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              apk add --no-cache curl tar gzip >/dev/null
+              cd /opt/bin
+              curl -fsSL -o kubectl https://dl.k8s.io/release/v1.37.1/bin/linux/amd64/kubectl
+              curl -fsSL -o gh.tgz https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz
+              tar xzf gh.tgz --strip-components=2 gh_2.102.0_linux_amd64/bin/gh
+              rm gh.tgz
+              curl -fsSL -o jq https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64
+              chmod +x kubectl gh jq
+          volumeMounts:
+            - name: tools
+              mountPath: /opt/bin
       containers:
         - name: zeroclaw
           image: ghcr.io/zeroclaw-labs/zeroclaw:debian
@@ -118,6 +136,8 @@ spec:
             - name: gateway
               containerPort: 42617
           env:
+            - name: PATH
+              value: /opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: ZEROCLAW_gateway__host
               value: "0.0.0.0"
             - name: ZEROCLAW_gateway__allow_public_bind
@@ -145,6 +165,8 @@ spec:
             - name: context
               mountPath: /context
               readOnly: true
+            - name: tools
+              mountPath: /opt/bin
           resources:
             requests:
               memory: 256Mi
@@ -158,6 +180,8 @@ spec:
         - name: context
           configMap:
             name: homelab-context
+        - name: tools
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
