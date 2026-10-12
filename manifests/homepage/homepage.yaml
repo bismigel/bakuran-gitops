@@ -12,24 +12,24 @@ data:
   services.yaml: |
     - Cluster Services:
         - Prometheus:
-            href: http://192.168.2.81:30909
+            href: http://192.168.2.82:30909
             description: Metrics and monitoring
             icon: prometheus
         - Grafana:
-            href: http://192.168.2.81:30300
+            href: https://grafana.bismigel.dev
             description: Dashboards
             icon: grafana
         - Kubernetes API:
-            href: https://192.168.2.81:6443
+            href: https://192.168.2.82:6443
             description: k3s API Server
             icon: kubernetes
         - Homepage:
-            href: http://192.168.2.81:30080
+            href: http://192.168.2.82:30080
             description: This dashboard
     - Downloads:
         - qBittorrent:
             href: http://192.168.2.81:30081
-            description: Torrent downloads (admin/jRIJqfxHS)
+            description: Torrent downloads
     - Media:
         - Jellyfin:
             href: http://192.168.2.81:30096
@@ -49,7 +49,7 @@ data:
             description: Subtitle management
     - Observability:
         - OTel Collector:
-            href: http://192.168.2.81:8889/metrics
+            href: http://192.168.2.82:8889/metrics
             description: OpenTelemetry metrics
             icon: otel
   kubernetes.yaml: |
@@ -74,4 +74,3 @@ data:
   custom.css: ""
   custom.js: ""
   proxmox.yaml: ""
-  bookmarks.yaml: "[]"
