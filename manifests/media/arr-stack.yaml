@@ -145,20 +145,6 @@ spec:
       labels:
         app: sonarr
     spec:
-      # Guard: enforce WebUI auth disabled (LAN-only services). Idempotent, runs
-      # every pod start, so a rebuilt stack comes up with no login.
-      initContainers:
-        - name: disable-auth
-          image: busybox:latest
-          command: ["sh", "-c"]
-          args:
-            - |
-              f=/config/config.xml
-              [ -f "$f" ] || exit 0
-              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
-          volumeMounts:
-            - name: config
-              mountPath: /config
       containers:
         - name: sonarr
           image: linuxserver/sonarr:latest
@@ -305,20 +291,6 @@ spec:
       labels:
         app: bazarr
     spec:
-      # Guard: Bazarr auth disabled. Sets `type: null` inside the `authentication:`
-      # block of config.yaml (idempotent, every start).
-      initContainers:
-        - name: disable-auth
-          image: busybox:latest
-          command: ["sh", "-c"]
-          args:
-            - |
-              f=/config/config/config.yaml
-              [ -f "$f" ] || exit 0
-              awk '/^authentication:/{a=1} a&&/^  type:/{$0="  type: null"} /^[^ ]/&&!/^authentication:/{a=0} {print}' "$f" > "$f.t" && mv "$f.t" "$f"
-          volumeMounts:
-            - name: config
-              mountPath: /config
       containers:
         - name: bazarr
           image: linuxserver/bazarr:latest
