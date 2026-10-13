@@ -95,7 +95,7 @@ data:
     allowed_roots = ["/context"]
     block_high_risk_commands = true
     always_ask = []
-    require_approval_for_medium_risk = true
+    require_approval_for_medium_risk = false
     workspace_only = true
     shell_env_passthrough = ["PATH", "HOME", "GH_TOKEN", "KUBERNETES_SERVICE_HOST", "KUBERNETES_SERVICE_PORT", "KUBERNETES_SERVICE_PORT_HTTPS", "KUBERNETES_PORT", "KUBERNETES_PORT_443_TCP", "KUBERNETES_PORT_443_TCP_ADDR", "KUBERNETES_PORT_443_TCP_PORT", "KUBERNETES_PORT_443_TCP_PROTO", "TERM", "LANG", "TMPDIR"]
     allowed_tools = []
@@ -103,7 +103,7 @@ data:
     auto_approve = ["file_read", "memory_recall", "web_search_tool", "web_fetch", "calculator", "glob_search", "content_search", "image_info", "weather", "tool_search", "browser", "browser_open"]
     firejail_args = []
     forbidden_paths = ["/etc", "/root", "/home", "/usr", "/bin", "/sbin", "/lib", "/opt", "/boot", "/dev", "/proc", "/sys", "/var", "/tmp", "~/.ssh", "~/.gnupg", "~/.aws", "~/.config"]
-    level = "supervised"
+    level = "full"
     allowed_commands = ["kubectl", "gh", "git", "helm", "argocd", "jq", "curl", "wget", "tar", "unzip", "gzip", "mkdir", "rm", "mv", "cp", "sed", "awk", "sort", "uniq", "tee", "xargs", "bash", "sh", "env", "printenv", "which", "ssh", "grep", "find", "ls", "cat", "head", "tail", "wc", "echo", "pwd", "date", "df", "du", "uname", "uptime", "hostname", "python3", "pip", "node", "free", "openssl", "base64", "diff", "test", "sleep", "touch", "ln", "chmod", "stat", "yq"]
 
     [risk_profiles.default.delegation_policy]
@@ -123,5 +123,13 @@ data:
     transport = "http"
     url = "http://kubernetes-mcp.zeroclaw.svc.cluster.local:8080/mcp"
 
+    # NOTE: the GitHub (hosted remote) server needs an Authorization header. It is
+    # NOT stored here; the container's postStart hook sets it from $GH_TOKEN
+    # (Bitwarden -> ESO -> env), so the token never lands in git.
+    [[mcp.servers]]
+    name = "github"
+    transport = "http"
+    url = "https://api.githubcopilot.com/mcp/"
+
     [mcp_bundles.homelab]
-    servers = ["kubernetes"]
+    servers = ["kubernetes", "github"]

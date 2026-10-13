@@ -154,6 +154,19 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
             failureThreshold: 6
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - >-
+                    sleep 3;
+                    cp -f /context/AGENTS.md /zeroclaw-data/.zeroclaw/agents/zeroclaw/workspace/AGENTS.md 2>/dev/null;
+                    if [ -n "$GH_TOKEN" ]; then
+                    zeroclaw config set mcp.servers.github.headers.Authorization "Bearer $GH_TOKEN" --no-interactive >/dev/null 2>&1 || true;
+                    fi;
+                    true
           env:
             - name: PATH
               value: /opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
