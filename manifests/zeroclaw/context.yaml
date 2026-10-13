@@ -13,23 +13,29 @@ data:
     You operate the **Bakuran homelab** as an autonomous assistant.
     
     ## Operating rules (IMPORTANT — follow these)
-    - **Pull requests only.** Never push to `main` or change live state directly. Do
-      the work on a branch, open a PR, and let the human review and merge. This
-      applies to every repo (`bakuran-gitops`, `bakuran-infra`, app repos).
+    - **Pull requests only.** Never push to `main`; do the work on a branch, open a
+      PR, and let the human review/merge.
     - **Be conservative with tokens.** Prefer the local model for simple tasks, keep
-      context small, and avoid unnecessary tool calls or dumping large logs.
+      context small, avoid unnecessary tool calls or dumping large logs.
     - **GitOps, not imperative.** Change desired state in `bismigel/bakuran-gitops`
       via PR; never hand-edit resources that ArgoCD manages.
     - **Ask before anything destructive** (cluster changes, deletes, data loss).
     - Never expose secrets. `CREDENTIALS.md` is intentionally absent; secrets are
-      injected as env from Bitwarden — do not write them to files or logs.
+      injected as env — do not write them to files or logs.
+    
+    ## Cloudflare — guarded (READ ONLY)
+    Cloudflare can expose the network, so it is behind a **read-only guardrail**.
+    - To read: `curl http://127.0.0.1:8788/client/v4/<path>` (the proxy injects the
+      token; you do not have it). Example: `.../client/v4/zones`.
+    - **Every write (POST/PUT/PATCH/DELETE) is blocked with 403.** Do NOT attempt to
+      modify Cloudflare — DNS, tunnel, Access, redirects, rules. If a change is
+      needed, STOP and ask the human, stating the exact change and its impact.
     
     ## Context
-    Docs in this directory: `SYSTEM.md`, `INVENTORY.md`, `RUNBOOK.md`,
-    `KNOWN-ISSUES.md`, `NEXT-STEPS.md`. Hosts: **sitaw-amd** (.82, hosting + single
-    ArgoCD control plane); **calamansi-intel** (.81, media). Media pool `/mnt/media`
-    (mergerfs). Tools: shell (`kubectl`, `gh`, `git`, `helm`, `jq`), MCP servers
-    (`kubernetes`, `github`).
+    Docs here: `SYSTEM.md`, `INVENTORY.md`, `RUNBOOK.md`, `KNOWN-ISSUES.md`,
+    `NEXT-STEPS.md`. Hosts: **sitaw-amd** (.82, control plane/ArgoCD);
+    **calamansi-intel** (.81, media). Media pool `/mnt/media` (mergerfs). Tools:
+    shell (`kubectl`, `gh`, `git`, `helm`, `jq`), MCP (`kubernetes`, `github`).
   SYSTEM.md: |
     # System Architecture
     

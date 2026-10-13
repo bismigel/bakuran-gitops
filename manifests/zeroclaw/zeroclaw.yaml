@@ -230,6 +230,32 @@ spec:
               cpu: 50m
             limits:
               memory: 2Gi
+        # ---- Cloudflare guardrail sidecar ----
+        # Holds the CF token (never in the agent's env) and proxies read-only
+        # calls; ALL writes are blocked with 403. The agent reaches it at
+        # http://127.0.0.1:8788. Changes must be requested from the human.
+        - name: cf-proxy
+          image: nginx:alpine
+          ports:
+            - name: cfproxy
+              containerPort: 8788
+          env:
+            - name: CF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflare-api-token
+                  key: token
+                  optional: true
+          volumeMounts:
+            - name: cf-proxy-config
+              mountPath: /etc/nginx/templates
+              readOnly: true
+          resources:
+            requests:
+              memory: 16Mi
+              cpu: 5m
+            limits:
+              memory: 64Mi
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -242,6 +268,9 @@ spec:
         - name: config-seed
           configMap:
             name: zeroclaw-config-seed
+        - name: cf-proxy-config
+          configMap:
+            name: cf-proxy-config
 ---
 apiVersion: v1
 kind: Service
@@ -274,3 +303,48 @@ spec:
                 name: zeroclaw
                 port:
                   number: 42617
+---
+# Cloudflare token for the guardrail sidecar (never in the agent's env).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cloudflare-api-token
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: cloudflare-api-token
+  data:
+    - secretKey: token
+      remoteRef:
+        key: cloudflare-api-token
+---
+# Read-only Cloudflare proxy. Injects the token and 403s every write.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cf-proxy-config
+  namespace: zeroclaw
+data:
+  default.conf.template: |
+    server {
+        listen 127.0.0.1:8788;
+        proxy_ssl_server_name on;
+        resolver 1.1.1.1 ipv6=off;
+
+        # Guardrail: every state-changing request is blocked. Cloudflare changes
+        # are intentionally NOT available to the agent — ask the human.
+        if ($request_method !~ ^(GET|HEAD|OPTIONS)$) {
+            return 403 "Blocked by the Cloudflare guardrail: changes require explicit human approval.\n";
+        }
+
+        location / {
+            proxy_pass https://api.cloudflare.com;
+            proxy_set_header Authorization "Bearer ${CF_TOKEN}";
+            proxy_set_header Host api.cloudflare.com;
+            proxy_set_header Accept-Encoding "";
+        }
+    }
