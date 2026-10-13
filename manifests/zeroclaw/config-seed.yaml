@@ -131,5 +131,12 @@ data:
     transport = "http"
     url = "https://api.githubcopilot.com/mcp/"
 
+    # Media stack (Sonarr/Radarr/Prowlarr/SABnzbd/qBittorrent/Jellyfin). Runs on
+    # the media node; ZeroClaw reaches it over the node port on .81.
+    [[mcp.servers]]
+    name = "media"
+    transport = "http"
+    url = "http://192.168.2.81:30097/mcp"
+
     [mcp_bundles.homelab]
-    servers = ["kubernetes", "github"]
+    servers = ["kubernetes", "github", "media"]

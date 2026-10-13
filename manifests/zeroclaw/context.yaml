@@ -584,3 +584,43 @@ data:
       (`bakuran-gitops/applications/calamansi-intel/`).
     - **Disaster recovery** = `bakuran-infra/docs/REBUILD.md` + the daily R2 backup
       (`scripts/backup-credentials.sh`).
+  MEDIA.md: |
+    # MEDIA.md — the media stack
+
+    All media services run on the media node (`calamansi-intel`, 192.168.2.81).
+    Library on the host at `/mnt/media` (mergerfs) -> Jellyfin `/media`; the *arrs
+    import from `/downloads` (`/mnt/media`) into `/media/tv` and `/media/movies`.
+
+    Services (NodePorts on .81): Sonarr 30089, Radarr 30078, Prowlarr 30069,
+    Bazarr 30067 (all ns media); SABnzbd 30082, qBittorrent 30081 (ns downloads);
+    Jellyfin 30096 (ns default); media-mcp 30097 (ns media).
+
+    ## Managing the stack (media MCP)
+
+    Use the `media` MCP tool group (preferred over raw curl): `sonarr_series`,
+    `sonarr_season_status`, `sonarr_queue`, `sonarr_history`,
+    `sonarr_find_releases` (pass indexer_id to stay fast - a full search across
+    every indexer can take minutes), `sonarr_season_search`, `sonarr_grab_release`,
+    `radarr_movies`, `radarr_queue`, `prowlarr_indexers`, `prowlarr_search`,
+    `sabnzbd_queue`, `sabnzbd_history`, `qbittorrent_torrents`, `jellyfin_scan`,
+    `jellyfin_users`. API keys come from the `media-setup` Secret (ns media).
+
+    ## Gotchas
+
+    1. qBittorrent 5.x completion gap: Sonarr/Radarr may keep a finished torrent at
+       trackedState=downloading (qBittorrent says stalledUP) and never import. Fix:
+       `kubectl -n media rollout restart deploy/sonarr deploy/radarr`. Durable fix:
+       pin qBittorrent 4.6.x.
+    2. Anime back-catalogue: Nyaa posts S1/S2 as COMPLETE/Batch releases that the
+       per-season auto-search won't grab - grab the batch via the interactive
+       search / sonarr_find_releases + sonarr_grab_release.
+    3. Subtitles: BluRay rips often ship only PGS (image) subs the web client
+       can't render. Bazarr fetches SRT text subs (use_embedded_subs=false,
+       ignore_pgs_subs=true).
+    4. Jellyfin scans: mergerfs has no live file-watching, so new media appears on
+       the scheduled scan (every 15m). Trigger with `jellyfin_scan`.
+    5. Sonarr's delay profile is torrent-first, so anime comes from Nyaa;
+       live-action falls back to Usenet.
+
+    Rebuild: `bakuran-infra/scripts/media-stack-setup.sh` (+ media-quality-setup.sh,
+    media-bazarr-setup.sh, media-setup-secret.sh, media-usenet-secret.sh).

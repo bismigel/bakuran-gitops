@@ -1,0 +1,76 @@
+# media-mcp — MCP server that exposes the media stack (Sonarr/Radarr/Prowlarr/
+# SABnzbd/qBittorrent/Jellyfin) to the ZeroClaw agent. Source: bismigel/media-mcp.
+# ZeroClaw reaches it at http://192.168.2.81:30097/mcp.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-mcp
+  namespace: media
+  labels:
+    app: media-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-mcp
+  template:
+    metadata:
+      labels:
+        app: media-mcp
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: media-mcp
+          image: ghcr.io/bismigel/media-mcp:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - { name: SONARR_URL,      value: "http://sonarr.media.svc.cluster.local:8989" }
+            - { name: RADARR_URL,      value: "http://radarr.media.svc.cluster.local:7878" }
+            - { name: PROWLARR_URL,    value: "http://prowlarr.media.svc.cluster.local:9696" }
+            - { name: SABNZBD_URL,     value: "http://sabnzbd.downloads.svc.cluster.local:8080" }
+            - { name: QBITTORRENT_URL, value: "http://qbittorrent.downloads.svc.cluster.local:8080" }
+            - { name: JELLYFIN_URL,    value: "http://jellyfin.default.svc.cluster.local:8096" }
+            - { name: QBITTORRENT_USER, value: "admin" }
+            - name: SONARR_API_KEY
+              valueFrom: { secretKeyRef: { name: media-setup, key: sonarr-api-key } }
+            - name: RADARR_API_KEY
+              valueFrom: { secretKeyRef: { name: media-setup, key: radarr-api-key } }
+            - name: PROWLARR_API_KEY
+              valueFrom: { secretKeyRef: { name: media-setup, key: prowlarr-api-key } }
+            - name: SABNZBD_API_KEY
+              valueFrom: { secretKeyRef: { name: media-setup, key: sabnzbd-api-key } }
+            - name: QBITTORRENT_PASSWORD
+              valueFrom: { secretKeyRef: { name: media-setup, key: qbt-password } }
+            - name: JELLYFIN_ADMIN_USER
+              valueFrom: { secretKeyRef: { name: media-setup, key: jellyfin-admin-user } }
+            - name: JELLYFIN_ADMIN_PASS
+              valueFrom: { secretKeyRef: { name: media-setup, key: jellyfin-admin-pass } }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: "20m", memory: "64Mi" }
+            limits: { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-mcp
+  namespace: media
+  labels:
+    app: media-mcp
+spec:
+  type: NodePort
+  selector:
+    app: media-mcp
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30097
