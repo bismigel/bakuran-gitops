@@ -28,10 +28,12 @@ metadata:
 data:
   config.toml: |
     port = "8080"
+    kubeconfig = "/etc/kubeconfig/config"
     toolsets = ["core", "config", "helm"]
     server_instructions = """
     Use this server for the Bakuran homelab Kubernetes clusters (read/observe
-    first; the state is GitOps-managed in bismigel/bakuran-gitops).
+    first; the state is GitOps-managed in bismigel/bakuran-gitops). Two contexts:
+    sitaw-amd (.82) and calamansi-intel (.81, media).
     """
 ---
 apiVersion: apps/v1
@@ -71,6 +73,9 @@ spec:
               mountPath: /etc/kubernetes-mcp-server/config.toml
               subPath: config.toml
               readOnly: true
+            - name: kubeconfig
+              mountPath: /etc/kubeconfig
+              readOnly: true
           resources:
             requests: { memory: 64Mi, cpu: 20m }
             limits: { memory: 256Mi }
@@ -78,6 +83,9 @@ spec:
         - name: config
           configMap:
             name: kubernetes-mcp-config
+        - name: kubeconfig
+          secret:
+            secretName: k8s-mcp-kubeconfig
 ---
 apiVersion: v1
 kind: Service
