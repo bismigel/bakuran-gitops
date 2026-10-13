@@ -100,6 +100,21 @@ spec:
   selector:
     app: prometheus
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-storage
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -107,6 +122,8 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  strategy:
+    type: Recreate          # RWO PVC: terminate before starting the new pod
   selector:
     matchLabels:
       app: prometheus
@@ -116,6 +133,14 @@ spec:
         app: prometheus
     spec:
       serviceAccountName: prometheus
+      initContainers:
+        # local-path PVs are root-owned; prom/prometheus runs as nobody (65534).
+        - name: fix-permissions
+          image: busybox:latest
+          command: ["sh", "-c", "chown -R 65534:65534 /prometheus"]
+          volumeMounts:
+            - name: storage
+              mountPath: /prometheus
       containers:
         - name: prometheus
           image: prom/prometheus:v2.51.0
@@ -141,8 +166,8 @@ spec:
           configMap:
             name: prometheus-config
         - name: storage
-          emptyDir:
-            sizeLimit: 1Gi
+          persistentVolumeClaim:
+            claimName: prometheus-storage
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -214,6 +239,21 @@ spec:
   selector:
     app: grafana
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-storage
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -221,6 +261,8 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  strategy:
+    type: Recreate          # RWO PVC: terminate before starting the new pod
   selector:
     matchLabels:
       app: grafana
@@ -229,6 +271,14 @@ spec:
       labels:
         app: grafana
     spec:
+      initContainers:
+        # local-path PVs are root-owned; grafana runs as UID 472.
+        - name: fix-permissions
+          image: busybox:latest
+          command: ["sh", "-c", "chown -R 472:472 /var/lib/grafana"]
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/grafana
       containers:
         - name: grafana
           image: grafana/grafana:10.4.0
@@ -239,9 +289,13 @@ spec:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
               readOnly: true
+            - name: storage
+              mountPath: /var/lib/grafana
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: admin
+            # TODO: move to a Bitwarden-backed Secret (add key
+            # `grafana-admin-password`, then reference `grafana-admin` here).
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: admin
             # Per-user auto-login: trust the identity Cloudflare Access injects
@@ -265,10 +319,15 @@ spec:
           resources:
             requests:
               memory: 128Mi
+            limits:
+              memory: 512Mi
       volumes:
         - name: datasources
           configMap:
             name: grafana-datasources
+        - name: storage
+          persistentVolumeClaim:
+            claimName: grafana-storage
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -288,3 +347,4 @@ spec:
                 name: grafana
                 port:
                   number: 3000
+
