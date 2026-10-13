@@ -1,0 +1,150 @@
+# Usenet downloader (SABnzbd) for the *arr stack. Runs on the media box (.81),
+# served on the LAN via NodePort 30082. The Frugal Usenet account is pulled from
+# Bitwarden (ESO); an init seeds sabnzbd.ini with the server + dirs + no-auth, so
+# a rebuilt stack comes up already pointing at Usenet.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: usenet-frugal
+  namespace: downloads
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: usenet-frugal
+  data:
+    - secretKey: user
+      remoteRef:
+        key: usenet_frugal_user
+    - secretKey: pass
+      remoteRef:
+        key: usenet_frugal_pass
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sabnzbd-config
+  namespace: downloads
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sabnzbd
+  namespace: downloads
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sabnzbd
+  template:
+    metadata:
+      labels:
+        app: sabnzbd
+    spec:
+      initContainers:
+        - name: seed-config
+          image: busybox:latest
+          env:
+            - name: USENET_USER
+              valueFrom:
+                secretKeyRef: { name: usenet-frugal, key: user }
+            - name: USENET_PASS
+              valueFrom:
+                secretKeyRef: { name: usenet-frugal, key: pass }
+          command: ["sh", "-c"]
+          args:
+            - |
+              ini=/config/sabnzbd.ini
+              [ -f "$ini" ] && exit 0
+              mkdir -p /config
+              {
+                printf '%s\n' '__version__ = 19'
+                printf '%s\n' '[misc]'
+                printf '%s\n' 'host = 0.0.0.0'
+                printf '%s\n' 'port = 8080'
+                printf '%s\n' 'username = ""'
+                printf '%s\n' 'password = ""'
+                printf '%s\n' 'download_dir = /downloads/incomplete'
+                printf '%s\n' 'complete_dir = /downloads/complete'
+                printf '%s\n' 'permissions = "777"'
+                printf '%s\n' '[servers]'
+                printf '%s\n' '[[news.frugalusenet.com]]'
+                printf '%s\n' 'host = "news.frugalusenet.com"'
+                printf '%s\n' 'port = 563'
+                printf 'username = "%s"\n' "$USENET_USER"
+                printf 'password = "%s"\n' "$USENET_PASS"
+                printf '%s\n' 'connections = 20'
+                printf '%s\n' 'ssl = 1'
+                printf '%s\n' 'enable = 1'
+                printf '%s\n' '[categories]'
+                printf '%s\n' '[[tv]]'
+                printf '%s\n' 'name = "tv"'
+                printf '%s\n' 'dir = "tv"'
+                printf '%s\n' '[[movies]]'
+                printf '%s\n' 'name = "movies"'
+                printf '%s\n' 'dir = "movies"'
+              } > "$ini"
+              chown -R 1000:1000 /config 2>/dev/null || true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      containers:
+        - name: sabnzbd
+          image: linuxserver/sabnzbd:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Manila"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: downloads
+              mountPath: /downloads
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests: { memory: 256Mi, cpu: 50m }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sabnzbd-config
+        - name: downloads
+          hostPath:
+            path: /mnt/media
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sabnzbd
+  namespace: downloads
+spec:
+  type: NodePort
+  selector:
+    app: sabnzbd
+  ports:
+    - name: webui
+      port: 8080
+      targetPort: 8080
+      nodePort: 30082
