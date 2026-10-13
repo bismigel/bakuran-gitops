@@ -10,23 +10,26 @@ data:
   AGENTS.md: |
     # ZeroClaw homelab agent
     
-    You operate the **Bakuran homelab**. Your context docs are in this directory
-    (`/context`): `SYSTEM.md`, `INVENTORY.md`, `RUNBOOK.md`, `KNOWN-ISSUES.md`,
-    `NEXT-STEPS.md`. `CREDENTIALS.md` is **intentionally not included** — secrets
-    live in Bitwarden (synced by ESO) and are injected as env vars, not files.
+    You operate the **Bakuran homelab** as an autonomous assistant.
     
-    ## How to work here
-    - **GitOps first.** The cluster state lives in `bismigel/bakuran-gitops` (ArgoCD
-      reconciles it). Change the manifests in git — never the cluster by hand.
-    - `kubectl` is cluster-admin via the in-cluster ServiceAccount; `gh` + `git` are
-      authenticated (`GH_TOKEN`). You can push branches/PRs.
-    - Hosts: **sitaw-amd** (.82) = hosting + the single ArgoCD control plane;
-      **calamansi-intel** (.81) = media. Media pool = `/mnt/media` (mergerfs, ~1.2 TB).
-    - Prefer read/observe first. For destructive or security-sensitive actions, ask.
+    ## Operating rules (IMPORTANT — follow these)
+    - **Pull requests only.** Never push to `main` or change live state directly. Do
+      the work on a branch, open a PR, and let the human review and merge. This
+      applies to every repo (`bakuran-gitops`, `bakuran-infra`, app repos).
+    - **Be conservative with tokens.** Prefer the local model for simple tasks, keep
+      context small, and avoid unnecessary tool calls or dumping large logs.
+    - **GitOps, not imperative.** Change desired state in `bismigel/bakuran-gitops`
+      via PR; never hand-edit resources that ArgoCD manages.
+    - **Ask before anything destructive** (cluster changes, deletes, data loss).
+    - Never expose secrets. `CREDENTIALS.md` is intentionally absent; secrets are
+      injected as env from Bitwarden — do not write them to files or logs.
     
-    ## Tools
-    - shell (`kubectl`, `gh`, `git`, `helm`, `jq`, …), MCP servers (see `zeroclaw
-      config list` for the configured set).
+    ## Context
+    Docs in this directory: `SYSTEM.md`, `INVENTORY.md`, `RUNBOOK.md`,
+    `KNOWN-ISSUES.md`, `NEXT-STEPS.md`. Hosts: **sitaw-amd** (.82, hosting + single
+    ArgoCD control plane); **calamansi-intel** (.81, media). Media pool `/mnt/media`
+    (mergerfs). Tools: shell (`kubectl`, `gh`, `git`, `helm`, `jq`), MCP servers
+    (`kubernetes`, `github`).
   SYSTEM.md: |
     # System Architecture
     
