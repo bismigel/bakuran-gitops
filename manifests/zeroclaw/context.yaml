@@ -33,9 +33,27 @@ data:
     
     ## Context
     Docs here: `SYSTEM.md`, `INVENTORY.md`, `RUNBOOK.md`, `KNOWN-ISSUES.md`,
-    `NEXT-STEPS.md`. Hosts: **sitaw-amd** (.82, control plane/ArgoCD);
-    **calamansi-intel** (.81, media). Media pool `/mnt/media` (mergerfs). Tools:
-    shell (`kubectl`, `gh`, `git`, `helm`, `jq`), MCP (`kubernetes`, `github`).
+    `NEXT-STEPS.md`, `MEDIA.md`. Hosts: **sitaw-amd** (.82, control plane/ArgoCD,
+    ingress, cloudflared); **calamansi-intel** (.81, media). Media pool `/mnt/media`
+    (mergerfs). MCP tools: `kubernetes__*` (both clusters), `github__*`, and
+    `media__*` (Sonarr/Radarr/Prowlarr/SABnzbd/qBittorrent/Jellyfin — see MEDIA.md).
+
+    ## The lab at a glance (permanent facts)
+    - **Topology:** two single-node k3s hosts. `.82` runs the **single ArgoCD** that
+      manages both clusters (`.81` is a registered external cluster), plus
+      ingress-nginx and the Cloudflare tunnel. `.81` runs the media stack. The public
+      edge is `*.bismigel.dev` via a Cloudflare Tunnel with Zero Trust Access.
+    - **Repos:** `bakuran-infra` (NixOS hosts + disaster recovery, deploy-rs),
+      `bakuran-gitops` (ArgoCD desired state for both clusters), `bismigel-site`,
+      `media-mcp`, `homelab-app-template`, plus per-app repos.
+    - **Deploy:** push to an app repo `main` -> GitHub Actions builds -> GHCR ->
+      ArgoCD syncs. For the OS: edit `bakuran-infra`, deploy with `deploy-rs`.
+    - **Secrets:** Bitwarden Secrets Manager + ESO (machine), SOPS/age (host). Never
+      in git. Secrets surface as env vars to services.
+    - **Everything is GitOps:** change the manifests and open a PR — never hand-edit
+      resources ArgoCD manages.
+    - **Media:** the *arr stack is on `.81`; anime comes from Nyaa (torrent-first),
+      live-action falls back to Usenet. Gotchas live in `MEDIA.md`.
   SYSTEM.md: |
     # System Architecture
     
