@@ -164,11 +164,11 @@ spec:
             claimName: sonarr-config
         - name: tv
           hostPath:
-            path: /mnt/downloads/tv
+            path: /mnt/media/tv
             type: Directory
         - name: downloads
           hostPath:
-            path: /mnt/downloads
+            path: /mnt/media
             type: Directory
 ---
 apiVersion: v1
@@ -231,11 +231,11 @@ spec:
             claimName: radarr-config
         - name: movies
           hostPath:
-            path: /mnt/downloads/movies
+            path: /mnt/media/movies
             type: Directory
         - name: downloads
           hostPath:
-            path: /mnt/downloads
+            path: /mnt/media
             type: Directory
 ---
 apiVersion: v1
@@ -298,11 +298,11 @@ spec:
             claimName: bazarr-config
         - name: movies
           hostPath:
-            path: /mnt/downloads/movies
+            path: /mnt/media/movies
             type: Directory
         - name: tv
           hostPath:
-            path: /mnt/downloads/tv
+            path: /mnt/media/tv
             type: Directory
 ---
 apiVersion: v1

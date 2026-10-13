@@ -98,5 +98,5 @@ spec:
             claimName: config-pvc
         - name: downloads
           hostPath:
-            path: /mnt/downloads
+            path: /mnt/media
             type: Directory
