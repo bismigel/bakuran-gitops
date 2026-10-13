@@ -642,3 +642,15 @@ data:
 
     Rebuild: `bakuran-infra/scripts/media-stack-setup.sh` (+ media-quality-setup.sh,
     media-bazarr-setup.sh, media-setup-secret.sh, media-usenet-secret.sh).
+
+    ## NOT an issue: Sonarr's search is slow on shows with many titles
+
+    Sonarr's interactive search (`/release`) can take MINUTES for a series with
+    many TVDB alternate titles (The Apothecary Diaries has ~10, incl. French and
+    German). Sonarr queries every alternate title x every episode x every indexer,
+    and each Nyaa query is ~1s, so it adds up. This is EXPECTED, not a bug - Nyaa
+    answers in <1s and Prowlarr in ~1s/query. The alternate titles come from the
+    metadata provider (TVDB/SkyHook) and are NOT in Sonarr's DB, so they cannot be
+    trimmed. Do NOT treat a slow/timing-out interactive search as a fault. For
+    seasons, prefer triggering an async search (sonarr_season_search) and polling
+    sonarr_queue rather than blocking on sonarr_find_releases.
