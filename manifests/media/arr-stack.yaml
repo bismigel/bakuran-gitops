@@ -88,7 +88,13 @@ spec:
             - |
               f=/config/config.xml
               [ -f "$f" ] || exit 0
-              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
+              # Prowlarr/Sonarr/Radarr now reject AuthenticationMethod=None for
+              # non-local access. Use Forms but disable auth for local (LAN)
+              # addresses, so the LAN stays login-free while auth is "enabled".
+              sed -i \
+                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
+                -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
+                "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
             - name: config
@@ -158,7 +164,13 @@ spec:
             - |
               f=/config/config.xml
               [ -f "$f" ] || exit 0
-              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
+              # Prowlarr/Sonarr/Radarr now reject AuthenticationMethod=None for
+              # non-local access. Use Forms but disable auth for local (LAN)
+              # addresses, so the LAN stays login-free while auth is "enabled".
+              sed -i \
+                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
+                -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
+                "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
             - name: config
@@ -240,7 +252,13 @@ spec:
             - |
               f=/config/config.xml
               [ -f "$f" ] || exit 0
-              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
+              # Prowlarr/Sonarr/Radarr now reject AuthenticationMethod=None for
+              # non-local access. Use Forms but disable auth for local (LAN)
+              # addresses, so the LAN stays login-free while auth is "enabled".
+              sed -i \
+                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
+                -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
+                "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
             - name: config
