@@ -1,0 +1,93 @@
+# Kubernetes MCP server (containers/kubernetes-mcp-server): a Go MCP server that
+# talks directly to the API server. Runs in-cluster, exposes Streamable HTTP on
+# :8080/mcp. ZeroClaw connects to it at the /mcp endpoint.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-mcp
+  namespace: zeroclaw
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-mcp-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: zeroclaw
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-mcp-config
+  namespace: zeroclaw
+data:
+  config.toml: |
+    port = "8080"
+    toolsets = ["core", "config", "helm"]
+    server_instructions = """
+    Use this server for the Bakuran homelab Kubernetes clusters (read/observe
+    first; the state is GitOps-managed in bismigel/bakuran-gitops).
+    """
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubernetes-mcp
+  namespace: zeroclaw
+  labels:
+    app: kubernetes-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubernetes-mcp
+  template:
+    metadata:
+      labels:
+        app: kubernetes-mcp
+    spec:
+      serviceAccountName: kubernetes-mcp
+      containers:
+        - name: kubernetes-mcp
+          image: ghcr.io/containers/kubernetes-mcp-server:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/etc/kubernetes-mcp-server/config.toml"]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kubernetes-mcp-server/config.toml
+              subPath: config.toml
+              readOnly: true
+          resources:
+            requests: { memory: 64Mi, cpu: 20m }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: config
+          configMap:
+            name: kubernetes-mcp-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubernetes-mcp
+  namespace: zeroclaw
+spec:
+  selector:
+    app: kubernetes-mcp
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

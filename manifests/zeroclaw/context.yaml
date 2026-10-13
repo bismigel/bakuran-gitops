@@ -1,0 +1,577 @@
+# Homelab context for the ZeroClaw agent. Generated from ~/projects/homelab-context
+# (EXCLUDING CREDENTIALS.md). Non-secret architecture docs so the agent can
+# operate the lab. Keep in sync when the docs change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homelab-context
+  namespace: zeroclaw
+data:
+  AGENTS.md: |
+    # ZeroClaw homelab agent
+    
+    You operate the **Bakuran homelab**. Your context docs are in this directory
+    (`/context`): `SYSTEM.md`, `INVENTORY.md`, `RUNBOOK.md`, `KNOWN-ISSUES.md`,
+    `NEXT-STEPS.md`. `CREDENTIALS.md` is **intentionally not included** — secrets
+    live in Bitwarden (synced by ESO) and are injected as env vars, not files.
+    
+    ## How to work here
+    - **GitOps first.** The cluster state lives in `bismigel/bakuran-gitops` (ArgoCD
+      reconciles it). Change the manifests in git — never the cluster by hand.
+    - `kubectl` is cluster-admin via the in-cluster ServiceAccount; `gh` + `git` are
+      authenticated (`GH_TOKEN`). You can push branches/PRs.
+    - Hosts: **sitaw-amd** (.82) = hosting + the single ArgoCD control plane;
+      **calamansi-intel** (.81) = media. Media pool = `/mnt/media` (mergerfs, ~1.2 TB).
+    - Prefer read/observe first. For destructive or security-sensitive actions, ask.
+    
+    ## Tools
+    - shell (`kubectl`, `gh`, `git`, `helm`, `jq`, …), MCP servers (see `zeroclaw
+      config list` for the configured set).
+  SYSTEM.md: |
+    # System Architecture
+    
+    > Local-only. Last updated: 2026-10-12
+    
+    ## Hosts
+    
+    | Host | IP | CPU | OS | Role |
+    |---|---|---|---|---|
+    | `calamansi-intel` | 192.168.2.81 | Intel i5-7500T (4c, QuickSync) | NixOS 25.11 | **Media** (k3s) — the whole media stack |
+    | `sitaw-amd` | 192.168.2.82 | AMD Ryzen 5 4600G (6c/12t) | NixOS 25.11 | **Hosting + platform + ArgoCD control plane** (k3s, ingress-nginx, cloudflared) |
+    | `nix-station` | 192.168.2.245 | (workstation) | NixOS | Admin/control machine (SSH + deploy origin) |
+    
+    Both boxes are single-node k3s. **`.81` is media-only; `.82` hosts everything
+    else.** `sitaw-amd` was installed by wiping a Proxmox host.
+    
+    ## Repos
+    
+    | Repo | Visibility | Purpose |
+    |---|---|---|
+    | `bismigel/bakuran-infra` | private | NixOS machine configs (`calamansi-intel`, `sitaw-amd`), `deploy-rs`, `modules/`, `scripts/`, `docs/REBUILD.md` |
+    | `bismigel/bakuran-gitops` | private | **ArgoCD desired state** — `bootstrap/root-app.yaml`, `applications/{sitaw,calamansi-intel}/*`, `applications/node-exporter-appset.yaml`, `manifests/*`, `clusters/*` |
+    | `bismigel/bismigel-site` | public | Emacs `org-publish` / Hugo site → `bismigel.dev` (primary blog) |
+    | `bismigel/homelab-app-template` | private, template | New-app scaffold (Dockerfile, `deploy/k8s`, CI → GHCR → tag bump) |
+    | `Ciceley/ciceleywebsite` | public | Hugo site (Stack theme), content synced from Notion |
+    | `bismigel/status-api` | public | Test Go API (proves the pipeline) → `status.bismigel.dev` |
+    | `bismigel/private-api` | private | Test Go API for private GHCR pulls → `private.bismigel.dev` |
+    
+    ## GitOps — one control plane for both clusters
+    
+    **A single ArgoCD runs on `sitaw-amd` and manages both clusters**: `sitaw-amd`
+    in-cluster, and `calamansi-intel` registered as an **external cluster**. There is
+    no second ArgoCD.
+    
+    ```
+    bootstrap/root-app.yaml      # the one app-of-apps (watches applications/)
+    applications/
+      sitaw/*                     # apps + platform on .82
+      calamansi-intel/media.yaml  # the media stack (remote cluster)
+      node-exporter-appset.yaml   # ApplicationSet -> every registered cluster
+    manifests/<app>/              # raw manifests the apps point at
+    ```
+    
+    Apps whose destination is the media box use `destination.name: calamansi-intel`.
+    
+    ### Automation pipeline
+    ```
+    app repo push ─▶ CI: build image ─▶ GHCR ─▶ CI bumps tag in deploy/k8s
+                                                        │
+                                  ArgoCD (sitaw-amd) ◀──┘ pulls, reconciles both clusters
+    ```
+    CI never holds cluster credentials. **Apps push images; ArgoCD pulls desired state.**
+    
+    ## Storage (pooled media)
+    
+    Both boxes split their NVMe into a **100 GiB OS partition** and a **media data
+    partition**; the SATA disks are media too. All four media partitions are pooled:
+    
+    ```
+    sitaw-amd    (.82): /dev/nvme0n1p3 -> /mnt/media-nvme   (~346G)  ─┐ NFS export
+                        /dev/sda1       -> /mnt/media-sda    (~466G)  ─┘ (192.168.2.81)
+    calamansi-intel (.81): /dev/nvme0n1p3 -> /mnt/media-nvme (~137G) ─┐
+                           /dev/sda1       -> /mnt/media-sda  (~238G) ─┤ mergerfs
+                           /mnt/remote82-{nvme,sda} (NFS from .82)   ─┘ -> /mnt/media (~1.2T)
+    ```
+    
+    Jellyfin + the *arrs mount the single `/mnt/media` on `.81`. `.82` exports its
+    partitions via NFSv4 (`services.nfs.server`); `.81` mergerfs-unions local + remote
+    (`fuse.mergerfs`, `category.create=mfs`). `systemd.tmpfiles` creates
+    `/mnt/media/{tv,movies,downloads,temp}`.
+    
+    ## What runs where
+    
+    ### `sitaw-amd` (.82) — hosting / platform
+    - k3s (traefik/servicelb disabled), `ingress-nginx` (NodePort 32080/32443)
+    - `argocd` — the **single** control plane
+    - `apps`: ciceley-site, bismigel-site, miguelarbis-redirect, private-api, status-api
+    - `monitoring`: grafana (per-user SSO), prometheus, kube-state-metrics, node-exporter
+    - `observability`: otel-collector; `opentelemetry-operator-system`
+    - `cert-manager`, `external-secrets` (+ Bitwarden SDK server), `homepage`
+    - `zeroclaw` — homelab AI agent (web UI + Telegram; see below)
+    - `cloudflared` (NixOS service)
+    
+    ### `calamansi-intel` (.81) — media
+    - k3s
+    - `media`: sonarr, radarr, prowlarr, bazarr · `downloads`: qbittorrent · `default`: jellyfin
+    - `monitoring`: node-exporter (scraped by `.82`'s Prometheus)
+    - **All ArgoCD-managed** via the `media` app (targeting the remote cluster).
+    
+    ## Secrets (two layers)
+    
+    | Layer | Tool | Holds |
+    |---|---|---|
+    | **Machine** (k8s) | **Bitwarden Secrets Manager + External Secrets Operator** | everything the clusters consume: `ghcr-secret`, the bootstrap secrets, etc. ESO (`ClusterSecretStore bitwarden`) syncs `ExternalSecret`s into k8s Secrets. |
+    | **Host** | **sops-nix** (SOPS + age) | cloudflared credentials. age identity = the host's SSH host key (`/etc/ssh/ssh_host_ed25519_key`). |
+    | **Human** | Bitwarden (web vault) | passwords, tokens, the age backup key |
+    
+    **Sealed Secrets has been removed** (all secrets are now Bitwarden/ESO).
+    
+    ## Backups / DR
+    
+    - **Daily** systemd timer (`homelab-backup`) on each box → **age-encrypts** the
+      host SSH keys + k3s kubeconfig + BWS token → **Cloudflare R2**
+      (`r2:homelab-backups/credentials/`). Script: `bakuran-infra/scripts/backup-credentials.sh`.
+    - The **age backup private key** lives in Bitwarden (and offline) — required to
+      decrypt the R2 blobs.
+    - **`docs/REBUILD.md`** = the rebuild runbook; `scripts/bootstrap-argocd.sh` does
+      the one manual step (ArgoCD install + repo creds + root app).
+    
+    ## Edge (Cloudflare)
+    
+    - **Tunnel** (remote-managed) runs on `.82`; public hostnames → `ingress-nginx:32080`.
+    - **Zero Trust Access** gates the sensitive endpoints (`grafana`, `jellyfin`,
+      `status`, `private`, `agent` under `*.bismigel.dev`), email-OTP or GitHub SSO.
+    - Media is reached through the **same tunnel** (`jellyfin.bismigel.dev → 192.168.2.81:30096`).
+    - **Grafana auto-login** is per-user via the Cloudflare identity header; the
+      **\*arrs** are no-auth (shared).
+    
+    ## ZeroClaw (homelab agent)
+    
+    An AI agent with full homelab control, deployed as a k3s workload in the
+    `zeroclaw` namespace (`bakuran-gitops/manifests/zeroclaw/`).
+    
+    - **Web UI:** `agent.bismigel.dev` (Access-gated; pair with a one-time code).
+    - **Telegram:** chat the bot directly; only the account in
+      `peer_groups.telegram_default.external_peers` is allowlisted.
+    - **Models:** primary `deepseek.default` (`deepseek-chat`, key in Bitwarden);
+      fallback `openai.local` → local Ollama at `192.168.2.12:11434/v1` (`qwen3:8b`).
+      Switch at runtime in chat with `/models` and `/model`.
+    - **Access:** cluster-admin ServiceAccount (`kubectl`) + `GH_TOKEN` (`gh`/`git push`)
+      + the `/context` docs. Autonomy is `supervised` (tool actions need a Telegram tap).
+    - **State:** config on the PVC; a declarative seed ConfigMap re-initializes a fresh PVC.
+    
+    ## NixOS / deploy
+    
+    - Flake `bakuran-infra/flake.nix` → `nixosConfigurations.{calamansi-intel,sitaw-amd}` + `deploy.nodes.*`.
+    - `disko` for `sitaw-amd`; `hardware-configuration.nix` git-ignored (inlined).
+    - Deploy: `nix run github:serokell/deploy-rs -- .#sitaw-amd` (or `.#calamansi-intel`).
+    - Install: `nixos-anywhere --flake .#<host> --target-host root@<ip>`.
+    - `modules/`: `base.nix`, `k3s.nix` (WireGuard/ProtonVPN on `.81`), `backup.nix`.
+  INVENTORY.md: |
+    # Inventory — hosts, ports, services, endpoints
+    
+    > Local-only. Last updated: 2026-10-12
+    
+    ## Network
+    - LAN `192.168.2.0/24`, gateway `192.168.2.1`; DNS `1.1.1.1`, `8.8.8.8`.
+    - `calamansi-intel` `.81` static; `sitaw-amd` `.82` static.
+    
+    ## SSH
+    - Origin: `nix-station` (`192.168.2.245`), key `~/.ssh/id_ed25519`.
+    - `root@192.168.2.81` (calamansi-intel), `root@192.168.2.82` (sitaw-amd).
+    - Password auth is also enabled (see CREDENTIALS).
+    
+    ```bash
+    ssh -i ~/.ssh/id_ed25519 root@192.168.2.81   # calamansi-intel (media)
+    ssh -i ~/.ssh/id_ed25519 root@192.168.2.82   # sitaw-amd (hosting)
+    ```
+    
+    ## `sitaw-amd` (.82) — hosting / platform
+    
+    | Thing | Value |
+    |---|---|
+    | k3s API | https://192.168.2.82:6443 |
+    | ingress-nginx http / https | NodePort **32080** / **32443** |
+    | ArgoCD | `argocd ns` (ClusterIP · `systemctl --user argocd-pf` → `localhost:8080`) |
+    | External Secrets | `external-secrets ns` (+ `bitwarden-sdk-server:9998`) |
+    | cloudflared | `cloudflared-tunnel-8dcc83bd-eb95-4c0d-8f71-b92a27d37649.service` |
+    
+    NodePorts: grafana `30300`, prometheus `30909`, homepage `30080`.
+    
+    ArgoCD Applications: `root, namespaces, ingress-nginx, ingress-headers, cert-manager,
+    external-secrets, external-secrets-config, homepage, monitoring, observability,
+    opentelemetry-operator, ciceley-site, miguelarbis-site, private-api, status-api,
+    zeroclaw, node-exporter-in-cluster`, + `media` and `node-exporter-calamansi-intel` (remote).
+    
+    ## `calamansi-intel` (.81) — media
+    
+    | Service | Namespace | NodePort |
+    |---|---|---|
+    | jellyfin | default | 30096 |
+    | qbittorrent | downloads | 30081 |
+    | sonarr / radarr / prowlarr / bazarr | media | 30089 / 30078 / 30069 / 30067 |
+    | (idle ingress-nginx) | ingress-nginx | 32016 |
+    
+    Managed by the `media` ArgoCD app (destination `calamansi-intel`).
+    
+    ## Public endpoints (Cloudflare)
+    
+    Tunnel `8dcc83bd-eb95-4c0d-8f71-b92a27d37649` (account `c13ab6fbc2a53cfe719bca75fdc825c2`),
+    **remote-managed**.
+    
+    | Hostname | Goes to | Auth |
+    |---|---|---|
+    | `bismigel.dev` / `www` | .82 ingress-nginx | public |
+    | `ciceley.cc` / `www` | .82 ingress-nginx | public |
+    | `miguelarbis.dev` / `www` | 301 → bismigel.dev | public |
+    | `grafana.bismigel.dev` | .82 → grafana | **Access** (per-user) |
+    | `status.bismigel.dev` | .82 → status-api | **Access** |
+    | `private.bismigel.dev` | .82 → private-api | **Access** |
+    | `jellyfin.bismigel.dev` | **.81 → jellyfin:30096** | **Access** |
+    | `agent.bismigel.dev` | .82 → zeroclaw:42617 | **Access** (+ Telegram) |
+    
+    Zones: `bismigel.dev` `d7786ec1130918385079b8f224f271b5` · `ciceley.cc`
+    `bfca3075a1f1d5d2836aca7f4558af0b` · `miguelarbis.dev` `0ee0ef4302ab23094e39aae78ca9492e`.
+    
+    ## Storage — pooled media (`/mnt/media`, ~1.2 TB)
+    
+    Both NVMes are split **100 GiB root** + a media data partition; both SATA disks
+    are media. `.82` NFS-exports its two media partitions; `.81` mergerfs-unions all
+    four into `/mnt/media` (mounted by Jellyfin + the *arrs).
+    
+    | Host | Partition | Mount | Size |
+    | --- | --- | --- | --- |
+    | .82 | nvme0n1p3 | /mnt/media-nvme | ~346G |
+    | .82 | sda1 | /mnt/media-sda | ~466G |
+    | .81 | nvme0n1p3 | /mnt/media-nvme | ~137G |
+    | .81 | sda1 | /mnt/media-sda | ~238G |
+    | .81 | (union) | **/mnt/media** | **~1.2T** |
+    
+    Subdirs: `/mnt/media/{tv,movies,downloads,temp}` (created by systemd.tmpfiles).
+    qBittorrent WebUI password = the standard homelab password (set via API).
+    
+    ## Container registry
+    - `ghcr.io/bismigel/<app>`, `ghcr.io/ciceley/ciceleywebsite`.
+    - Pull secret `apps/ghcr-secret` — now an **ExternalSecret** from Bitwarden.
+    
+    ## Backups
+    - `r2:homelab-backups/credentials/` — daily, age-encrypted (host keys, kubeconfigs, BWS token).
+    
+    ## Local checkouts
+    ```
+    ~/projects/
+    ├── bakuran-infra/         # NixOS (both hosts) + scripts + REBUILD docs
+    ├── bakuran-gitops/        # ArgoCD desired state (both clusters)
+    ├── bismigel-site/         # bismigel.dev source (org/)
+    ├── ciceleywebsite/        # ciceley.cc + .env (secrets)
+    ├── status-api/ private-api/ homelab-app-template/
+    └── homelab-context/       # THIS folder (local-only)
+    ```
+  RUNBOOK.md: |
+    # Runbook
+    
+    All commands assume `nix-station` unless noted. SSH key: `~/.ssh/id_ed25519`.
+    
+    ## Check cluster status
+    
+    ```bash
+    ssh -i ~/.ssh/id_ed25519 root@192.168.2.82 'k3s kubectl -n argocd get applications; k3s kubectl -n apps get pods'
+    ssh -i ~/.ssh/id_ed25519 root@192.168.2.81 'k3s kubectl get pods -A'
+    ```
+    
+    ## Deploy a NEW app
+    
+    ```bash
+    # 1. Create from template (public if the image can be public)
+    gh repo create bismigel/<app> --private --template bismigel/homelab-app-template
+    gh repo clone bismigel/<app> && cd <app>
+    
+    # 2. Rename placeholders
+    ./scripts/init.sh <app> <app>.ciceley.cc <port> apps bismigel
+    
+    # 3. Put your app in app/ + Dockerfile, then push
+    git add -A && git commit -m "init <app>" && git push     # CI builds → GHCR
+    
+    # 4. Register with ArgoCD (add a file to the gitops repo)
+    #    applications/sitaw/<app>.yaml   (or applications/calamansi-intel/ for the media box)
+    ```
+    
+    - **Public** package → nothing else needed (the `imagePullSecrets` is ignored).
+    - **Private** package → ensure the shared `ghcr-secret` works (below) and that
+      ArgoCD can read the repo (add a deploy key + repo secret; keys are unique per
+      repo).
+    
+    ## Deploy an EXISTING app (code change)
+    
+    Just push to `main`. CI builds the image, bumps the tag in `deploy/k8s/deployment.yaml`,
+    and ArgoCD syncs.
+    
+    ## NixOS host changes
+    
+    ```bash
+    cd ~/projects/bakuran-infra
+    # edit hosts/<host>/... then:
+    nix run github:serokell/deploy-rs -- .#sitaw-amd        # or .#calamansi-intel
+    # validate first:  nix eval .#nixosConfigurations.sitaw-amd.config.system.build.toplevel.drvPath
+    ```
+    
+    ## Host secrets (sops-nix)
+    
+    ```bash
+    cd ~/projects/bakuran-infra
+    sops secrets/homelab.yaml                       # edit (re-encrypts on save)
+    nix run github:serokell/deploy-rs -- .#sitaw-amd    # apply
+    ```
+    
+    Decrypted secrets land in `/run/secrets/`; e.g. cloudflared credentials are a
+    symlink at `/root/.cloudflared/<tunnel-id>.json`. Age identity = the host's SSH
+    host key. See KNOWN-ISSUES for the reinstall caveat.
+    
+    ## Reinstall / new host (DESTRUCTIVE — wipes disk)
+    
+    ```bash
+    cd ~/projects/bakuran-infra
+    # add hosts/<name>/{default.nix,disko.nix} + register in flake.nix + deploy.nodes
+    git add -A     # flakes only see tracked files
+    nix run github:nix-community/nixos-anywhere -- --flake .#<name> --target-host root@<ip>
+    ```
+    
+    ## ArgoCD
+    
+    ```bash
+    ssh ... .82 'k3s kubectl -n argocd get applications'
+    # force refresh / sync
+    ssh ... .82 'k3s kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite'
+    ssh ... .82 'k3s kubectl -n argocd patch application <name> --type merge -p "{\"operation\":{\"sync\":{\"revision\":\"main\"}}}"'
+    ```
+    
+    ## GHCR pull secret (private packages)
+    
+    Now an **ExternalSecret** from Bitwarden (no Sealed Secrets):
+    `bakuran-gitops/manifests/external-secrets/ghcr-secret.yaml`. To rotate, update
+    `ghcr-user`/`ghcr-token` in Bitwarden → ESO re-syncs the `ghcr-secret` in `apps`.
+    
+    ## Cloudflare tunnel (add a hostname)
+    
+    1. Add a rule to the **remote** tunnel config (API `PUT .../configurations`) →
+       `http://192.168.2.82:32080`.
+    2. Create a proxied `CNAME` → `8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com`.
+    3. Ensure the app's `Ingress` has that `host`.
+    
+    > The tunnel is **remotely-managed**; the on-host `/etc/cloudflared/config.yml`
+    > (old Proxmox box) is gone. NixOS `services.cloudflared` supplies credentials;
+    > routing comes from the remote config.
+    
+    ## Media stack (.81) — GitOps
+    
+    Managed by the `media` ArgoCD app
+    (`bakuran-gitops/applications/calamansi-intel/media.yaml` → `manifests/media/`),
+    deployed to the `calamansi-intel` cluster. Wiring (root folders, download
+    clients, Prowlarr → Sonarr/Radarr):
+    
+    ```bash
+    QBT_PASSWORD='<qbt webui password>' ~/projects/bakuran-infra/scripts/media-stack-setup.sh
+    ```
+    
+    Media host paths on `.81`: `/mnt/downloads/{tv,movies,downloads,temp}`.
+    
+    ## ZeroClaw agent
+    
+    Deployed by the `zeroclaw` ArgoCD app (`manifests/zeroclaw/`).
+    
+    ```bash
+    POD=$(ssh ... .82 'k3s kubectl -n zeroclaw get pod -l app=zeroclaw -o jsonpath="{.items[0].metadata.name}"')
+    ssh ... .82 "k3s kubectl -n zeroclaw exec $POD -c zeroclaw -- zeroclaw status"
+    ssh ... .82 "k3s kubectl -n zeroclaw exec $POD -c zeroclaw -- zeroclaw gateway get-paircode --new"  # web UI pair code
+    ssh ... .82 'k3s kubectl -n zeroclaw rollout restart deployment/zeroclaw'
+    ```
+    
+    - Web UI `agent.bismigel.dev` (Access-gated + pair code). Telegram is allowlisted
+      via `peer_groups.telegram_default`; rebind with
+      `zeroclaw channel bind-telegram <id>`.
+    - Models: `deepseek.default` (primary) with `openai.local` (Ollama `192.168.2.12:11434/v1`)
+      as fallback; switch in chat with `/models` and `/model`.
+    - Secrets: DeepSeek key + Telegram token come from Bitwarden via ESO.
+    - Config lives on the PVC; `manifests/zeroclaw/config-seed.yaml` re-seeds a fresh PVC.
+    
+    ## Backups / DR
+    
+    ```bash
+    # back up now (age-encrypts host keys + kubeconfig + BWS token -> R2)
+    ssh ... .81 'systemctl start homelab-backup'   # or .82
+    # restore: download from r2:homelab-backups/credentials/, then
+    #   age -d -i ~/.homelab-backup.agekey <file> | tar xz
+    ```
+    Full rebuild: `bakuran-infra/docs/REBUILD.md` (+ `scripts/bootstrap-argocd.sh`).
+    
+    ## Cloudflare Access / auto-login
+    
+    - Sensitive hostnames (`grafana`/`jellyfin`/`status`/`private`/`agent` `.bismigel.dev`)
+      are gated by Access; policies managed via the CF API (`access/apps`).
+    - Grafana does **per-user** auto-login via the `Cf-Access-Authenticated-User-Email`
+      header (`GF_AUTH_PROXY_*`); the \*arrs are no-auth (shared).
+  KNOWN-ISSUES.md: |
+    # Known Issues / Pending
+    
+    Updated 2026-10-12.
+    
+    ## Last health scan (2026-10-12 23:40 UTC)
+    
+    - Both hosts up, **no failed systemd units**; disk <12%, mem fine.
+    - Both clusters: node `Ready`, all pods `Running`, **0 restarts**, all PVCs `Bound`;
+      every ArgoCD app `Synced/Healthy` **except `root`** (cosmetic, item 2 above).
+    - cert-manager certs `Ready`; ingress-nginx / otel-collector / coredns /
+      metrics-server / local-path logs clean.
+    - Backups: `homelab-backup.service` on both hosts = `Result=success` → R2.
+    - Log noise only (benign): jellyfin WebSocket disconnects, prowlarr indexer timeouts.
+    
+    ## Active
+    
+    1. **Origin not yet tunnel-only.** The media/apps are still reachable on the LAN
+       via node **NodePorts**, which bypasses Cloudflare Access. That makes the
+       `Cf-Access-Authenticated-User-Email` header **spoofable** on the LAN (verified:
+       sending it directly to the ingress creates an `attacker@…` Grafana user), and
+       the **\*arrs are no-auth** (open to anyone on the LAN). Fix = firewall the
+       NodePorts to the tunnel / validate the Access JWT. **Deferred by choice.**
+    2. **`root` ArgoCD app reads `OutOfSync`** — it flags the `external-secrets`
+       *Application object* as drifted (ArgoCD field normalization). Cosmetic; all
+       child apps are Synced/Healthy.
+    3. **`miguelarbis.dev` is a 301 redirect** to `bismigel.dev` (Bulk Redirect), not
+       its own site — intentional. `www.miguelarbis.dev` also routed.
+    
+    ## Housekeeping / follow-ups
+    
+    > The prioritized roadmap is in **`NEXT-STEPS.md`**. Highlights below.
+    
+    - **One offline copy of the age backup key** (`~/.homelab-backup.agekey`; in
+      Bitwarden). Required to decrypt the R2 backups if Bitwarden is unavailable.
+    - `.env` has some stale values (`INGRESS_HTTP_NODEPORT=32016` refers to `.81`;
+      `sitaw-amd` uses **32080**; `SITE_ORIGIN_URL` still points at `.81`).
+    - The `media-stack-setup.sh` script does **not** set the \*arr auth (they're
+      `None` by hand) — a rebuilt stack defaults to mine-to-set.
+    - ESO chart pinned to `*` (currently v2.12.0); consider pinning.
+    - **ZeroClaw** runs `supervised` — its tool actions need a Telegram approval tap.
+      Switch to `full` autonomy for unattended operation (deliberately left off).
+    
+    ## Resolved recently (this round)
+    
+    - **Single ArgoCD control plane** — ArgoCD on `sitaw-amd` now manages both
+      clusters (`.81` registered as an external cluster); the stale duplicate ArgoCD
+      on `.81` was removed.
+    - **Hosts renamed** — `calamansi` → `calamansi-intel`, `sitaw` → `sitaw-amd`
+      (OS hostname + k3s node + flake + gitops). (Renaming the k3s node required
+      rebuilding the `local-path` PVs.)
+    - **App split** — media-only on `.81`, everything else on `.82`.
+    - **Secrets moved to Bitwarden Secrets Manager + ESO** — `ghcr-secret` migrated
+      from a SealedSecret; Sealed Secrets removed entirely.
+    - **Daily R2 backup** of host keys + kubeconfigs + BWS token (systemd timer),
+      age-encrypted.
+    - **Cloudflare subdomains** moved to `*.bismigel.dev`; `status.ciceley.cc` retired.
+    - **Cloudflare Access** gates `grafana`/`jellyfin`/`status`/`private`; Grafana
+      auto-login is **per-user** via the Access identity header.
+    - **DR** — `docs/REBUILD.md` + `scripts/bootstrap-argocd.sh` + `backup-credentials.sh`.
+    - `miguelarbis.dev` rebuilt as an Emacs `org-publish` site; ingress-nginx on
+      ArgoCD; private GHCR pull validated; `.81` arr pods fixed.
+  NEXT-STEPS.md: |
+    # Next Steps / Roadmap
+    
+    Updated 2026-10-12. Prioritized outstanding work.
+    
+    ## Security (do these first)
+    
+    1. ~~**WireGuard key → SOPS.**~~ **DONE (2026-10-13):** the ProtonVPN key is now
+       the SOPS secret `wg_proton_private_key` (from the new `bakuram-US-NJ-143.conf`),
+       read via `privateKeyFile` on `.81`; the inline key and the shared-module VPN
+       block were removed. VPN verified (egress `163.5.171.128`).
+    2. **Lock the tunnel origin.** The cluster is reachable on the LAN via NodePorts,
+       so the `Cf-Access-Authenticated-User-Email` header is spoofable (verified earlier)
+       and the \*arrs are no-auth. Fix = firewall NodePorts to cloudflared only, and/or
+       validate the Access JWT at the ingress (`auth_request`).
+    3. **Harden SSH.** `modules/base.nix` still allows `PermitRootLogin = yes` +
+       `PasswordAuthentication = true`. Switch to key-only, `prohibit-password`.
+    
+    ## Reliability / housekeeping
+    
+    4. **`root` ArgoCD app is `OutOfSync`** (cosmetic field-normalization on the
+       `external-secrets` Application object). Investigate `ignoreDifferences` or leave.
+    5. **Pin the ESO Helm chart** (currently floating `*`, on v2.12.0).
+    6. **`ciceleywebsite` CI redeploys on docs-only pushes** — the release workflow
+       ignores `deploy/k8s/**` but not e.g. `README.md`, so a docs commit rebuilds the
+       image. Add `paths-ignore` for `**.md`.
+    7. **`media-stack-setup.sh` doesn't set \*arr auth** (they're hand-set to `None`);
+       a rebuilt stack comes up open. Script it.
+    8. **Offline copy of the age backup key** (`~/.homelab-backup.agekey`) — required
+       to decrypt R2 backups if Bitwarden is unreachable. Currently only in Bitwarden.
+    
+    ## After the 2026-10-12/13 bare-metal nuke
+    
+    The full wipe+restore was exercised on **both** boxes. Learnings (all folded into
+    `bakuran-infra/docs/REBUILD.md` + committed fixes):
+    - **`.81` had a leftover Proxmox LVM (`pve` VG)** — disko/wipefs didn't clear it,
+      so `mkfs` failed on a partition that read as `LVM2_member`. Fix: `vgremove` +
+      zero the first 2 GiB before reinstalling.
+    - **ArgoCD install needs `--server-side`** (ApplicationSet CRD > 262144 bytes).
+      Fixed in `bootstrap-argocd.sh`.
+    - **ESO ClusterSecretStore now uses `caProvider`** (live `bitwarden-tls-certs`
+      ca.crt) instead of a pinned `caBundle`, so it self-heals after reinstall.
+    - **Media hostPath dirs** (`/mnt/media/{tv,movies,downloads,temp}`) are created by
+      `systemd.tmpfiles` on `.81`.
+    - **Media pool** = 100 GiB root + pooled media (NFS + mergerfs) — done.
+    - **WireGuard** key moved to SOPS — done; `media-stack-setup.sh` re-run — done.
+    
+    ## Optional / nice-to-have
+    
+    9. **ZeroClaw autonomy** — currently `supervised` (Telegram approval per tool
+       action). Flip to `full` if unattended operation is wanted.
+    10. **Rename the `calamansi` OS user** in `modules/base.nix` (leftover from the old
+        host name) — cosmetic; changing a username touches the home dir.
+    11. **Clean stale `.env` values** in `ciceleywebsite/.env` (`SITE_ORIGIN_URL` /
+        `INGRESS_HTTP_NODEPORT` still reference the old `.81` layout).
+    12. **`docs/HOMELAB-MIGRATION.md`** is historical — could be moved to an `archive/`
+        or deleted once no longer referenced.
+  README.md: |
+    # Homelab Context (LOCAL ONLY — DO NOT COMMIT)
+    
+    > ⚠️ **This folder contains plaintext secrets and is intentionally NOT a git
+    > repo.** It exists so a future LLM/human has full context to operate the
+    > homelab. Never copy it into any repository, chat, or backup that leaves this
+    > machine without encrypting it first.
+    >
+    > Path: `~/projects/homelab-context/`
+    > Last updated: 2026-10-12
+    
+    ## Read order for an LLM/agent
+    
+    1. **`SYSTEM.md`** — architecture, repos, automation flow (the "how it works").
+    2. **`INVENTORY.md`** — hosts, IPs, ports, services, endpoints.
+    3. **`CREDENTIALS.md`** — passwords, tokens, keys (sensitive).
+    4. **`RUNBOOK.md`** — common tasks (deploy app, rebuild host, rotate secrets).
+    5. **`KNOWN-ISSUES.md`** — what's broken / pending.
+    6. **`NEXT-STEPS.md`** — prioritized roadmap of outstanding work.
+    
+    ## One-paragraph summary
+    
+    Two NixOS hosts run single-node k3s. **`calamansi-intel` (.81, Intel i5 +
+    QuickSync)** is the **media box** (the whole media stack). **`sitaw-amd` (.82,
+    AMD Ryzen)** is the **hosting + platform box** and runs the **single ArgoCD
+    control plane** — it manages both clusters (`.81` is a registered external
+    cluster) — plus ingress-nginx and cloudflared. Infrastructure is split across
+    repos: `bakuran-infra` (NixOS machines + DR), `bakuran-gitops` (ArgoCD desired
+    state for both clusters), `homelab-app-template` (new apps), and per-app repos.
+    Apps build images via GitHub Actions → GHCR → ArgoCD pulls and deploys. Secrets
+    are **Bitwarden Secrets Manager + External Secrets Operator** (machine) and
+    **SOPS/age** (host). The public edge is a Cloudflare Tunnel; Zero Trust Access
+    gates the sensitive endpoints.
+    
+    ## Ground rules for agents
+    
+    - **Edit NixOS config only in `bakuran-infra`**; deploy with `deploy-rs`.
+    - **Never hand-edit running k8s resources** that ArgoCD manages — change the
+      manifests in the app repo or `bakuran-gitops`.
+    - **Never commit secrets.** Machine secrets live in **Bitwarden** (synced by ESO);
+      host secrets are SOPS-encrypted in `bakuran-infra/secrets/`. Sealed Secrets was
+      removed.
+    - **Everything is GitOps** — including the media stack
+      (`bakuran-gitops/applications/calamansi-intel/`).
+    - **Disaster recovery** = `bakuran-infra/docs/REBUILD.md` + the daily R2 backup
+      (`scripts/backup-credentials.sh`).
