@@ -100,3 +100,25 @@ spec:
       targetPort: 8920
       nodePort: 30920
       name: https
+---
+# Serve Jellyfin via the media cluster's own ingress-nginx (NodePort 32080) so
+# the Cloudflare tunnel can reach it at http://127.0.0.1:32080 instead of the
+# raw LAN NodePort 30096. Pairs with the tunnel routing change (Phase 2).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jellyfin
+  namespace: default
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: jellyfin.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jellyfin
+                port:
+                  number: 8096
