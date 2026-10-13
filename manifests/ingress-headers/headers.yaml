@@ -1,10 +1,14 @@
 # Headers ingress-nginx adds to every proxied request (referenced by
-# controller.config.proxy-set-headers). Apps configured for proxy auth then
-# auto-login as this identity once Cloudflare Access has let the request in.
+# controller.config.proxy-set-headers). INTENTIONALLY EMPTY.
+#
+# This used to inject `X-WEBAUTH-USER: admin`, which meant any app trusting
+# that header (forward-auth) would auto-login as admin — reachable on the LAN
+# via NodePorts regardless of Cloudflare Access. Nothing consumes it now
+# (Grafana uses the `Cf-Access-Authenticated-User-Email` header), so it was
+# removed. Add per-app identity only where the header is actually validated.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: headers
   namespace: ingress-nginx
-data:
-  X-WEBAUTH-USER: "admin"
+data: {}
