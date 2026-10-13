@@ -57,7 +57,7 @@ data:
   SYSTEM.md: |
     # System Architecture
     
-    > Local-only. Last updated: 2026-10-12
+    > Local-only. Last updated: 2026-10-13
     
     ## Hosts
     
@@ -122,33 +122,38 @@ data:
     
     Jellyfin + the *arrs mount the single `/mnt/media` on `.81`. `.82` exports its
     partitions via NFSv4 (`services.nfs.server`); `.81` mergerfs-unions local + remote
-    (`fuse.mergerfs`, `category.create=mfs`). `systemd.tmpfiles` creates
-    `/mnt/media/{tv,movies,downloads,temp}`.
+    (`fuse.mergerfs`, `category.create=epmfs`). The `media-dirs` systemd service
+    creates the library dirs on the **local** branch
+    (`/mnt/media-sda/{tv,movies,downloads,temp}`), which appear at
+    `/mnt/media/{tv,movies,downloads,temp}` through the union.
     
     ## What runs where
     
     ### `sitaw-amd` (.82) — hosting / platform
     - k3s (traefik/servicelb disabled), `ingress-nginx` (NodePort 32080/32443)
     - `argocd` — the **single** control plane
-    - `apps`: ciceley-site, bismigel-site, miguelarbis-redirect, private-api, status-api
-    - `monitoring`: grafana (per-user SSO), prometheus, kube-state-metrics, node-exporter
+    - `apps`: ciceley-site, bismigel-site, private-api, status-api
+      (`miguelarbis.dev` is a Cloudflare Bulk Redirect, **not** a k8s app)
+    - `monitoring`: grafana (per-user SSO, PVC-backed), prometheus (PVC-backed), kube-state-metrics, node-exporter
     - `observability`: otel-collector; `opentelemetry-operator-system`
     - `cert-manager`, `external-secrets` (+ Bitwarden SDK server), `homepage`
     - `zeroclaw` — homelab AI agent (web UI + Telegram; see below)
-    - `cloudflared` (NixOS service)
+    - `cloudflared` (NixOS service) — the **primary** of two tunnel connectors
     
     ### `calamansi-intel` (.81) — media
     - k3s
-    - `media`: sonarr, radarr, prowlarr, bazarr · `downloads`: qbittorrent · `default`: jellyfin
+    - `media`: sonarr, radarr, prowlarr, bazarr, media-mcp · `downloads`: qbittorrent, sabnzbd · `default`: jellyfin
     - `monitoring`: node-exporter (scraped by `.82`'s Prometheus)
-    - **All ArgoCD-managed** via the `media` app (targeting the remote cluster).
+    - `cloudflared` (NixOS service) — the **second** connector (edge HA)
+    - **All ArgoCD-managed** via the `media`, `ingress-nginx-media`, and
+      `ingress-headers-media` apps (targeting the remote cluster).
     
     ## Secrets (two layers)
     
     | Layer | Tool | Holds |
     |---|---|---|
     | **Machine** (k8s) | **Bitwarden Secrets Manager + External Secrets Operator** | everything the clusters consume: `ghcr-secret`, the bootstrap secrets, etc. ESO (`ClusterSecretStore bitwarden`) syncs `ExternalSecret`s into k8s Secrets. |
-    | **Host** | **sops-nix** (SOPS + age) | cloudflared credentials. age identity = the host's SSH host key (`/etc/ssh/ssh_host_ed25519_key`). |
+    | **Host** | **sops-nix** (SOPS + age) | cloudflared credentials (both boxes) + the ProtonVPN WireGuard key (`.81`). age identity = the host's SSH host key (`/etc/ssh/ssh_host_ed25519_key`). |
     | **Human** | Bitwarden (web vault) | passwords, tokens, the age backup key |
     
     **Sealed Secrets has been removed** (all secrets are now Bitwarden/ESO).
@@ -165,12 +170,14 @@ data:
     
     ## Edge (Cloudflare)
     
-    - **Tunnel** (remote-managed) runs on `.82`; public hostnames → `ingress-nginx:32080`.
+    - **Tunnel** (remote-managed) runs on **both** boxes (a connector each — edge HA);
+      public hostnames → that box's local `ingress-nginx` (`127.0.0.1:32080`).
     - **Zero Trust Access** gates the sensitive endpoints (`grafana`, `jellyfin`,
       `status`, `private`, `agent` under `*.bismigel.dev`), email-OTP or GitHub SSO.
     - Media is reached through the **same tunnel** (`jellyfin.bismigel.dev → 192.168.2.81:30096`).
     - **Grafana auto-login** is per-user via the Cloudflare identity header; the
-      **\*arrs** are no-auth (shared).
+      **\*arrs** are login-free on the LAN (`AuthenticationMethod=Forms` +
+      `AuthenticationRequired=DisabledForLocalAddresses`, set by an init container).
     
     ## ZeroClaw (homelab agent)
     
@@ -184,7 +191,9 @@ data:
       fallback `openai.local` → local Ollama at `192.168.2.12:11434/v1` (`qwen3:8b`).
       Switch at runtime in chat with `/models` and `/model`.
     - **Access:** cluster-admin ServiceAccount (`kubectl`) + `GH_TOKEN` (`gh`/`git push`)
-      + the `/context` docs. Autonomy is `supervised` (tool actions need a Telegram tap).
+      + the `/context` docs. Autonomy is **`full`** (`config-seed.yaml` sets
+      `risk_profiles.default.level = "full"`; tool actions run without a per-call tap).
+      ⚠️ Large blast radius — see `KNOWN-ISSUES.md`.
     - **State:** config on the PVC; a declarative seed ConfigMap re-initializes a fresh PVC.
     
     ## NixOS / deploy
@@ -197,11 +206,13 @@ data:
   INVENTORY.md: |
     # Inventory — hosts, ports, services, endpoints
     
-    > Local-only. Last updated: 2026-10-12
+    > Local-only. Last updated: 2026-10-13
     
     ## Network
     - LAN `192.168.2.0/24`, gateway `192.168.2.1`; DNS `1.1.1.1`, `8.8.8.8`.
     - `calamansi-intel` `.81` static; `sitaw-amd` `.82` static.
+    - Admin workstation `nix-station` `.245`; local Ollama LLM (ZeroClaw fallback)
+      `.12:11434` — undocumented device, not managed by this repo.
     
     ## SSH
     - Origin: `nix-station` (`192.168.2.245`), key `~/.ssh/id_ed25519`.
@@ -221,25 +232,30 @@ data:
     | ingress-nginx http / https | NodePort **32080** / **32443** |
     | ArgoCD | `argocd ns` (ClusterIP · `systemctl --user argocd-pf` → `localhost:8080`) |
     | External Secrets | `external-secrets ns` (+ `bitwarden-sdk-server:9998`) |
-    | cloudflared | `cloudflared-tunnel-8dcc83bd-eb95-4c0d-8f71-b92a27d37649.service` |
+    | cloudflared | `cloudflared-tunnel-8dcc83bd-eb95-4c0d-8f71-b92a27d37649.service` (also runs on `.81` — 2 connectors) |
     
     NodePorts: grafana `30300`, prometheus `30909`, homepage `30080`.
     
     ArgoCD Applications: `root, namespaces, ingress-nginx, ingress-headers, cert-manager,
     external-secrets, external-secrets-config, homepage, monitoring, observability,
-    opentelemetry-operator, ciceley-site, miguelarbis-site, private-api, status-api,
-    zeroclaw, node-exporter-in-cluster`, + `media` and `node-exporter-calamansi-intel` (remote).
+    opentelemetry-operator, ciceley-site, bismigel-site, private-api, status-api,
+    zeroclaw, node-exporter-in-cluster`, plus (remote, `calamansi-intel`) `media`,
+    `ingress-nginx-media`, `ingress-headers-media`, and `node-exporter-calamansi-intel`.
     
     ## `calamansi-intel` (.81) — media
     
     | Service | Namespace | NodePort |
     |---|---|---|
-    | jellyfin | default | 30096 |
+    | jellyfin | default | 30096 (http) / 30920 (https) |
     | qbittorrent | downloads | 30081 |
+    | sabnzbd | downloads | 30082 |
     | sonarr / radarr / prowlarr / bazarr | media | 30089 / 30078 / 30069 / 30067 |
-    | (idle ingress-nginx) | ingress-nginx | 32016 |
+    | media-mcp | media | 30097 |
+    | ingress-nginx | ingress-nginx | 32080 / 32443 |
     
-    Managed by the `media` ArgoCD app (destination `calamansi-intel`).
+    Managed by the `media`, `ingress-nginx-media`, and `ingress-headers-media` ArgoCD
+    apps (destination `calamansi-intel`). The `.81` ingress uses the same NodePorts as
+    `.82` so either box can serve the tunnel (edge HA).
     
     ## Public endpoints (Cloudflare)
     
@@ -274,7 +290,8 @@ data:
     | .81 | sda1 | /mnt/media-sda | ~238G |
     | .81 | (union) | **/mnt/media** | **~1.2T** |
     
-    Subdirs: `/mnt/media/{tv,movies,downloads,temp}` (created by systemd.tmpfiles).
+    Subdirs: `/mnt/media/{tv,movies,downloads,temp}` (created on the local branch,
+    `/mnt/media-sda`, by the `media-dirs` systemd service).
     qBittorrent WebUI password = the standard homelab password (set via API).
     
     ## Container registry
@@ -400,7 +417,8 @@ data:
     QBT_PASSWORD='<qbt webui password>' ~/projects/bakuran-infra/scripts/media-stack-setup.sh
     ```
     
-    Media host paths on `.81`: `/mnt/downloads/{tv,movies,downloads,temp}`.
+    Media host paths on `.81`: `/mnt/media/{tv,movies,downloads,temp}` (hostPath
+    mounts; the *arrs see them as `/tv`, `/movies`, `/downloads`).
     
     ## ZeroClaw agent
     
@@ -436,21 +454,40 @@ data:
     - Sensitive hostnames (`grafana`/`jellyfin`/`status`/`private`/`agent` `.bismigel.dev`)
       are gated by Access; policies managed via the CF API (`access/apps`).
     - Grafana does **per-user** auto-login via the `Cf-Access-Authenticated-User-Email`
-      header (`GF_AUTH_PROXY_*`); the \*arrs are no-auth (shared).
+      header (`GF_AUTH_PROXY_*`); the \*arrs are login-free on the LAN (`Forms` +
+      `DisabledForLocalAddresses`).
+    
+    ## ZeroClaw access map (2026-10-13)
+    
+    Autonomy = **full**; operating rules (PR-only, token-conservative, ask before
+    destructive) live in its workspace `AGENTS.md` + `/context/AGENTS.md`.
+    
+    | Capability | How | Notes |
+    |---|---|---|
+    | Cluster (both) | kubernetes MCP, multi-cluster kubeconfig | contexts `sitaw-amd` (.82) + `calamansi-intel` (.81) |
+    | GitHub | `gh`/`git` (shell) + GitHub MCP (hosted remote) | PAT from Bitwarden; **open PRs only** |
+    | Cloudflare | `curl http://127.0.0.1:8788/client/v4/...` | **read-only guardrail sidecar**; token isolated, writes 403 |
+    | Docs | `/context/*.md` | CREDENTIALS.md excluded |
+    | Models | DeepSeek primary, local qwen fallback | key in Bitwarden (`deepseek-api-key`) |
+    
+    **Gotcha:** never seed Bitwarden with a `PushSecret` — a leftover one clobbers the
+    real value on a timer (this reverted the DeepSeek key + Telegram token once).
   KNOWN-ISSUES.md: |
     # Known Issues / Pending
     
-    Updated 2026-10-12.
+    Updated 2026-10-13.
     
-    ## Last health scan (2026-10-12 23:40 UTC)
+    ## Last health scan (2026-10-13 ~19:00 UTC, verified over SSH)
     
-    - Both hosts up, **no failed systemd units**; disk <12%, mem fine.
-    - Both clusters: node `Ready`, all pods `Running`, **0 restarts**, all PVCs `Bound`;
-      every ArgoCD app `Synced/Healthy` **except `root`** (cosmetic, item 2 above).
-    - cert-manager certs `Ready`; ingress-nginx / otel-collector / coredns /
-      metrics-server / local-path logs clean.
+    - Both hosts up (k3s `v1.34.5+k3s1`), **no failed systemd units**; disk <12%, mem fine.
+    - Both clusters: node `Ready`, all pods `Running`, all PVCs `Bound`; every ArgoCD
+      app `Synced/Healthy` (the `root` OutOfSync is now fixed — item 2).
     - Backups: `homelab-backup.service` on both hosts = `Result=success` → R2.
-    - Log noise only (benign): jellyfin WebSocket disconnects, prowlarr indexer timeouts.
+    - ⚠️ **`.81` load average ~10 on a 4-core i5** with CPU ~57% idle and ~20% iowait
+      (829 tasks) — I/O / NFS / mergerfs bound, not CPU. Jellyfin scans every 15m
+      (completes in ~5s). Not yet investigated.
+    - `media-mcp` (`:30097/mcp`) answers **unauthenticated** on the LAN (returns 406 to a
+      bare GET, i.e. no auth gate) while holding all the *arr/Jellyfin API keys.
     
     ## Active
     
@@ -458,11 +495,16 @@ data:
        via node **NodePorts**, which bypasses Cloudflare Access. That makes the
        `Cf-Access-Authenticated-User-Email` header **spoofable** on the LAN (verified:
        sending it directly to the ingress creates an `attacker@…` Grafana user), and
-       the **\*arrs are no-auth** (open to anyone on the LAN). Fix = firewall the
-       NodePorts to the tunnel / validate the Access JWT. **Deferred by choice.**
-    2. **`root` ArgoCD app reads `OutOfSync`** — it flags the `external-secrets`
-       *Application object* as drifted (ArgoCD field normalization). Cosmetic; all
-       child apps are Synced/Healthy.
+       the **\*arrs are login-free on the LAN** (`Forms` +
+       `DisabledForLocalAddresses`), and **`media-mcp` (`:30097`) is unauthenticated**
+       (it holds every *arr/Jellyfin API key). NodePorts are handled by kube-proxy
+       **iptables**, so the NixOS nftables allowlist never sees them. Fix = bind
+       NodePorts to the tunnel / validate the Access JWT / gate `media-mcp`.
+       **Deferred by choice.**
+    2. ~~**`root` ArgoCD app reads `OutOfSync`**~~ **FIXED (2026-10-13):** root cause was
+       an invalid `spec.source.helm.includeCrds` in the `external-secrets` Application
+       (not an ArgoCD field — the controller silently dropped it → permanent drift).
+       Removed; `root` now syncs.
     3. **`miguelarbis.dev` is a 301 redirect** to `bismigel.dev` (Bulk Redirect), not
        its own site — intentional. `www.miguelarbis.dev` also routed.
     
@@ -472,13 +514,23 @@ data:
     
     - **One offline copy of the age backup key** (`~/.homelab-backup.agekey`; in
       Bitwarden). Required to decrypt the R2 backups if Bitwarden is unavailable.
-    - `.env` has some stale values (`INGRESS_HTTP_NODEPORT=32016` refers to `.81`;
-      `sitaw-amd` uses **32080**; `SITE_ORIGIN_URL` still points at `.81`).
-    - The `media-stack-setup.sh` script does **not** set the \*arr auth (they're
-      `None` by hand) — a rebuilt stack defaults to mine-to-set.
-    - ESO chart pinned to `*` (currently v2.12.0); consider pinning.
-    - **ZeroClaw** runs `supervised` — its tool actions need a Telegram approval tap.
-      Switch to `full` autonomy for unattended operation (deliberately left off).
+    - `~/projects/ciceleywebsite/.env` was trimmed to site-only Notion keys
+      (2026-10-13); homelab/deploy values now live only in `CREDENTIALS.md`. Reminder
+      for the tunnel: `sitaw-amd` serves on **32080**, not the old `.81` NodePort
+      `32016` (the old `SITE_ORIGIN_URL` pointed at `.81`).
+    - \*arr auth is now **declarative**: the `arr-stack.yaml` initContainer sets
+      `AuthenticationMethod=Forms` + `AuthenticationRequired=DisabledForLocalAddresses`
+      (login-free on the LAN). `media-stack-setup.sh` no longer manages it.
+    - All Helm charts are now pinned: ESO `2.12.0`, `ingress-nginx` `4.15.1`,
+      `opentelemetry-operator` `0.124.1` (previously all `targetRevision: "*"`).
+    - Prometheus + Grafana are now **PVC-backed** (metrics/dashboards persist;
+      `Recreate` strategy + a `fix-permissions` init container handle the root-owned
+      local-path volumes). The global `X-WEBAUTH-USER: admin` ingress header was
+      removed (nothing consumed it; it was a latent auto-admin foot-gun). Grafana's
+      admin password is still `admin/admin` — see `NEXT-STEPS.md`.
+    - **ZeroClaw** runs **`full`** autonomy (`manifests/zeroclaw/config-seed.yaml`:
+      `risk_profiles.default.level = "full"`) with a **cluster-admin** ServiceAccount
+      and a `repo`+`workflow` GitHub PAT → treat it as a privileged operator.
     
     ## Resolved recently (this round)
     
@@ -502,7 +554,7 @@ data:
   NEXT-STEPS.md: |
     # Next Steps / Roadmap
     
-    Updated 2026-10-12. Prioritized outstanding work.
+    Updated 2026-10-13. Prioritized outstanding work.
     
     ## Security (do these first)
     
@@ -512,21 +564,22 @@ data:
        block were removed. VPN verified (egress `163.5.171.128`).
     2. **Lock the tunnel origin.** The cluster is reachable on the LAN via NodePorts,
        so the `Cf-Access-Authenticated-User-Email` header is spoofable (verified earlier)
-       and the \*arrs are no-auth. Fix = firewall NodePorts to cloudflared only, and/or
-       validate the Access JWT at the ingress (`auth_request`).
+       and the \*arrs are login-free on the LAN. Fix = firewall NodePorts to cloudflared
+       only, and/or validate the Access JWT at the ingress (`auth_request`).
     3. **Harden SSH.** `modules/base.nix` still allows `PermitRootLogin = yes` +
        `PasswordAuthentication = true`. Switch to key-only, `prohibit-password`.
     
     ## Reliability / housekeeping
     
-    4. **`root` ArgoCD app is `OutOfSync`** (cosmetic field-normalization on the
-       `external-secrets` Application object). Investigate `ignoreDifferences` or leave.
-    5. **Pin the ESO Helm chart** (currently floating `*`, on v2.12.0).
+    4. ~~**`root` ArgoCD app is `OutOfSync`**~~ **FIXED (2026-10-13):** the invalid
+       `helm.includeCrds` field was removed from the `external-secrets` Application.
+    5. ~~**Pin the Helm charts**~~ **DONE (2026-10-13):** ESO `2.12.0`,
+       `ingress-nginx` `4.15.1`, `opentelemetry-operator` `0.124.1` (were `*`).
     6. **`ciceleywebsite` CI redeploys on docs-only pushes** — the release workflow
        ignores `deploy/k8s/**` but not e.g. `README.md`, so a docs commit rebuilds the
        image. Add `paths-ignore` for `**.md`.
-    7. **`media-stack-setup.sh` doesn't set \*arr auth** (they're hand-set to `None`);
-       a rebuilt stack comes up open. Script it.
+    7. **\*arr auth is declarative** (`arr-stack.yaml` initContainer → `Forms` +
+       `DisabledForLocalAddresses`); no script change needed. ~~media-stack-setup.sh~~
     8. **Offline copy of the age backup key** (`~/.homelab-backup.agekey`) — required
        to decrypt R2 backups if Bitwarden is unreachable. Currently only in Bitwarden.
     
@@ -541,20 +594,24 @@ data:
       Fixed in `bootstrap-argocd.sh`.
     - **ESO ClusterSecretStore now uses `caProvider`** (live `bitwarden-tls-certs`
       ca.crt) instead of a pinned `caBundle`, so it self-heals after reinstall.
-    - **Media hostPath dirs** (`/mnt/media/{tv,movies,downloads,temp}`) are created by
-      `systemd.tmpfiles` on `.81`.
+    - **Media hostPath dirs** (`/mnt/media/{tv,movies,downloads,temp}`) are created on
+      the local branch by the `media-dirs` systemd service on `.81`.
     - **Media pool** = 100 GiB root + pooled media (NFS + mergerfs) — done.
     - **WireGuard** key moved to SOPS — done; `media-stack-setup.sh` re-run — done.
     
     ## Optional / nice-to-have
     
-    9. **ZeroClaw autonomy** — currently `supervised` (Telegram approval per tool
-       action). Flip to `full` if unattended operation is wanted.
+    9. **ZeroClaw privilege** — autonomy is already **`full`** (`config-seed.yaml`:
+       `risk_profiles.default.level = "full"`) with a cluster-admin SA + a
+       `repo`-scoped PAT. Scope the PAT down and/or use a non-admin SA.
     10. **Rename the `calamansi` OS user** in `modules/base.nix` (leftover from the old
         host name) — cosmetic; changing a username touches the home dir.
-    11. **Clean stale `.env` values** in `ciceleywebsite/.env` (`SITE_ORIGIN_URL` /
-        `INGRESS_HTTP_NODEPORT` still reference the old `.81` layout).
-    12. **`docs/HOMELAB-MIGRATION.md`** is historical — could be moved to an `archive/`
+    11. ~~**Clean stale `.env` values**~~ **DONE (2026-10-13):** `ciceleywebsite/.env`
+        now holds only the Notion key + DB id; deploy values live in `CREDENTIALS.md`.
+    12. **Grafana admin password** is still `admin/admin`. Create
+        `grafana-admin-password` in the Bitwarden BWS project, then point
+        `GF_SECURITY_ADMIN_PASSWORD` at an ESO-synced Secret.
+    13. **`docs/HOMELAB-MIGRATION.md`** is historical — could be moved to an `archive/`
         or deleted once no longer referenced.
   README.md: |
     # Homelab Context (LOCAL ONLY — DO NOT COMMIT)
@@ -565,7 +622,7 @@ data:
     > machine without encrypting it first.
     >
     > Path: `~/projects/homelab-context/`
-    > Last updated: 2026-10-12
+    > Last updated: 2026-10-13
     
     ## Read order for an LLM/agent
     
@@ -582,7 +639,8 @@ data:
     QuickSync)** is the **media box** (the whole media stack). **`sitaw-amd` (.82,
     AMD Ryzen)** is the **hosting + platform box** and runs the **single ArgoCD
     control plane** — it manages both clusters (`.81` is a registered external
-    cluster) — plus ingress-nginx and cloudflared. Infrastructure is split across
+    cluster) — plus ingress-nginx and a cloudflared connector (one on each box, for
+    edge HA). Infrastructure is split across
     repos: `bakuran-infra` (NixOS machines + DR), `bakuran-gitops` (ArgoCD desired
     state for both clusters), `homelab-app-template` (new apps), and per-app repos.
     Apps build images via GitHub Actions → GHCR → ArgoCD pulls and deploys. Secrets
