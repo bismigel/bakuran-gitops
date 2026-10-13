@@ -78,18 +78,6 @@ spec:
       labels:
         app: prowlarr
     spec:
-      initContainers:
-        - name: disable-auth
-          image: busybox:latest
-          command: ["sh", "-c"]
-          args:
-            - |
-              f=/config/config.xml
-              [ -f "$f" ] || exit 0
-              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
-          volumeMounts:
-            - name: config
-              mountPath: /config
       containers:
         - name: prowlarr
           image: linuxserver/prowlarr:develop
@@ -212,18 +200,6 @@ spec:
       labels:
         app: radarr
     spec:
-      initContainers:
-        - name: disable-auth
-          image: busybox:latest
-          command: ["sh", "-c"]
-          args:
-            - |
-              f=/config/config.xml
-              [ -f "$f" ] || exit 0
-              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
-          volumeMounts:
-            - name: config
-              mountPath: /config
       containers:
         - name: radarr
           image: linuxserver/radarr:latest
