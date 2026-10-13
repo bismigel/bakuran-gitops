@@ -19,7 +19,7 @@ clusters/<name>.yaml        # ArgoCD cluster registrations (redacted bootstrap)
 `manifests/` currently holds: `media`, `monitoring`, `observability`,
 `external-secrets`, `ingress-headers`, `namespaces`, `homepage`, `zeroclaw`,
 `node-exporter`. Some apps point at their **own** repo's `deploy/k8s/`
-(`ciceley-site`, `miguelarbis-site`, `private-api`, `status-api`) or a Helm chart
+(`ciceley-site`, `bismigel-site`, `private-api`, `status-api`) or a Helm chart
 (`ingress-nginx`, `cert-manager`, `external-secrets`, `opentelemetry-operator`).
 
 ## How it works
