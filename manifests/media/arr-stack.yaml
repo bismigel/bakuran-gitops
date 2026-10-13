@@ -80,6 +80,19 @@ spec:
       labels:
         app: prowlarr
     spec:
+      initContainers:
+        - name: disable-auth
+          image: busybox:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              f=/config/config.xml
+              [ -f "$f" ] || exit 0
+              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
+              chown 1000:1000 "$f" 2>/dev/null || true
+          volumeMounts:
+            - name: config
+              mountPath: /config
       containers:
         - name: prowlarr
           image: linuxserver/prowlarr:develop
@@ -137,6 +150,19 @@ spec:
       labels:
         app: sonarr
     spec:
+      initContainers:
+        - name: disable-auth
+          image: busybox:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              f=/config/config.xml
+              [ -f "$f" ] || exit 0
+              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
+              chown 1000:1000 "$f" 2>/dev/null || true
+          volumeMounts:
+            - name: config
+              mountPath: /config
       containers:
         - name: sonarr
           image: linuxserver/sonarr:latest
@@ -206,6 +232,19 @@ spec:
       labels:
         app: radarr
     spec:
+      initContainers:
+        - name: disable-auth
+          image: busybox:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              f=/config/config.xml
+              [ -f "$f" ] || exit 0
+              sed -i 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' "$f"
+              chown 1000:1000 "$f" 2>/dev/null || true
+          volumeMounts:
+            - name: config
+              mountPath: /config
       containers:
         - name: radarr
           image: linuxserver/radarr:latest
@@ -275,6 +314,19 @@ spec:
       labels:
         app: bazarr
     spec:
+      initContainers:
+        - name: disable-auth
+          image: busybox:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              f=/config/config/config.yaml
+              [ -f "$f" ] || exit 0
+              awk '/^authentication:/{a=1} a&&/^  type:/{$0="  type: null"} /^[^ ]/&&!/^authentication:/{a=0} {print}' "$f" > "$f.t" && mv "$f.t" "$f"
+              chown 1000:1000 "$f" 2>/dev/null || true
+          volumeMounts:
+            - name: config
+              mountPath: /config
       containers:
         - name: bazarr
           image: linuxserver/bazarr:latest
