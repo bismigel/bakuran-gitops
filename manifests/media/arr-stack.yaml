@@ -94,6 +94,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -170,6 +171,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -258,6 +260,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
