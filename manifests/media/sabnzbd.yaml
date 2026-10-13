@@ -1,27 +1,10 @@
 # Usenet downloader (SABnzbd) for the *arr stack. Runs on the media box (.81),
-# served on the LAN via NodePort 30082. The Frugal Usenet account is pulled from
-# Bitwarden (ESO); an init seeds sabnzbd.ini with the server + dirs + no-auth, so
-# a rebuilt stack comes up already pointing at Usenet.
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: usenet-frugal
-  namespace: downloads
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: bitwarden
-  target:
-    name: usenet-frugal
-  data:
-    - secretKey: user
-      remoteRef:
-        key: usenet_frugal_user
-    - secretKey: pass
-      remoteRef:
-        key: usenet_frugal_pass
----
+# served on the LAN via NodePort 30082. The Frugal Usenet account lives in a
+# Secret `usenet-frugal` (keys user/pass) created OUT OF BAND from Bitwarden —
+# the media cluster has no External Secrets operator (ESO runs on .82 only), so
+# it can't use an ExternalSecret. See bakuran-infra/scripts/media-usenet-secret.sh.
+# An init seeds sabnzbd.ini (server + dirs + no-auth) so a rebuilt stack comes up
+# already pointing at Usenet.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
