@@ -94,7 +94,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
-                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local</AllowedHosts>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -171,7 +171,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
-                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local</AllowedHosts>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -260,7 +260,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
-                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local</AllowedHosts>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -399,3 +399,81 @@ spec:
     - port: 6767
       targetPort: 6767
       nodePort: 30067
+---
+# Exposed via the Cloudflare tunnel (behind Access); LAN NodePorts are
+# loopback-only now.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: sonarr.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sonarr
+                port:
+                  number: 8989
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: radarr.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: radarr
+                port:
+                  number: 7878
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prowlarr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: prowlarr.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prowlarr
+                port:
+                  number: 9696
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bazarr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: bazarr.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bazarr
+                port:
+                  number: 6767

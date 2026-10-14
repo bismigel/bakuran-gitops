@@ -131,3 +131,22 @@ spec:
       port: 8080
       targetPort: 8080
       nodePort: 30082
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sabnzbd
+  namespace: downloads
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: sabnzbd.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sabnzbd
+                port:
+                  number: 8080
