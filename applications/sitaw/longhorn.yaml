@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.longhorn.io
+    chart: longhorn
+    targetRevision: 1.13.0
+    helm:
+      values: |
+        defaultSettings:
+          # Two replicas so a volume survives losing one node.
+          defaultReplicaCount: 2
+        persistence:
+          # Don't make Longhorn the cluster default; existing PVCs pin
+          # storageClassName explicitly and we migrate deliberately.
+          defaultClass: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Longhorn CRDs exceed the 262144-byte annotation limit; use SSA.
+      - ServerSideApply=true
