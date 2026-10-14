@@ -186,6 +186,9 @@ data:
     
     - **Tunnel** (remote-managed) runs on **both** boxes (a connector each — edge HA);
       public hostnames → that box's local `ingress-nginx` (`127.0.0.1:32080`).
+    - **NodePorts are bound to loopback** (`--kube-proxy-arg nodeport-addresses=127.0.0.1/32`),
+      so the tunnel is the **only** path in — LAN clients can't reach NodePorts and thus
+      can't bypass Cloudflare Access.
     - **Zero Trust Access** gates the sensitive endpoints (`grafana`, `jellyfin`,
       `status`, `private`, `agent` under `*.bismigel.dev`), email-OTP or GitHub SSO.
     - Media is reached through the **same tunnel** (`jellyfin.bismigel.dev → 192.168.2.81:30096`).
@@ -250,7 +253,8 @@ data:
     | Storage | Longhorn (`longhorn-system` ns, StorageClass **`longhorn`**, 2 replicas) — host prereqs: open-iscsi, iSCSI ports 3260-3264/9500-9505 |
     | cloudflared | `cloudflared-tunnel-8dcc83bd-eb95-4c0d-8f71-b92a27d37649.service` (also runs on `.81` — 2 connectors) |
     
-    NodePorts: grafana `30300`, prometheus `30909`, homepage `30080`.
+    NodePorts: grafana `30300`, prometheus `30909`, homepage `30080` — **loopback-only**
+    (edge lock), so the Cloudflare tunnel is the sole path in; LAN clients can't reach them.
     
     ArgoCD Applications (all **in-cluster** on the one 3-node cluster): `root,
     namespaces, ingress-nginx, ingress-headers, cert-manager, external-secrets,
@@ -423,7 +427,7 @@ data:
     ## Cloudflare tunnel (add a hostname)
     
     1. Add a rule to the **remote** tunnel config (API `PUT .../configurations`) →
-       `http://192.168.2.82:32080`.
+       `http://127.0.0.1:32080` (NodePorts are loopback-only since the edge lock).
     2. Create a proxied `CNAME` → `8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com`.
     3. Ensure the app's `Ingress` has that `host`.
     
@@ -518,16 +522,14 @@ data:
     
     ## Active
     
-    1. **Origin not yet tunnel-only.** The media/apps are still reachable on the LAN
-       via node **NodePorts**, which bypasses Cloudflare Access. That makes the
-       `Cf-Access-Authenticated-User-Email` header **spoofable** on the LAN (verified:
-       sending it directly to the ingress creates an `attacker@…` Grafana user), and
-       the **\*arrs are login-free on the LAN** (`Forms` +
-       `DisabledForLocalAddresses`), and **`media-mcp` (`:30097`) is unauthenticated**
-       (it holds every *arr/Jellyfin API key). NodePorts are handled by kube-proxy
-       **iptables**, so the NixOS nftables allowlist never sees them. Fix = bind
-       NodePorts to the tunnel / validate the Access JWT / gate `media-mcp`.
-       **Deferred by choice.**
+    1. ~~**Origin not yet tunnel-only.**~~ **FIXED (2026-10-14):** k3s now binds
+       **NodePorts to loopback only** (`--kube-proxy-arg nodeport-addresses=127.0.0.1/32`)
+       on all nodes, so only the local cloudflared connector (`127.0.0.1:32080`) can
+       reach them — LAN clients can no longer reach NodePorts and thus can't bypass
+       Cloudflare Access (nor spoof the header). Supporting changes: the tunnel's
+       `jellyfin` route repointed to `127.0.0.1:32080` (Jellyfin Ingress), and ZeroClaw
+       now reaches `media-mcp` via the in-cluster Service (`media-mcp.media.svc:8080`).
+       Verified: LAN NodePorts return `000`; the tunnel still serves every hostname.
     2. ~~**`root` ArgoCD app reads `OutOfSync`**~~ **FIXED (2026-10-13):** root cause was
        an invalid `spec.source.helm.includeCrds` in the `external-secrets` Application
        (not an ArgoCD field — the controller silently dropped it → permanent drift).
@@ -659,14 +661,15 @@ data:
     - **Jellyfin** — disabled the low-power QSV encoders (Kaby Lake GuC not loaded →
       VDENC "ratecontrol mode unsupported"); standard QSV transcoding verified working.
     
+    - **Storage migration** — **DONE:** the `grafana`, `prometheus`, and `zeroclaw` PVCs
+      moved to **Longhorn** (reschedulable). Media PVCs stay `local-path` on purpose
+      (pinned to `.81` for `/mnt/media` + QSV — Longhorn buys nothing there).
+    - **Edge lock** — **DONE:** k3s binds NodePorts to **loopback** on all nodes
+      (`nodeport-addresses=127.0.0.1/32`), so the Cloudflare tunnel is the only path in;
+      LAN clients can no longer bypass Access. ZeroClaw/media use the in-cluster Service.
+    
     Remaining:
-    - **Migrate config PVCs to Longhorn** — arr/Jellyfin/Grafana/Prometheus/ZeroClaw
-      PVCs still use node-pinned `local-path`; switch them to `longhorn` so they can
-      reschedule.
     - **Redis HA** — ArgoCD's Redis is still a single replica (SPOF).
-    - **Edge lock** — NodePorts remain LAN-reachable (bypass Cloudflare Access). Now
-      that ingress-nginx runs on every node of one cluster, binding NodePorts to
-      loopback no longer breaks cross-host access.
     
     ## After the 2026-10-12/13 bare-metal nuke
     
