@@ -39,12 +39,14 @@ data:
     `media__*` (Sonarr/Radarr/Prowlarr/SABnzbd/qBittorrent/Jellyfin — see MEDIA.md).
 
     ## The lab at a glance (permanent facts)
-    - **Topology:** two single-node k3s hosts. `.82` runs the **single ArgoCD** that
-      manages both clusters (`.81` is a registered external cluster), plus
-      ingress-nginx and the Cloudflare tunnel. `.81` runs the media stack. The public
-      edge is `*.bismigel.dev` via a Cloudflare Tunnel with Zero Trust Access.
+    - **Topology:** one **3-node k3s cluster** (embedded etcd, 3 members):
+      `sitaw-amd` (.82) = platform + the single in-cluster ArgoCD; `calamansi-intel`
+      (.81) = media stack pinned there by nodeSelector (QSV + local /mnt/media);
+      `kamatis-mbp` (.83) = etcd/control-plane-only (tainted). The public edge is
+      `*.bismigel.dev` via a Cloudflare Tunnel (connectors on `.81`/`.82`) with
+      Zero Trust Access.
     - **Repos:** `bakuran-infra` (NixOS hosts + disaster recovery, deploy-rs),
-      `bakuran-gitops` (ArgoCD desired state for both clusters), `bismigel-site`,
+      `bakuran-gitops` (ArgoCD desired state), `bismigel-site`,
       `media-mcp`, `homelab-app-template`, plus per-app repos.
     - **Deploy:** push to an app repo `main` -> GitHub Actions builds -> GHCR ->
       ArgoCD syncs. For the OS: edit `bakuran-infra`, deploy with `deploy-rs`.
@@ -63,12 +65,14 @@ data:
     
     | Host | IP | CPU | OS | Role |
     |---|---|---|---|---|
-    | `calamansi-intel` | 192.168.2.81 | Intel i5-7500T (4c, QuickSync) | NixOS 25.11 | **Media** (k3s) — the whole media stack |
-    | `sitaw-amd` | 192.168.2.82 | AMD Ryzen 5 4600G (6c/12t) | NixOS 25.11 | **Hosting + platform + ArgoCD control plane** (k3s, ingress-nginx, cloudflared) |
+    | `sitaw-amd` | 192.168.2.82 | AMD Ryzen 5 4600G (6c/12t) | NixOS 25.11 | **Platform + ArgoCD control plane** (k3s, ingress-nginx, cloudflared) |
+    | `calamansi-intel` | 192.168.2.81 | Intel i5-7500T (4c, QuickSync) | NixOS 25.11 | **Media worker** — media stack pinned here (QSV + `/mnt/media`) |
+    | `kamatis-mbp` | 192.168.2.83 | Intel i5 (MacBook Pro 13" 2012) | NixOS 25.11 | **etcd / control-plane only** (tainted; `/mnt/data` reserved) |
     | `nix-station` | 192.168.2.245 | (workstation) | NixOS | Admin/control machine (SSH + deploy origin) |
     
-    Both boxes are single-node k3s. **`.81` is media-only; `.82` hosts everything
-    else.** `sitaw-amd` was installed by wiping a Proxmox host.
+    All three hosts are **server nodes of one k3s cluster** (embedded etcd, **3
+    members**) — the cluster tolerates losing any one node. `sitaw-amd` was installed
+    by wiping a Proxmox host; `kamatis-mbp` is a repurposed 2012 MacBook.
     
     ## Repos
     
@@ -82,28 +86,27 @@ data:
     | `bismigel/status-api` | public | Test Go API (proves the pipeline) → `status.bismigel.dev` |
     | `bismigel/private-api` | private | Test Go API for private GHCR pulls → `private.bismigel.dev` |
     
-    ## GitOps — one control plane for both clusters
+    ## GitOps — one control plane, one cluster
     
-    **A single ArgoCD runs on `sitaw-amd` and manages both clusters**: `sitaw-amd`
-    in-cluster, and `calamansi-intel` registered as an **external cluster**. There is
-    no second ArgoCD.
+    **A single ArgoCD runs on `sitaw-amd`, managing the one 3-node cluster**
+    (in-cluster). There is no external cluster registration and no second ArgoCD.
+    All workloads are ordinary in-cluster resources; the media stack is pinned to
+    `calamansi-intel` via `nodeSelector` (see `manifests/media/kustomization.yaml`).
     
     ```
     bootstrap/root-app.yaml      # the one app-of-apps (watches applications/)
     applications/
-      sitaw/*                     # apps + platform on .82
-      calamansi-intel/media.yaml  # the media stack (remote cluster)
+      sitaw/*                     # apps + platform
+      calamansi-intel/media.yaml  # the media stack (in-cluster, nodeSelector .81)
       node-exporter-appset.yaml   # ApplicationSet -> every registered cluster
     manifests/<app>/              # raw manifests the apps point at
     ```
-    
-    Apps whose destination is the media box use `destination.name: calamansi-intel`.
     
     ### Automation pipeline
     ```
     app repo push ─▶ CI: build image ─▶ GHCR ─▶ CI bumps tag in deploy/k8s
                                                         │
-                                  ArgoCD (sitaw-amd) ◀──┘ pulls, reconciles both clusters
+                                  ArgoCD (sitaw-amd) ◀──┘ pulls, reconciles the cluster
     ```
     CI never holds cluster credentials. **Apps push images; ArgoCD pulls desired state.**
     
@@ -119,6 +122,9 @@ data:
                            /dev/sda1       -> /mnt/media-sda  (~238G) ─┤ mergerfs
                            /mnt/remote82-{nvme,sda} (NFS from .82)   ─┘ -> /mnt/media (~1.2T)
     ```
+    
+    `kamatis-mbp` (.83) has no media role: **100 GiB root + a reserved ext4
+    `/mnt/data` (~121 GiB)** for future use (backups, scratch).
     
     Jellyfin + the *arrs mount the single `/mnt/media` on `.81`. `.82` exports its
     partitions via NFSv4 (`services.nfs.server`); `.81` mergerfs-unions local + remote
@@ -140,13 +146,17 @@ data:
     - `zeroclaw` — homelab AI agent (web UI + Telegram; see below)
     - `cloudflared` (NixOS service) — the **primary** of two tunnel connectors
     
-    ### `calamansi-intel` (.81) — media
-    - k3s
+    ### `calamansi-intel` (.81) — media node (part of the unified cluster)
+    - k3s **server+worker** node (etcd member); media pods are pinned here by `nodeSelector`
     - `media`: sonarr, radarr, prowlarr, bazarr, media-mcp · `downloads`: qbittorrent, sabnzbd · `default`: jellyfin
-    - `monitoring`: node-exporter (scraped by `.82`'s Prometheus)
-    - `cloudflared` (NixOS service) — the **second** connector (edge HA)
-    - **All ArgoCD-managed** via the `media`, `ingress-nginx-media`, and
-      `ingress-headers-media` apps (targeting the remote cluster).
+    - `monitoring`: node-exporter (scraped by Prometheus)
+    - `cloudflared` (NixOS service) — one of the edge connectors
+    - **ArgoCD-managed** via the `media` app (now in-cluster, no longer an external cluster).
+    
+    ### `kamatis-mbp` (.83) — etcd / control-plane only
+    - k3s **server** (etcd member), **tainted** `node-role.kubernetes.io/control-plane=true:NoSchedule`
+      so no workloads are scheduled here.
+    - `/mnt/data` reserved (unused).
     
     ## Secrets (two layers)
     
@@ -198,7 +208,7 @@ data:
     
     ## NixOS / deploy
     
-    - Flake `bakuran-infra/flake.nix` → `nixosConfigurations.{calamansi-intel,sitaw-amd}` + `deploy.nodes.*`.
+    - Flake `bakuran-infra/flake.nix` → `nixosConfigurations.{sitaw-amd,calamansi-intel,kamatis-mbp}` + `deploy.nodes.*`.
     - `disko` for `sitaw-amd`; `hardware-configuration.nix` git-ignored (inlined).
     - Deploy: `nix run github:serokell/deploy-rs -- .#sitaw-amd` (or `.#calamansi-intel`).
     - Install: `nixos-anywhere --flake .#<host> --target-host root@<ip>`.
@@ -210,7 +220,8 @@ data:
     
     ## Network
     - LAN `192.168.2.0/24`, gateway `192.168.2.1`; DNS `1.1.1.1`, `8.8.8.8`.
-    - `calamansi-intel` `.81` static; `sitaw-amd` `.82` static.
+    - `sitaw-amd` `.82`, `calamansi-intel` `.81`, `kamatis-mbp` `.83` — all static,
+      all **server nodes of one k3s cluster** (embedded etcd, 3 members).
     - Admin workstation `nix-station` `.245`; local Ollama LLM (ZeroClaw fallback)
       `.12:11434` — undocumented device, not managed by this repo.
     
@@ -236,11 +247,12 @@ data:
     
     NodePorts: grafana `30300`, prometheus `30909`, homepage `30080`.
     
-    ArgoCD Applications: `root, namespaces, ingress-nginx, ingress-headers, cert-manager,
-    external-secrets, external-secrets-config, homepage, monitoring, observability,
+    ArgoCD Applications (all **in-cluster** on the one 3-node cluster): `root,
+    namespaces, ingress-nginx, ingress-headers, cert-manager, external-secrets,
+    external-secrets-config, homepage, monitoring, observability,
     opentelemetry-operator, ciceley-site, bismigel-site, private-api, status-api,
-    zeroclaw, node-exporter-in-cluster`, plus (remote, `calamansi-intel`) `media`,
-    `ingress-nginx-media`, `ingress-headers-media`, and `node-exporter-calamansi-intel`.
+    zeroclaw, media`, plus the `node-exporter` ApplicationSet generated
+    `node-exporter-in-cluster`.
     
     ## `calamansi-intel` (.81) — media
     
@@ -253,9 +265,17 @@ data:
     | media-mcp | media | 30097 |
     | ingress-nginx | ingress-nginx | 32080 / 32443 |
     
-    Managed by the `media`, `ingress-nginx-media`, and `ingress-headers-media` ArgoCD
-    apps (destination `calamansi-intel`). The `.81` ingress uses the same NodePorts as
-    `.82` so either box can serve the tunnel (edge HA).
+    Managed by the **in-cluster** `media` app (media pods pinned to `.81` via
+    `nodeSelector`). `.81` is a node of the single cluster, not a separate cluster.
+    
+    ## `kamatis-mbp` (.83) — etcd / control-plane only
+    MacBook Pro 13" (2012), 240 GB SSD (**100 G root + `/mnt/data` reserved**).
+    k3s server (etcd member), tainted so no workloads run here. Root SSH via the
+    same key as the other hosts.
+    
+    ## Storage (cluster)
+    `kamatis-mbp` adds a reserved `/mnt/data` (~121 G). Media pool is unchanged
+    (see below).
     
     ## Public endpoints (Cloudflare)
     
@@ -305,7 +325,7 @@ data:
     ```
     ~/projects/
     ├── bakuran-infra/         # NixOS (both hosts) + scripts + REBUILD docs
-    ├── bakuran-gitops/        # ArgoCD desired state (both clusters)
+    ├── bakuran-gitops/        # ArgoCD desired state (the cluster)
     ├── bismigel-site/         # bismigel.dev source (org/)
     ├── ciceleywebsite/        # ciceley.cc + .env (secrets)
     ├── status-api/ private-api/ homelab-app-template/
@@ -479,9 +499,11 @@ data:
     
     ## Last health scan (2026-10-13 ~19:00 UTC, verified over SSH)
     
-    - Both hosts up (k3s `v1.34.5+k3s1`), **no failed systemd units**; disk <12%, mem fine.
-    - Both clusters: node `Ready`, all pods `Running`, all PVCs `Bound`; every ArgoCD
-      app `Synced/Healthy` (the `root` OutOfSync is now fixed — item 2).
+    - **Unified 3-node k3s cluster** — `sitaw-amd` (.82), `calamansi-intel` (.81),
+      `kamatis-mbp` (.83) — embedded etcd **3 members**; `k3s v1.34.5+k3s1`, no failed
+      systemd units; disk <12%, mem fine.
+    - All nodes `Ready`, all pods `Running`, all PVCs `Bound`; every ArgoCD app
+      `Synced/Healthy` (the old `root` OutOfSync is fixed — item 2).
     - Backups: `homelab-backup.service` on both hosts = `Result=success` → R2.
     - ⚠️ **`.81` load average ~10 on a 4-core i5** with CPU ~57% idle and ~20% iowait
       (829 tasks) — I/O / NFS / mergerfs bound, not CPU. Jellyfin scans every 15m
@@ -534,9 +556,22 @@ data:
     
     ## Resolved recently (this round)
     
-    - **Single ArgoCD control plane** — ArgoCD on `sitaw-amd` now manages both
-      clusters (`.81` registered as an external cluster); the stale duplicate ArgoCD
-      on `.81` was removed.
+    - **HA: unified 3-node cluster** — `calamansi-intel` (.81) was folded into
+      `sitaw-amd`'s cluster as the 3rd etcd member (its standalone k3s was wiped),
+      joined by the new **`kamatis-mbp`** (.83) etcd/control-plane-only node.
+      3-member embedded etcd now tolerates losing any one node.
+      - NixOS: `k3s.nix` join (`serverAddr`+`tokenFile`); etcd 2379/2380 opened on
+        `.81`/`.82`; `kamatis-mbp` = GRUB-EFI-removable on a 2012 MacBook, 100 G root
+        + `/mnt/data`, lid/suspend disabled.
+      - **k3s join token** is bootstrapped at `/etc/k3s-cluster-token` (not SOPS yet) —
+        see NEXT-STEPS.
+    - **Media stack re-homed in-cluster** — the `media` app now targets the unified
+      cluster; `manifests/media/kustomization.yaml` pins every media pod to `.81`; the
+      `calamansi-intel` external cluster registration + `.81` ingress apps retired.
+      Reacts: fresh arr/Jellyfin config (old `local-path` PVCs backed up to
+      `/mnt/media/_k3s-storage-backup-*.tar.gz`); re-wired with the media setup scripts.
+    - **Single ArgoCD control plane** — ArgoCD on `sitaw-amd` manages the one unified
+      cluster in-cluster; no external cluster, no second ArgoCD.
     - **Hosts renamed** — `calamansi` → `calamansi-intel`, `sitaw` → `sitaw-amd`
       (OS hostname + k3s node + flake + gitops). (Renaming the k3s node required
       rebuilding the `local-path` PVs.)
@@ -582,6 +617,25 @@ data:
        `DisabledForLocalAddresses`); no script change needed. ~~media-stack-setup.sh~~
     8. **Offline copy of the age backup key** (`~/.homelab-backup.agekey`) — required
        to decrypt R2 backups if Bitwarden is unreachable. Currently only in Bitwarden.
+    
+    ## HA (2026-10-14)
+    
+    **DONE:** one **3-node k3s cluster** with **3-member embedded etcd** —
+    `sitaw-amd` (.82), `calamansi-intel` (.81, media pinned), `kamatis-mbp` (.83,
+    etcd-only). The media stack was re-homed in-cluster. Losing any one node no
+    longer breaks the control plane.
+    
+    Remaining for full HA:
+    - **ArgoCD HA** — still 1 replica of each component on `.82`. To survive losing
+      `.82`: use the argo-cd Helm chart with `server`/`repoServer` replicas ≥2,
+      `controller.replicas=2` (+ `redis-ha`) and hard `podAntiAffinity`.
+    - **k3s token → SOPS** — move `/etc/k3s-cluster-token` into
+      `secrets/homelab.yaml` (needs the new hosts' age recipients added).
+    - **Distributed storage** — config PVCs are `local-path` (node-pinned), so
+      stateful pods can't reschedule off `.81`. Longhorn (replicas=2) would fix it.
+    - **Edge lock** — NodePorts remain LAN-reachable (bypass Cloudflare Access).
+      Now that ingress-nginx runs on every node of one cluster, binding NodePorts
+      to loopback no longer breaks cross-host access.
     
     ## After the 2026-10-12/13 bare-metal nuke
     
@@ -635,14 +689,15 @@ data:
     
     ## One-paragraph summary
     
-    Two NixOS hosts run single-node k3s. **`calamansi-intel` (.81, Intel i5 +
-    QuickSync)** is the **media box** (the whole media stack). **`sitaw-amd` (.82,
-    AMD Ryzen)** is the **hosting + platform box** and runs the **single ArgoCD
-    control plane** — it manages both clusters (`.81` is a registered external
-    cluster) — plus ingress-nginx and a cloudflared connector (one on each box, for
-    edge HA). Infrastructure is split across
+    Three NixOS hosts form **one k3s cluster** (embedded etcd, **3 members**):
+    **`sitaw-amd`** (.82, AMD Ryzen) is the platform/control plane; **`calamansi-intel`**
+    (.81, Intel i5 + QuickSync) runs the **media stack** (pinned there by `nodeSelector`
+    for QSV + local `/mnt/media`); **`kamatis-mbp`** (.83, MacBook Pro 2012) is a
+    control-plane-only etcd member (tainted, runs nothing else). A **single ArgoCD**
+    runs in-cluster on `.82` (no external cluster anymore), plus ingress-nginx and
+    cloudflared connectors on both `.81`/`.82` (edge HA). Infrastructure is split across
     repos: `bakuran-infra` (NixOS machines + DR), `bakuran-gitops` (ArgoCD desired
-    state for both clusters), `homelab-app-template` (new apps), and per-app repos.
+    state for the cluster), `homelab-app-template` (new apps), and per-app repos.
     Apps build images via GitHub Actions → GHCR → ArgoCD pulls and deploys. Secrets
     are **Bitwarden Secrets Manager + External Secrets Operator** (machine) and
     **SOPS/age** (host). The public edge is a Cloudflare Tunnel; Zero Trust Access
