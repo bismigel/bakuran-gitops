@@ -100,6 +100,7 @@ spec:
               value: "8080"
           ports:
             - containerPort: 8080
+              hostPort: 8081
               name: webui
           volumeMounts:
             - name: config

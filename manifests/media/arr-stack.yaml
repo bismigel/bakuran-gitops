@@ -88,10 +88,11 @@ spec:
             - |
               f=/config/config.xml
               [ -f "$f" ] || exit 0
-              # No app-level auth: these sit behind Cloudflare Access. (The
-              # current builds accept AuthenticationMethod=None.)
+              # Auth stays enabled (v4 rejects None for remote) but is skipped
+              # for local (LAN) addresses, so LAN is login-free; remote (tunnel)
+              # would require the admin login.
               sed -i \
-                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' \
+                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
                 -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
@@ -105,6 +106,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9696
+              hostPort: 9696
           env:
             - name: PUID
               value: "1000"
@@ -164,10 +166,11 @@ spec:
             - |
               f=/config/config.xml
               [ -f "$f" ] || exit 0
-              # No app-level auth: these sit behind Cloudflare Access. (The
-              # current builds accept AuthenticationMethod=None.)
+              # Auth stays enabled (v4 rejects None for remote) but is skipped
+              # for local (LAN) addresses, so LAN is login-free; remote (tunnel)
+              # would require the admin login.
               sed -i \
-                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' \
+                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
                 -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
@@ -181,6 +184,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8989
+              hostPort: 8989
           env:
             - name: PUID
               value: "1000"
@@ -252,10 +256,11 @@ spec:
             - |
               f=/config/config.xml
               [ -f "$f" ] || exit 0
-              # No app-level auth: these sit behind Cloudflare Access. (The
-              # current builds accept AuthenticationMethod=None.)
+              # Auth stays enabled (v4 rejects None for remote) but is skipped
+              # for local (LAN) addresses, so LAN is login-free; remote (tunnel)
+              # would require the admin login.
               sed -i \
-                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>None</AuthenticationMethod>#' \
+                -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>#' \
                 -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
@@ -269,6 +274,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 7878
+              hostPort: 7878
           env:
             - name: PUID
               value: "1000"
@@ -351,6 +357,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6767
+              hostPort: 6767
           env:
             - name: PUID
               value: "1000"
