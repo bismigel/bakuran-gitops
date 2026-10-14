@@ -321,6 +321,9 @@ spec:
               mountPath: /etc/grafana/provisioning/datasources
               readOnly: true
             - name: dashboards
+              mountPath: /etc/grafana/dashboards
+              readOnly: true
+            - name: dashboard-provider
               mountPath: /etc/grafana/provisioning/dashboards
               readOnly: true
             - name: storage
@@ -362,6 +365,9 @@ spec:
         - name: dashboards
           configMap:
             name: grafana-dashboards
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
         - name: storage
           persistentVolumeClaim:
             claimName: grafana-data
@@ -385,11 +391,11 @@ spec:
                 port:
                   number: 3000
 ---
-# Grafana dashboards, provisioned as code (mounted at .../provisioning/dashboards).
+# Grafana dashboard provider + dashboards, provisioned as code.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboards
+  name: grafana-dashboard-provider
   namespace: monitoring
 data:
   provider.yaml: |
@@ -402,7 +408,14 @@ data:
         updateIntervalSeconds: 30
         allowUiUpdates: true
         options:
-          path: /etc/grafana/provisioning/dashboards/json
+          path: /etc/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
   homelab-overview.json: |
     {
       "title": "Homelab Overview",
