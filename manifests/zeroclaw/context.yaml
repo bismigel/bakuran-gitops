@@ -270,12 +270,13 @@ data:
     
     | Service | Namespace | NodePort |
     |---|---|---|
-    | jellyfin | default | 30096 loopback NodePort; **hostPort 8096 on `.81` (LAN, for TV clients)** |
-    | qbittorrent | downloads | 30081 |
-    | sabnzbd | downloads | 30082 |
-    | sonarr / radarr / prowlarr / bazarr | media | 30089 / 30078 / 30069 / 30067 |
-    | media-mcp | media | 30097 |
-    | ingress-nginx | ingress-nginx | 32080 / 32443 |
+    | jellyfin | default | hostPort **8096** on `.81` (LAN) |
+    | sonarr / radarr / prowlarr / bazarr | media | hostPort **8989 / 7878 / 9696 / 6767** on `.81` (LAN) |
+    | qbittorrent / sabnzbd | downloads | hostPort **8081 / 8082** on `.81` (LAN) |
+    | media-mcp | media | 30097 (loopback NodePort) |
+    | ingress-nginx | ingress-nginx | 32080 / 32443 (loopback) |
+    
+    `media` media-UI hostPorts are LAN-reachable & login-free; NodePorts are loopback-only.
     
     Managed by the **in-cluster** `media` app (media pods pinned to `.81` via
     `nodeSelector`). `.81` is a node of the single cluster, not a separate cluster.
