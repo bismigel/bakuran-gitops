@@ -28,10 +28,8 @@ spec:
     metadata:
       labels:
         app: jellyfin
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8096"
-        prometheus.io/path: "/metrics"
+      # No prometheus.io/* annotations: Jellyfin exposes no /metrics endpoint
+      # (needs a plugin), so scraping it only produced a false TargetDown.
     spec:
       securityContext:
         runAsUser: 0
