@@ -195,8 +195,9 @@ data:
       `prometheus`) — allow-listed per email or GitHub SSO.
     - Media is reached through the **same tunnel** (`jellyfin.bismigel.dev → 192.168.2.81:30096`).
     - **Grafana auto-login** is per-user via the Cloudflare identity header; the
-      **\*arrs** are login-free on the LAN (`AuthenticationMethod=Forms` +
-      `AuthenticationRequired=DisabledForLocalAddresses`, set by an init container).
+      **\*arrs** have **no app-level auth** (they sit behind Cloudflare Access; the
+      init container sets `AuthenticationMethod=None`). SABnzbd's `host_whitelist`
+      includes `sabnzbd.bismigel.dev`.
     
     ## ZeroClaw (homelab agent)
     
