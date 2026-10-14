@@ -92,6 +92,9 @@ data:
     (in-cluster). There is no external cluster registration and no second ArgoCD.
     All workloads are ordinary in-cluster resources; the media stack is pinned to
     `calamansi-intel` via `nodeSelector` (see `manifests/media/kustomization.yaml`).
+    ArgoCD is **HA**: `server`/`repo-server`/`applicationSet` run 2 replicas and the
+    `application-controller` runs 2 (active/standby), spread across `.82`/`.81`
+    (`scripts/bootstrap-argocd.sh`); Redis is a single replica.
     
     ```
     bootstrap/root-app.yaml      # the one app-of-apps (watches applications/)
@@ -241,7 +244,7 @@ data:
     |---|---|
     | k3s API | https://192.168.2.82:6443 |
     | ingress-nginx http / https | NodePort **32080** / **32443** |
-    | ArgoCD | `argocd ns` (ClusterIP · `systemctl --user argocd-pf` → `localhost:8080`) |
+    | ArgoCD | `argocd ns` (ClusterIP · `systemctl --user argocd-pf` → `localhost:8080`) — **HA**: server/repo-server/appset ×2 + controller standby, single Redis |
     | External Secrets | `external-secrets ns` (+ `bitwarden-sdk-server:9998`) |
     | cloudflared | `cloudflared-tunnel-8dcc83bd-eb95-4c0d-8f71-b92a27d37649.service` (also runs on `.81` — 2 connectors) |
     
@@ -563,8 +566,14 @@ data:
       - NixOS: `k3s.nix` join (`serverAddr`+`tokenFile`); etcd 2379/2380 opened on
         `.81`/`.82`; `kamatis-mbp` = GRUB-EFI-removable on a 2012 MacBook, 100 G root
         + `/mnt/data`, lid/suspend disabled.
-      - **k3s join token** is bootstrapped at `/etc/k3s-cluster-token` (not SOPS yet) —
-        see NEXT-STEPS.
+      - **k3s join token** now lives in **SOPS** (`k3s_cluster_token`); the `/etc`
+        bootstrap files were removed. A SOPS **admin age key**
+        (`~/.config/sops/age/homelab.txt`) was added so secrets can be edited from
+        `nix-station`.
+    - **ArgoCD HA (partial)** — `server`/`repo-server`/`applicationSet` ×2 plus the
+      `application-controller` ×2 (active/standby), soft anti-affinity, spread across
+      `.82`/`.81`; codified in `scripts/bootstrap-argocd.sh`. **Redis is a single
+      replica** (SPOF).
     - **Media stack re-homed in-cluster** — the `media` app now targets the unified
       cluster; `manifests/media/kustomization.yaml` pins every media pod to `.81`; the
       `calamansi-intel` external cluster registration + `.81` ingress apps retired.
@@ -620,22 +629,25 @@ data:
     
     ## HA (2026-10-14)
     
-    **DONE:** one **3-node k3s cluster** with **3-member embedded etcd** —
-    `sitaw-amd` (.82), `calamansi-intel` (.81, media pinned), `kamatis-mbp` (.83,
-    etcd-only). The media stack was re-homed in-cluster. Losing any one node no
-    longer breaks the control plane.
+    **DONE:**
+    - **One 3-node k3s cluster** with **3-member embedded etcd** — `sitaw-amd` (.82),
+      `calamansi-intel` (.81, media pinned), `kamatis-mbp` (.83, etcd-only). Media
+      re-homed in-cluster; losing any one node no longer breaks the control plane.
+    - **k3s join token in SOPS** (`k3s_cluster_token`) — both joining nodes decrypt it
+      via sops-nix. Added `kamatis-mbp` + a SOPS **admin age key**
+      (`~/.config/sops/age/homelab.txt`) as recipients.
+    - **ArgoCD HA (partial)** — `server`/`repo-server`/`applicationSet` ×2 and the
+      `application-controller` ×2 (active/standby) with soft anti-affinity, spread
+      across `.82`/`.81`. Codified in `scripts/bootstrap-argocd.sh`.
     
-    Remaining for full HA:
-    - **ArgoCD HA** — still 1 replica of each component on `.82`. To survive losing
-      `.82`: use the argo-cd Helm chart with `server`/`repoServer` replicas ≥2,
-      `controller.replicas=2` (+ `redis-ha`) and hard `podAntiAffinity`.
-    - **k3s token → SOPS** — move `/etc/k3s-cluster-token` into
-      `secrets/homelab.yaml` (needs the new hosts' age recipients added).
-    - **Distributed storage** — config PVCs are `local-path` (node-pinned), so
-      stateful pods can't reschedule off `.81`. Longhorn (replicas=2) would fix it.
-    - **Edge lock** — NodePorts remain LAN-reachable (bypass Cloudflare Access).
-      Now that ingress-nginx runs on every node of one cluster, binding NodePorts
-      to loopback no longer breaks cross-host access.
+    Remaining for **full** HA:
+    - **Redis HA** — ArgoCD's Redis is still a single replica (SPOF). Full HA needs
+      `redis-ha` (3 replicas + tolerations for the tainted node).
+    - **Distributed storage (Longhorn)** — config PVCs are `local-path` (node-pinned),
+      so stateful pods can't reschedule off `.81`. Longhorn (replicas=2) would fix it.
+    - **Edge lock** — NodePorts remain LAN-reachable (bypass Cloudflare Access). Now
+      that ingress-nginx runs on every node of one cluster, binding NodePorts to
+      loopback no longer breaks cross-host access.
     
     ## After the 2026-10-12/13 bare-metal nuke
     
