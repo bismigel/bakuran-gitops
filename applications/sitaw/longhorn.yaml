@@ -32,7 +32,9 @@ spec:
   syncPolicy:
     automated:
       prune: true
-      selfHeal: true
+      # Longhorn mutates its own Setting/ConfigMap resources at runtime;
+      # self-heal fights that (API conflicts). Sync on git changes only.
+      selfHeal: false
     syncOptions:
       - CreateNamespace=true
       # Longhorn CRDs exceed the 262144-byte annotation limit; use SSA.
