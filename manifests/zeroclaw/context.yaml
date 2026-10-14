@@ -146,6 +146,7 @@ data:
     - `monitoring`: grafana (per-user SSO, PVC-backed), prometheus (PVC-backed), kube-state-metrics, node-exporter
     - `observability`: otel-collector; `opentelemetry-operator-system`
     - `cert-manager`, `external-secrets` (+ Bitwarden SDK server), `homepage`
+    - `longhorn` — distributed storage (StorageClass `longhorn`, 2 replicas) on `.81`/`.82`
     - `zeroclaw` — homelab AI agent (web UI + Telegram; see below)
     - `cloudflared` (NixOS service) — the **primary** of two tunnel connectors
     
@@ -246,6 +247,7 @@ data:
     | ingress-nginx http / https | NodePort **32080** / **32443** |
     | ArgoCD | `argocd ns` (ClusterIP · `systemctl --user argocd-pf` → `localhost:8080`) — **HA**: server/repo-server/appset ×2 + controller standby, single Redis |
     | External Secrets | `external-secrets ns` (+ `bitwarden-sdk-server:9998`) |
+    | Storage | Longhorn (`longhorn-system` ns, StorageClass **`longhorn`**, 2 replicas) — host prereqs: open-iscsi, iSCSI ports 3260-3264/9500-9505 |
     | cloudflared | `cloudflared-tunnel-8dcc83bd-eb95-4c0d-8f71-b92a27d37649.service` (also runs on `.81` — 2 connectors) |
     
     NodePorts: grafana `30300`, prometheus `30909`, homepage `30080`.
@@ -581,6 +583,14 @@ data:
       `/mnt/media/_k3s-storage-backup-*.tar.gz`); re-wired with the media setup scripts.
     - **Single ArgoCD control plane** — ArgoCD on `sitaw-amd` manages the one unified
       cluster in-cluster; no external cluster, no second ArgoCD.
+    - **Longhorn** added for distributed storage (2-replica `longhorn` StorageClass).
+      Host prereqs in `modules/base.nix` (`open-iscsi`, `iscsi_tcp`, `/usr/bin/iscsiadm`
+      symlink, ports 3260-3264/9500-9505). Chart gotchas: `preUpgradeChecker.jobEnabled:
+      false` and `selfHeal: false` (Longhorn mutates its own Settings). On **1.13.0** the
+      manager also crash-loops on an empty `support-bundle-manager-image` Setting — set it
+      out-of-band to `longhornio/support-bundle-kit:v0.0.98`.
+    - **Jellyfin transcoding** — the low-power QSV encoders failed (`Kaby Lake` has no
+      i915 GuC → VDENC "ratecontrol mode unsupported"); disabled them, standard QSV works.
     - **Hosts renamed** — `calamansi` → `calamansi-intel`, `sitaw` → `sitaw-amd`
       (OS hostname + k3s node + flake + gitops). (Renaming the k3s node required
       rebuilding the `local-path` PVs.)
@@ -640,11 +650,20 @@ data:
       `application-controller` ×2 (active/standby) with soft anti-affinity, spread
       across `.82`/`.81`. Codified in `scripts/bootstrap-argocd.sh`.
     
-    Remaining for **full** HA:
-    - **Redis HA** — ArgoCD's Redis is still a single replica (SPOF). Full HA needs
-      `redis-ha` (3 replicas + tolerations for the tainted node).
-    - **Distributed storage (Longhorn)** — config PVCs are `local-path` (node-pinned),
-      so stateful pods can't reschedule off `.81`. Longhorn (replicas=2) would fix it.
+    **DONE (continued):**
+    - **Longhorn** (distributed storage) installed via ArgoCD — 2-replica StorageClass
+      `longhorn`, so stateful volumes can reschedule between nodes. Host prereqs in
+      `modules/base.nix` (open-iscsi, `iscsi_tcp`, `/usr/bin/iscsiadm` symlink, ports);
+      chart needs `selfHeal: false` (Longhorn mutates its own Settings) and
+      `preUpgradeChecker.jobEnabled: false`.
+    - **Jellyfin** — disabled the low-power QSV encoders (Kaby Lake GuC not loaded →
+      VDENC "ratecontrol mode unsupported"); standard QSV transcoding verified working.
+    
+    Remaining:
+    - **Migrate config PVCs to Longhorn** — arr/Jellyfin/Grafana/Prometheus/ZeroClaw
+      PVCs still use node-pinned `local-path`; switch them to `longhorn` so they can
+      reschedule.
+    - **Redis HA** — ArgoCD's Redis is still a single replica (SPOF).
     - **Edge lock** — NodePorts remain LAN-reachable (bypass Cloudflare Access). Now
       that ingress-nginx runs on every node of one cluster, binding NodePorts to
       loopback no longer breaks cross-host access.
