@@ -9,14 +9,54 @@ metadata:
   name: zeroclaw
   namespace: zeroclaw
 ---
+# Least privilege: the agent (and its MCP server) get read/observe only.
+# No secrets, no writes, no exec. It proposes changes via PRs instead.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: homelab-agent-read
+rules:
+  - apiGroups: [""]
+    resources:
+      [pods, pods/log, services, endpoints, configmaps, events, namespaces,
+       nodes, persistentvolumes, persistentvolumeclaims, replicationcontrollers,
+       serviceaccounts, resourcequotas, limitranges]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: [deployments, statefulsets, daemonsets, replicasets, controllerrevisions]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: [jobs, cronjobs]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses, ingressclasses, networkpolicies]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [roles, rolebindings, clusterroles, clusterrolebindings]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: [customresourcedefinitions]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: [applications, applicationsets, appprojects]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["longhorn.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      [external-secrets.io, cert-manager.io, monitoring.coreos.com,
+       opentelemetry.io, coordination.k8s.io, apiregistration.k8s.io]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: zeroclaw-cluster-admin
+  name: zeroclaw-agent-read
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: cluster-admin
+  name: homelab-agent-read
 subjects:
   - kind: ServiceAccount
     name: zeroclaw
