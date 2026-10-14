@@ -1,0 +1,8 @@
+# Longhorn Settings that aren't rendered by the chart's default-setting template.
+# Declared here so they're reproducible (previously set out-of-band).
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: support-bundle-manager-image
+  namespace: longhorn-system
+value: longhornio/support-bundle-kit:v0.0.98
