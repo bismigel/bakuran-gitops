@@ -326,10 +326,12 @@ spec:
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: admin
-            # TODO: move to a Bitwarden-backed Secret (add key
-            # `grafana-admin-password`, then reference `grafana-admin` here).
+            # Admin password from Bitwarden (ExternalSecret `grafana-admin`).
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: admin
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: admin-password
             # Per-user auto-login: trust the identity Cloudflare Access injects
             # (each person gets their own Grafana account).
             - name: GF_AUTH_PROXY_ENABLED
@@ -460,3 +462,21 @@ data:
       ]
     }
 
+---
+# Grafana admin password, synced from Bitwarden (`grafana-admin-password`).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-admin
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: grafana-admin
+  data:
+    - secretKey: admin-password
+      remoteRef:
+        key: grafana-admin-password
