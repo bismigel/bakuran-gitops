@@ -724,6 +724,10 @@ data:
       DNS + Access (session 730h).
     - **Longhorn settings declared** — `bakuran-gitops/manifests/longhorn-config/`
       (`support-bundle-manager-image`), previously out-of-band.
+    - **ArgoCD admin creds declared** — `bootstrap-argocd.sh` sets the admin password
+      from Bitwarden (`argocd-admin-password`, bcrypt), so it's not a random default.
+    - **LAN / DHCP declared** — `bakuran-infra/network/lan.md` (static hosts + MACs +
+      router reservations).
     
     Still **NOT** backed up: **media data (~1.2 TB)** and the router/DHCP config.
     
