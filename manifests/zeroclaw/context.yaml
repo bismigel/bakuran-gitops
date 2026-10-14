@@ -269,7 +269,7 @@ data:
     
     | Service | Namespace | NodePort |
     |---|---|---|
-    | jellyfin | default | 30096 (http) / 30920 (https) |
+    | jellyfin | default | 30096 loopback NodePort; **hostPort 8096 on `.81` (LAN, for TV clients)** |
     | qbittorrent | downloads | 30081 |
     | sabnzbd | downloads | 30082 |
     | sonarr / radarr / prowlarr / bazarr | media | 30089 / 30078 / 30069 / 30067 |
@@ -311,6 +311,10 @@ data:
     > hostname is a proxied `CNAME` to the tunnel, routed to `127.0.0.1:32080`, with a
     > Cloudflare **Access** app (allow: bismigel@pm.me, ciceleyrubio17@gmail.com).
     > NodePorts are loopback-only, so the tunnel is the only way in.
+    > **Access session duration = `730h` (30 days)** on every app — one email-OTP logins
+    > stays valid for a month per browser (the closest thing to "trust this device").
+    > **Jellyfin also has `hostPort 8096` on `.81`** for LAN TV clients that can't do
+    > Access (`http://192.168.2.81:8096`).
     
     Zones: `bismigel.dev` `d7786ec1130918385079b8f224f271b5` · `ciceley.cc`
     `bfca3075a1f1d5d2836aca7f4558af0b` · `miguelarbis.dev` `0ee0ef4302ab23094e39aae78ca9492e`.
