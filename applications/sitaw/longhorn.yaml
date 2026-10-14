@@ -26,6 +26,9 @@ spec:
           # Don't make Longhorn the cluster default; existing PVCs pin
           # storageClassName explicitly and we migrate deliberately.
           defaultClass: false
+          # StorageClass replica count (chart defaults to 3; we have 2
+          # schedulable nodes, so 2 avoids a permanently-degraded replica).
+          defaultClassReplicaCount: 2
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
