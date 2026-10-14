@@ -103,14 +103,14 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: prometheus-storage
+  name: prometheus-data
   namespace: monitoring
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: longhorn
   resources:
     requests:
       storage: 2Gi
@@ -167,7 +167,7 @@ spec:
             name: prometheus-config
         - name: storage
           persistentVolumeClaim:
-            claimName: prometheus-storage
+            claimName: prometheus-data
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -242,14 +242,14 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: grafana-storage
+  name: grafana-data
   namespace: monitoring
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: longhorn
   resources:
     requests:
       storage: 1Gi
@@ -327,7 +327,7 @@ spec:
             name: grafana-datasources
         - name: storage
           persistentVolumeClaim:
-            claimName: grafana-storage
+            claimName: grafana-data
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

@@ -25,13 +25,13 @@ subjects:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: zeroclaw-data
+  name: zeroclaw-data-lh
   namespace: zeroclaw
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: longhorn
   resources:
     requests:
       storage: 2Gi
@@ -259,7 +259,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: zeroclaw-data
+            claimName: zeroclaw-data-lh
         - name: context
           configMap:
             name: homelab-context
