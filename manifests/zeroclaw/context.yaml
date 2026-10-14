@@ -671,13 +671,19 @@ data:
       LAN clients can no longer bypass Access. ZeroClaw/media use the in-cluster Service.
     
     Remaining (optional):
-    - **Redis HA** — **attempted and rolled back.** ArgoCD's `redis-ha` stack (3 replicas
-      + sentinel + HAProxy, spread across all 3 nodes) came up but flapped: the
-      `config-init` init container deadlocks waiting for the headless `argocd-redis-ha`
-      sentinel DNS to resolve, which needs ready pods first (chicken-and-egg), and it's
-      fragile on a small cluster. **Decision:** keep the single Redis — it's a low-impact
-      SPOF (if Redis dies, ArgoCD *reconciliation* pauses; running workloads are
-      unaffected). Revisit with the bitnami redis-ha chart or a larger cluster if needed.
+    - **Redis HA** — **attempted twice, rolled back.** ArgoCD's `redis-ha` (3 Redis +
+      sentinel + HAProxy, spread across all 3 nodes) hit three failure modes:
+      1. `config-init` deadlocked on the headless `argocd-redis-ha` sentinel DNS
+         (chicken-and-egg) → fixed with `publishNotReadyAddresses: true`.
+      2. The HAProxy Deployment deadlocked on hard anti-affinity during rollout
+         (old RS holds the nodes) → worked around via `Recreate` + deleting the stale RS.
+      3. **HAProxy's `redis-master` health checks then time out** (couldn't get
+         HAProxy→sentinel routing working — not the NetworkPolicies), so it refused
+         connections. Not usable as-is.
+      **Decision:** keep the single Redis — a low-impact SPOF (if Redis dies, ArgoCD
+      *reconciliation* pauses; running workloads are unaffected; the pod just reschedules).
+      Revisit with the **bitnami redis-ha** chart (more robust bootstrap) if a real need
+      arises.
     
     ## After the 2026-10-12/13 bare-metal nuke
     
