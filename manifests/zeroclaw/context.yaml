@@ -189,8 +189,10 @@ data:
     - **NodePorts are bound to loopback** (`--kube-proxy-arg nodeport-addresses=127.0.0.1/32`),
       so the tunnel is the **only** path in — LAN clients can't reach NodePorts and thus
       can't bypass Cloudflare Access.
-    - **Zero Trust Access** gates the sensitive endpoints (`grafana`, `jellyfin`,
-      `status`, `private`, `agent` under `*.bismigel.dev`), email-OTP or GitHub SSO.
+    - **Zero Trust Access** gates the sensitive endpoints under `*.bismigel.dev` —
+      `grafana`, `jellyfin`, `status`, `private`, `agent`, and the media/admin UIs
+      (`sonarr`, `radarr`, `prowlarr`, `bazarr`, `qbittorrent`, `sabnzbd`, `homepage`,
+      `prometheus`) — allow-listed per email or GitHub SSO.
     - Media is reached through the **same tunnel** (`jellyfin.bismigel.dev → 192.168.2.81:30096`).
     - **Grafana auto-login** is per-user via the Cloudflare identity header; the
       **\*arrs** are login-free on the LAN (`AuthenticationMethod=Forms` +
@@ -299,8 +301,16 @@ data:
     | `grafana.bismigel.dev` | .82 → grafana | **Access** (per-user) |
     | `status.bismigel.dev` | .82 → status-api | **Access** |
     | `private.bismigel.dev` | .82 → private-api | **Access** |
-    | `jellyfin.bismigel.dev` | **.81 → jellyfin:30096** | **Access** |
+    | `jellyfin.bismigel.dev` | ingress-nginx → jellyfin | **Access** |
     | `agent.bismigel.dev` | .82 → zeroclaw:42617 | **Access** (+ Telegram) |
+    | `sonarr` / `radarr` / `prowlarr` / `bazarr`.bismigel.dev | ingress-nginx → media *arrs | **Access** |
+    | `qbittorrent` / `sabnzbd`.bismigel.dev | ingress-nginx → download clients | **Access** |
+    | `homepage` / `prometheus`.bismigel.dev | ingress-nginx → homepage / prometheus | **Access** |
+    
+    > All the above go through the single tunnel with connectors on `.81`/`.82`; each
+    > hostname is a proxied `CNAME` to the tunnel, routed to `127.0.0.1:32080`, with a
+    > Cloudflare **Access** app (allow: bismigel@pm.me, ciceleyrubio17@gmail.com).
+    > NodePorts are loopback-only, so the tunnel is the only way in.
     
     Zones: `bismigel.dev` `d7786ec1130918385079b8f224f271b5` · `ciceley.cc`
     `bfca3075a1f1d5d2836aca7f4558af0b` · `miguelarbis.dev` `0ee0ef4302ab23094e39aae78ca9492e`.
