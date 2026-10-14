@@ -44,7 +44,10 @@ spec:
           securityContext:
             privileged: true
           ports:
+            # hostPort: LAN access for TV clients (they can't do Cloudflare
+            # Access). Jellyfin is pinned to .81, so this binds there.
             - containerPort: 8096
+              hostPort: 8096
               name: http
             - containerPort: 8920
               name: https
