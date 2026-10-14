@@ -59,6 +59,7 @@ spec:
                 printf '%s\n' 'port = 8080'
                 printf '%s\n' 'username = ""'
                 printf '%s\n' 'password = ""'
+                printf '%s\n' 'host_whitelist = sabnzbd.bismigel.dev'
                 printf '%s\n' 'download_dir = /downloads/incomplete'
                 printf '%s\n' 'complete_dir = /downloads/complete'
                 printf '%s\n' 'permissions = "777"'
