@@ -75,9 +75,12 @@ spec:
           persistentVolumeClaim:
             claimName: jellyfin-config
         - name: cache
+          # Transcode temp lives here. Must be LOCAL disk: the old /mnt/media
+          # is the mergerfs pool, and mergerfs placed transcodes on .82 over
+          # NFS — so every transcode read/wrote its segments across the network.
           hostPath:
-            path: /mnt/media
-            type: Directory
+            path: /var/cache/jellyfin
+            type: DirectoryOrCreate
         - name: media
           hostPath:
             path: /mnt/media
