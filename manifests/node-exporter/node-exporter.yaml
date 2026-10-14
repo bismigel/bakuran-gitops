@@ -13,10 +13,12 @@ spec:
     metadata:
       labels:
         app: node-exporter
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9100"
     spec:
+      # Run on every node — including the tainted control-plane MacBook — so all
+      # three hosts are covered. Prometheus scrapes these via the dedicated
+      # `node-exporter` job (app=node-exporter, forced to :9100).
+      tolerations:
+        - operator: Exists
       hostNetwork: true
       hostPID: true
       containers:

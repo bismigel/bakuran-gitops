@@ -20,14 +20,6 @@ data:
         - static_configs:
             - targets: ['alertmanager.monitoring.svc:9093']
     scrape_configs:
-      - job_name: 'kubernetes-nodes'
-        kubernetes_sd_configs:
-          - role: node
-        relabel_configs:
-          - source_labels: [__address__]
-            regex: '([^:]+):10250'
-            replacement: '${1}:9100'
-            target_label: __address__
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
           - role: pod
@@ -87,9 +79,12 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
             regex: node-exporter
-      - job_name: 'node-exporter-static'
-        static_configs:
-          - targets: ['192.168.2.81:9100']
+          # role: pod leaves __address__ as the pod IP with no port, so Prometheus
+          # defaults to :80. Force the node-exporter port explicitly.
+          - source_labels: [__address__]
+            regex: '([^:]+)(?::\d+)?'
+            replacement: '$1:9100'
+            target_label: __address__
 ---
 apiVersion: v1
 kind: Service
