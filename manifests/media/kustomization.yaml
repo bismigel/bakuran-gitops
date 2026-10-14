@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - arr-stack.yaml
+  - jellyfin.yaml
+  - qbittorrent.yaml
+  - sabnzbd.yaml
+  - media-mcp.yaml
+  - ghcr-secret.yaml
+# The media stack uses hostPath /mnt/media and /dev/dri (QuickSync), which exist
+# only on calamansi-intel (.81). Pin every media pod to that node.
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          kubernetes.io/hostname: calamansi-intel
