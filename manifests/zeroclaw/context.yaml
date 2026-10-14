@@ -576,8 +576,10 @@ data:
         `nix-station`.
     - **ArgoCD HA (partial)** — `server`/`repo-server`/`applicationSet` ×2 plus the
       `application-controller` ×2 (active/standby), soft anti-affinity, spread across
-      `.82`/`.81`; codified in `scripts/bootstrap-argocd.sh`. **Redis is a single
-      replica** (SPOF).
+      `.82`/`.81`; codified in `scripts/bootstrap-argocd.sh`. **Redis stays a single
+      replica** — `redis-ha` was attempted and rolled back (its `config-init` deadlocks
+      on headless sentinel DNS on a small cluster); accepted low-impact SPOF (ArgoCD
+      reconciliation pauses if it dies, workloads keep running).
     - **Media stack re-homed in-cluster** — the `media` app now targets the unified
       cluster; `manifests/media/kustomization.yaml` pins every media pod to `.81`; the
       `calamansi-intel` external cluster registration + `.81` ingress apps retired.
@@ -668,8 +670,14 @@ data:
       (`nodeport-addresses=127.0.0.1/32`), so the Cloudflare tunnel is the only path in;
       LAN clients can no longer bypass Access. ZeroClaw/media use the in-cluster Service.
     
-    Remaining:
-    - **Redis HA** — ArgoCD's Redis is still a single replica (SPOF).
+    Remaining (optional):
+    - **Redis HA** — **attempted and rolled back.** ArgoCD's `redis-ha` stack (3 replicas
+      + sentinel + HAProxy, spread across all 3 nodes) came up but flapped: the
+      `config-init` init container deadlocks waiting for the headless `argocd-redis-ha`
+      sentinel DNS to resolve, which needs ready pods first (chicken-and-egg), and it's
+      fragile on a small cluster. **Decision:** keep the single Redis — it's a low-impact
+      SPOF (if Redis dies, ArgoCD *reconciliation* pauses; running workloads are
+      unaffected). Revisit with the bitnami redis-ha chart or a larger cluster if needed.
     
     ## After the 2026-10-12/13 bare-metal nuke
     
