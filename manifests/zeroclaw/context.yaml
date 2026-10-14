@@ -174,13 +174,22 @@ data:
     
     ## Backups / DR
     
-    - **Daily** systemd timer (`homelab-backup`) on each box → **age-encrypts** the
-      host SSH keys + k3s kubeconfig + BWS token → **Cloudflare R2**
-      (`r2:homelab-backups/credentials/`). Script: `bakuran-infra/scripts/backup-credentials.sh`.
-    - The **age backup private key** lives in Bitwarden (and offline) — required to
-      decrypt the R2 blobs.
-    - **`docs/REBUILD.md`** = the rebuild runbook; `scripts/bootstrap-argocd.sh` does
-      the one manual step (ArgoCD install + repo creds + root app).
+    Three daily backups, all **age-encrypted → R2** (`r2:homelab-backups/`):
+    - **credentials/** — host SSH keys + k3s kubeconfig + BWS token, per box
+      (`modules/backup.nix`). Restores the SOPS identity.
+    - **appdata/** — stateful app data (config PVCs: *arrs/Jellyfin/Grafana/Prometheus/
+      ZeroClaw), from the control plane via `kubectl exec` (`modules/backup-apps.nix`).
+    - **nixstation/** — the admin box's own files (context, SSH keys, `cloudflare-backup`,
+      SOPS keyring, age keys, `.env`) (`nix-station/modules/home/backup.nix`).
+    
+    The backup **env file** (`/root/.config/homelab-backup.env`) is rendered from
+    SOPS (`homelab_backup_env`), not hand-placed. The **age backup private key** and
+    the **SOPS admin age key** live in Bitwarden.
+    
+    **`docs/REBUILD.md`** = the rebuild runbook; `scripts/bootstrap-argocd.sh` does the
+    one manual step (ArgoCD install + repo creds + root app). The **Cloudflare edge**
+    is declared in `bakuran-infra/cloudflare/sync.sh`; the **Longhorn settings** in
+    `bakuran-gitops/manifests/longhorn-config/`.
     
     ## Edge (Cloudflare)
     
@@ -700,6 +709,23 @@ data:
       *reconciliation* pauses; running workloads are unaffected; the pod just reschedules).
       Revisit with the **bitnami redis-ha** chart (more robust bootstrap) if a real need
       arises.
+    
+    ## Nuke-proofing (2026-10-14)
+    
+    Made the lab rebuild-safe:
+    - **App-state backups** — daily, age-encrypted → R2 `appdata/` (config PVCs:
+      *arrs/Jellyfin/Grafana/Prometheus/ZeroClaw), via `modules/backup-apps.nix` on `.82`.
+    - **`nix-station` backup** — context / SSH keys / `cloudflare-backup` / SOPS keyring /
+      age keys / `.env` → R2 `nixstation/` (home-manager user timer, daily).
+    - **Backup env → SOPS** (`homelab_backup_env`) — rendered, not hand-placed (it had
+      gone missing → the credentials backup was silently failing).
+    - **SOPS admin age key → Bitwarden** (`sops-admin-age-key`; was only on nix-station).
+    - **Cloudflare declared** — `bakuran-infra/cloudflare/sync.sh` reconciles tunnel +
+      DNS + Access (session 730h).
+    - **Longhorn settings declared** — `bakuran-gitops/manifests/longhorn-config/`
+      (`support-bundle-manager-image`), previously out-of-band.
+    
+    Still **NOT** backed up: **media data (~1.2 TB)** and the router/DHCP config.
     
     ## After the 2026-10-12/13 bare-metal nuke
     
