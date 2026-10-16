@@ -1,0 +1,124 @@
+# Jellyfin-native login alerts.
+#
+# Jellyfin is no longer behind Cloudflare Access, so the Access-based watcher
+# (login-alerts.yaml) can't see it. This polls Jellyfin's own activity log with
+# an API key (an API key does NOT create an Authentication event, so the watcher
+# doesn't alert on itself) and posts logins to Alertmanager — same AppLogin
+# route/receiver as the Access alerts.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: jellyfin-watch-key
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: jellyfin-watch-key, template: { data: { api-key: "{{ .key }}" } } }
+  data:
+    - secretKey: key
+      remoteRef: { key: jellyfin-api-key }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jellyfin-watch
+  namespace: monitoring
+data:
+  watch.py: |
+    #!/usr/bin/env python3
+    """Alert on Jellyfin authentication events (native, off Zero Trust)."""
+    import datetime, json, os, re, urllib.request
+
+    JF_URL = os.environ.get("JELLYFIN_URL", "http://jellyfin.default.svc.cluster.local:8096")
+    JF_KEY = os.environ["JELLYFIN_API_KEY"]
+    AM_URL = os.environ.get("ALERTMANAGER_URL", "http://alertmanager.monitoring.svc:9093/api/v2/alerts")
+    FRESH_SECONDS = int(os.environ.get("FRESH_SECONDS", "120"))
+    WATCH_TYPES = ("AuthenticationSucceeded", "AuthenticationFailed")
+
+    def parse(ts):
+        ts = re.sub(r"\.(\d{6})\d*", r".\1", ts.replace("Z", "+00:00"))
+        return datetime.datetime.fromisoformat(ts)
+
+    req = urllib.request.Request(
+        "%s/System/ActivityLog/Entries?limit=20" % JF_URL,
+        headers={"Authorization": 'MediaBrowser Token="%s"' % JF_KEY})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        items = json.load(r).get("Items", [])
+
+    alerts = []
+    for e in items:
+        if e.get("Type") not in WATCH_TYPES:
+            continue
+        try:
+            created = parse(e["Date"])
+        except Exception:
+            continue
+        end = created + datetime.timedelta(seconds=FRESH_SECONDS)
+        name = e.get("Name", "?")
+        alerts.append({
+            "labels": {
+                "alertname": "AppLogin",
+                "app": "jellyfin",
+                "user": name.split(" ")[0],
+                "ip": e.get("ShortOverview", "").replace("IP address: ", ""),
+                "ray": "jf-%s" % e.get("Id", ""),
+            },
+            "annotations": {
+                "summary": "Jellyfin: %s" % name,
+                "details": "%s at %s" % (e.get("ShortOverview", "?"), e.get("Date", "?")),
+            },
+            "startsAt": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "endsAt": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        })
+
+    if not alerts:
+        print("no jellyfin login events in window")
+        raise SystemExit(0)
+
+    post = urllib.request.Request(AM_URL, data=json.dumps(alerts).encode(),
+                                  headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(post, timeout=20) as r:
+        print("POSTed %d jellyfin login alert(s) (HTTP %s)" % (len(alerts), r.status))
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jellyfin-login-watch
+  namespace: monitoring
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 120
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: watch
+              image: python:3.12-alpine
+              command: ["python", "/scripts/watch.py"]
+              env:
+                - { name: JELLYFIN_URL, value: "http://jellyfin.default.svc.cluster.local:8096" }
+                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+                - { name: PYTHONUNBUFFERED, value: "1" }
+                - name: JELLYFIN_API_KEY
+                  valueFrom: { secretKeyRef: { name: jellyfin-watch-key, key: api-key } }
+              volumeMounts:
+                - { name: script, mountPath: /scripts }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { memory: 128Mi }
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                runAsGroup: 65534
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: script
+              configMap: { name: jellyfin-watch }
