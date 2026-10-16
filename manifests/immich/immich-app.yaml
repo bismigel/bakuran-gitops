@@ -61,12 +61,10 @@ spec:
       labels:
         app: immich-machine-learning
     spec:
+      # ML is the CPU-bound part -> run it on the Ryzen (.82). Storage + DB stay
+      # on the MacBook, which is where the free disk is.
       nodeSelector:
-        kubernetes.io/hostname: kamatis-mbp
-      tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
+        kubernetes.io/hostname: sitaw-amd
       containers:
         - name: machine-learning
           image: ghcr.io/immich-app/immich-machine-learning:v3.3.3
@@ -91,7 +89,21 @@ spec:
               memory: 4Gi
       volumes:
         - name: cache
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: immich-ml-cache
+---
+# Model cache for the ML service (avoids re-downloading models on restart).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-ml-cache
+  namespace: immich
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
 ---
 apiVersion: v1
 kind: Service
