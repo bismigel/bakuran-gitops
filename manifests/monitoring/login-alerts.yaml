@@ -1,0 +1,118 @@
+# Login alerts for externally exposed apps.
+#
+# Every public hostname sits behind Cloudflare Access, so the Access
+# authentication log is a single source of "who logged into what". A CronJob
+# polls it and posts each recent login to Alertmanager, which dedupes by
+# fingerprint and routes to Telegram (see the AppLogin route in alerting.yaml).
+#
+# No state is kept: each alert carries a fixed per-event endsAt, so it fires
+# once and then resolves on its own without repeats.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: access-watch-cf
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: access-watch-cf, template: { data: { cf-token: "{{ .token }}" } } }
+  data:
+    - secretKey: token
+      remoteRef: { key: cloudflare-api-token }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: access-watch
+  namespace: monitoring
+data:
+  watch.py: |
+    #!/usr/bin/env python3
+    """Alert on new Cloudflare Access logins (all externally exposed apps)."""
+    import datetime, json, os, urllib.request
+
+    CF_ACCOUNT = os.environ["CF_ACCOUNT"]
+    CF_TOKEN = os.environ["CF_TOKEN"]
+    AM_URL = os.environ.get("ALERTMANAGER_URL", "http://alertmanager.monitoring.svc:9093/api/v2/alerts")
+    FRESH_SECONDS = int(os.environ.get("FRESH_SECONDS", "120"))
+
+    def parse(ts):
+        return datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+
+    req = urllib.request.Request(
+        f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT}/access/logs/access_requests",
+        headers={"Authorization": f"Bearer {CF_TOKEN}"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        events = json.load(r).get("result", [])
+
+    alerts = []
+    for e in events:
+        if e.get("action") != "login":
+            continue
+        created = parse(e["created_at"])
+        end = created + datetime.timedelta(seconds=FRESH_SECONDS)
+        alerts.append({
+            "labels": {
+                "alertname": "AppLogin",
+                "app": e.get("app_domain", "?"),
+                "user": e.get("user_email", "?"),
+                "ip": e.get("ip_address", "?"),
+                "ray": e.get("ray_id", ""),
+            },
+            "annotations": {
+                "summary": "%s logged into %s" % (e.get("user_email", "?"), e.get("app_domain", "?")),
+                "details": "from %s (%s) at %s" % (e.get("ip_address", "?"), e.get("country", "?"), e["created_at"]),
+            },
+            "startsAt": e["created_at"].replace("Z", "+00:00"),
+            "endsAt": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        })
+
+    if not alerts:
+        print("no logins in window")
+        raise SystemExit(0)
+
+    post = urllib.request.Request(AM_URL, data=json.dumps(alerts).encode(),
+                                  headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(post, timeout=20) as r:
+        print("POSTed %d login alert(s) -> %s (HTTP %s)" % (len(alerts), AM_URL, r.status))
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: access-login-watch
+  namespace: monitoring
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 120
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: watch
+              image: python:3.12-alpine
+              command: ["python", "/scripts/watch.py"]
+              env:
+                - { name: CF_ACCOUNT, value: c13ab6fbc2a53cfe719bca75fdc825c2 }
+                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+                - { name: PYTHONUNBUFFERED, value: "1" }
+                - name: CF_TOKEN
+                  valueFrom: { secretKeyRef: { name: access-watch-cf, key: cf-token } }
+              volumeMounts:
+                - { name: script, mountPath: /scripts }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { memory: 128Mi }
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: script
+              configMap: { name: access-watch }

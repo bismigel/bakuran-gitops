@@ -50,12 +50,27 @@ data:
       group_wait: 30s
       group_interval: 5m
       repeat_interval: 4h
+      routes:
+        # Login alerts (posted by the access-login-watch CronJob): notify
+        # immediately and don't follow up with a "resolved" message.
+        - matchers: ['alertname="AppLogin"']
+          receiver: telegram-login
+          group_by: ["user", "app"]
+          group_wait: 0s
+          group_interval: 1m
+          repeat_interval: 24h
     receivers:
       - name: telegram
         telegram_configs:
           - bot_token_file: /etc/alertmanager/secret/bot-token
             chat_id: 607008268
             send_resolved: true
+      - name: telegram-login
+        telegram_configs:
+          - bot_token_file: /etc/alertmanager/secret/bot-token
+            chat_id: 607008268
+            send_resolved: false
+            message: '{{ range .Alerts }}🔐 {{ .Annotations.summary }} ({{ .Annotations.details }}){{ "\n" }}{{ end }}'
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
