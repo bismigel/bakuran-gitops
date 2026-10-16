@@ -15,6 +15,9 @@ spec:
     targetRevision: 0.6.2
     helm:
       values: |
+        # NixOS has no /usr/src (the chart mounts it with type: Directory).
+        canMount:
+          usrSrc: false
         # Scraped by Prometheus via the annotation-based kubernetes-services job.
         service:
           annotations:
