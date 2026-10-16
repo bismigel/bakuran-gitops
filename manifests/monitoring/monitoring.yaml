@@ -488,11 +488,11 @@ data:
       "refresh": "30s",
       "time": {"from": "now-6h", "to": "now"},
       "panels": [
-        {"id":1,"type":"stat","title":"Cluster CPU power (W)","gridPos":{"h":4,"w":6,"x":0,"y":0},
+        {"id":1,"type":"stat","title":"Cluster CPU power (W, RAPL)","gridPos":{"h":4,"w":6,"x":0,"y":0},
          "datasource":{"type":"prometheus","uid":"prometheus"},
          "targets":[{"expr":"sum(rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m]))"}],
          "options":{"reduceOptions":{"calcs":["lastNotNull"]}}},
-        {"id":2,"type":"stat","title":"Platform power (W)","gridPos":{"h":4,"w":6,"x":6,"y":0},
+        {"id":2,"type":"stat","title":"Platform power (W, est)","description":"Kepler platform power for these CPUs is a MODEL ESTIMATE (platform_power_source=none) and is inflated — indicative only. The RAPL CPU/DRAM panels are the measured values.","gridPos":{"h":4,"w":6,"x":6,"y":0},
          "datasource":{"type":"prometheus","uid":"prometheus"},
          "targets":[{"expr":"sum(rate(kepler_node_platform_joules_total[5m]))"}],
          "options":{"reduceOptions":{"calcs":["lastNotNull"]}}},
