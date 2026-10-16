@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kepler
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://sustainable-computing-io.github.io/kepler-helm-chart
+    chart: kepler
+    targetRevision: 0.6.2
+    helm:
+      values: |
+        # Scraped by Prometheus via the annotation-based kubernetes-services job.
+        service:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9102"
+        extraEnvVars:
+          ENABLE_GPU: "false"            # no CUDA GPU here (QSV iGPU only)
+          EXPOSE_HW_COUNTER_METRICS: "true"
+          ENABLE_EBPF_CGROUPID: "false"  # avoid eBPF/BTF dependency
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kepler
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
