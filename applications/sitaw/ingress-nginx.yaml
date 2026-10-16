@@ -16,15 +16,28 @@ spec:
     helm:
       values: |
         controller:
-          # Auto-login behind Cloudflare Access: inject identity headers on every
-          # proxied request (apps that trust proxy auth then skip their login).
+          # Two replicas, spread across nodes, so the edge survives losing a node
+          # (matches the two cloudflared connectors).
+          replicaCount: 2
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/name: ingress-nginx
+                        app.kubernetes.io/component: controller
           config:
             proxy-set-headers: "ingress-nginx/headers"
           service:
             type: NodePort
+            # TLS terminates at Cloudflare; the origin leg is HTTP and no Ingress
+            # uses tls:, so the https port is disabled (drop the dead 32443).
+            enableHttps: false
             nodePorts:
               http: 32080
-              https: 32443
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx
