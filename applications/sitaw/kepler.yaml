@@ -18,6 +18,12 @@ spec:
         # NixOS has no /usr/src (the chart mounts it with type: Directory).
         canMount:
           usrSrc: false
+        # The default chart toleration uses Equal + empty value, which doesn't
+        # match the MacBook's control-plane taint (value "true"). Exists tolerates it.
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
         extraEnvVars:
           ENABLE_GPU: "false"            # no CUDA GPU here (QSV iGPU only)
           EXPOSE_HW_COUNTER_METRICS: "true"
