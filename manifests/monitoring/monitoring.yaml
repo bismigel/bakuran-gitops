@@ -461,6 +461,45 @@ data:
          "targets":[{"expr":"ALERTS{alertstate=\"firing\"}","format":"table","instant":true}]}
       ]
     }
+  power.json: |
+    {
+      "title": "Homelab Power",
+      "uid": "homelab-power",
+      "tags": ["homelab", "power"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-6h", "to": "now"},
+      "panels": [
+        {"id":1,"type":"stat","title":"Cluster CPU power (W)","gridPos":{"h":4,"w":6,"x":0,"y":0},
+         "datasource":{"type":"prometheus","uid":"prometheus"},
+         "targets":[{"expr":"sum(rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m]))"}],
+         "options":{"reduceOptions":{"calcs":["lastNotNull"]}}},
+        {"id":2,"type":"stat","title":"Platform power (W)","gridPos":{"h":4,"w":6,"x":6,"y":0},
+         "datasource":{"type":"prometheus","uid":"prometheus"},
+         "targets":[{"expr":"sum(rate(kepler_node_platform_joules_total[5m]))"}],
+         "options":{"reduceOptions":{"calcs":["lastNotNull"]}}},
+        {"id":3,"type":"stat","title":"Nodes reporting","gridPos":{"h":4,"w":6,"x":12,"y":0},
+         "datasource":{"type":"prometheus","uid":"prometheus"},
+         "targets":[{"expr":"count(kepler_node_info)"}],
+         "options":{"reduceOptions":{"calcs":["lastNotNull"]}}},
+        {"id":4,"type":"timeseries","title":"CPU package power by node (W)","gridPos":{"h":8,"w":12,"x":0,"y":4},
+         "datasource":{"type":"prometheus","uid":"prometheus"},
+         "targets":[{"expr":"rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])","legendFormat":"{{instance}}"}]},
+        {"id":5,"type":"timeseries","title":"Node components (W)","gridPos":{"h":8,"w":12,"x":12,"y":4},
+         "datasource":{"type":"prometheus","uid":"prometheus"},
+         "targets":[{"expr":"rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])","legendFormat":"package {{instance}}"},
+                    {"expr":"rate(kepler_node_dram_joules_total{mode=\"dynamic\"}[5m])","legendFormat":"dram {{instance}}"},
+                    {"expr":"rate(kepler_node_uncore_joules_total{mode=\"dynamic\"}[5m])","legendFormat":"uncore {{instance}}"}]},
+        {"id":6,"type":"timeseries","title":"Platform power by node (W, est)","gridPos":{"h":8,"w":12,"x":0,"y":12},
+         "datasource":{"type":"prometheus","uid":"prometheus"},
+         "targets":[{"expr":"rate(kepler_node_platform_joules_total[5m])","legendFormat":"{{instance}}"}]},
+        {"id":7,"type":"timeseries","title":"Top pods by power (W)","gridPos":{"h":8,"w":12,"x":12,"y":12},
+         "datasource":{"type":"prometheus","uid":"prometheus"},
+         "targets":[{"expr":"topk(10, sum by (pod_name) (rate(kepler_container_joules_total{mode=\"dynamic\"}[5m])))","legendFormat":"{{pod_name}}"}]}
+      ]
+    }
 
 ---
 # Grafana admin password, synced from Bitwarden (`grafana-admin-password`).
