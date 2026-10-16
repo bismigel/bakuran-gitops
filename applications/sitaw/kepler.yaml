@@ -18,11 +18,6 @@ spec:
         # NixOS has no /usr/src (the chart mounts it with type: Directory).
         canMount:
           usrSrc: false
-        # Scraped by Prometheus via the annotation-based kubernetes-services job.
-        service:
-          annotations:
-            prometheus.io/scrape: "true"
-            prometheus.io/port: "9102"
         extraEnvVars:
           ENABLE_GPU: "false"            # no CUDA GPU here (QSV iGPU only)
           EXPOSE_HW_COUNTER_METRICS: "true"

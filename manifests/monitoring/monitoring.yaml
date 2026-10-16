@@ -85,6 +85,13 @@ data:
             regex: '([^:]+)(?::\d+)?'
             replacement: '$1:9100'
             target_label: __address__
+      - job_name: 'kepler'
+        # Power exporter. honor_labels keeps kepler's own `instance=<node>` label
+        # (the service load-balances across the hostNetwork pods, so without this
+        # the scrape target's address would clobber the node name).
+        honor_labels: true
+        static_configs:
+          - targets: ['kepler.kepler.svc:9102']
 ---
 apiVersion: v1
 kind: Service
