@@ -86,12 +86,21 @@ data:
             replacement: '$1:9100'
             target_label: __address__
       - job_name: 'kepler'
-        # Power exporter. honor_labels keeps kepler's own `instance=<node>` label
-        # (the service load-balances across the hostNetwork pods, so without this
-        # the scrape target's address would clobber the node name).
+        # Power exporter (hostNetwork, so each pod IP is its node IP). Scrape the
+        # pods directly — scraping the Service would load-balance across nodes and
+        # give each node's series intermittent gaps. honor_labels keeps kepler's
+        # own `instance=<node>` label instead of the scrape address.
         honor_labels: true
-        static_configs:
-          - targets: ['kepler.kepler.svc:9102']
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: kepler
+          - source_labels: [__address__]
+            regex: '([^:]+)(?::\d+)?'
+            replacement: '$1:9102'
+            target_label: __address__
 ---
 apiVersion: v1
 kind: Service
