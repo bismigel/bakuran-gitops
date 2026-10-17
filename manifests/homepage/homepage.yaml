@@ -86,6 +86,18 @@ data:
             href: https://immich.bismigel.dev
             description: Photo library (MacBook storage)
             icon: immich
+    - Reading:
+        - Kavita:
+            href: https://kavita.bismigel.dev
+            description: Books (EPUB/PDF/CBZ) with highlights
+            icon: kavita
+        - LazyLibrarian:
+            href: https://lazylibrarian.bismigel.dev
+            description: Book manager (Usenet → /books)
+        - Karakeep:
+            href: https://karakeep.bismigel.dev
+            description: Bookmarks + AI tagging (local qwen)
+            icon: karakeep
     - Infrastructure:
         - Kubernetes API:
             href: https://192.168.2.82:6443
