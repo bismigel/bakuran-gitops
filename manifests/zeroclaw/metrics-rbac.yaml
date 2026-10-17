@@ -1,0 +1,43 @@
+# Metrics read access for the agent/MCP identity.
+#
+# The metrics.k8s.io resources live at cluster scope (nodes) and in every
+# namespace (pods), so this needs a ClusterRole rather than the namespaced role
+# in kubernetes-mcp.yaml. Kept as a separate additive binding so the existing
+# least-privilege `homelab-agent-read` ClusterRole stays untouched.
+#
+# Deliberately NOT granted: nodes/proxy (kubelet stats API). That reads much
+# more than metrics and is out of scope until explicitly requested.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: homelab-agent-metrics-read
+rules:
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-mcp-agent-metrics-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: homelab-agent-metrics-read
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: zeroclaw
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: zeroclaw-agent-metrics-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: homelab-agent-metrics-read
+subjects:
+  - kind: ServiceAccount
+    name: zeroclaw
+    namespace: zeroclaw
