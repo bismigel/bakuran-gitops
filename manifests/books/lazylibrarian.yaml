@@ -80,6 +80,11 @@ kind: Ingress
 metadata:
   name: lazylibrarian
   namespace: books
+  annotations:
+    # LazyLibrarian emits absolute http:// redirects; rewrite them to https so
+    # browsers don't bounce through Cloudflare's http->https (and re-hit Access).
+    nginx.ingress.kubernetes.io/proxy-redirect-from: "http://lazylibrarian.bismigel.dev"
+    nginx.ingress.kubernetes.io/proxy-redirect-to: "https://lazylibrarian.bismigel.dev"
 spec:
   ingressClassName: nginx
   rules:
