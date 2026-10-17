@@ -42,6 +42,9 @@ spec:
               valueFrom: { secretKeyRef: { name: media-setup, key: prowlarr-api-key } }
             - name: SABNZBD_API_KEY
               valueFrom: { secretKeyRef: { name: media-setup, key: sabnzbd-api-key } }
+            - { name: LAZYLIBRARIAN_URL, value: "http://lazylibrarian.books.svc.cluster.local:5299" }
+            - name: LAZYLIBRARIAN_API_KEY
+              valueFrom: { secretKeyRef: { name: media-setup, key: lazylibrarian-api-key } }
             - name: QBITTORRENT_PASSWORD
               valueFrom: { secretKeyRef: { name: media-setup, key: qbt-password } }
             - name: JELLYFIN_ADMIN_USER
