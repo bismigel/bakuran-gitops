@@ -205,14 +205,14 @@ spec:
                     cp -f /context/AGENTS.md /zeroclaw-data/.zeroclaw/agents/zeroclaw/workspace/AGENTS.md 2>/dev/null;
                     if [ -n "$GH_TOKEN" ]; then
                     zeroclaw config set mcp.servers.github.headers.Authorization "Bearer $GH_TOKEN" --no-interactive >/dev/null 2>&1 || true;
-                      fi;
-                      # Reproducible daily status/health/forecast report. Cron state
-                      # lives on the PVC (backed up); this re-creates it on a fresh volume.
-                      if ! zeroclaw cron list 2>/dev/null | grep -q '0 8 \* \* \*'; then
-                      zeroclaw cron add '0 8 * * *' 'Daily homelab report. Check nodes, pods, restarts and ArgoCD sync health; fetch firing Prometheus alerts from http://prometheus.monitoring.svc.cluster.local:9090/api/v1/alerts; flag filesystems over 85 percent, estimate days to 85 percent from the 7 day node_filesystem_avail_bytes trend, and note the RAM trend. Reply in Telegram under 15 lines with no secrets; start with All good if everything is healthy.' --agent zeroclaw --prompt --channel telegram --to 607008268 --tz Asia/Manila --uses-memory false >/dev/null 2>&1 || true;
-                      fi;
-                      true
-            env:
+                    fi;
+                    # Reproducible daily status/health/forecast report. Cron state
+                    # lives on the PVC (backed up); this re-creates it on a fresh volume.
+                    if ! zeroclaw cron list 2>/dev/null | grep -q '0 8 \* \* \*'; then
+                    zeroclaw cron add '0 8 * * *' 'Daily homelab report. Check nodes, pods, restarts and ArgoCD sync health; fetch firing Prometheus alerts from http://prometheus.monitoring.svc.cluster.local:9090/api/v1/alerts; flag filesystems over 85 percent, estimate days to 85 percent from the 7 day node_filesystem_avail_bytes trend, and note the RAM trend. Reply in Telegram under 15 lines with no secrets; start with All good if everything is healthy.' --agent zeroclaw --prompt --channel telegram --to 607008268 --tz Asia/Manila --uses-memory false >/dev/null 2>&1 || true;
+                    fi;
+                    true
+          env:
             - name: PATH
               value: /opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: ZEROCLAW_gateway__host
