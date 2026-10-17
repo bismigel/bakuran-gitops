@@ -71,6 +71,9 @@ spec:
           image: ghcr.io/karakeep-app/karakeep:release
           env:
             - { name: DATA_DIR, value: /data }
+            # No public registration: the admin account exists; new users must be
+            # created by flipping this off temporarily (Karakeep has no invite UI).
+            - { name: DISABLE_SIGNUPS, value: "true" }
             - { name: MEILI_ADDR, value: "http://meilisearch:7700" }
             - { name: BROWSER_WEB_URL, value: "http://chrome:9222" }
             - { name: NEXTAUTH_URL, value: "https://karakeep.bismigel.dev" }
