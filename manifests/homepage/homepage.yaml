@@ -1,3 +1,6 @@
+# NOTE: Homepage reads /app/config at startup, and the seed init-container copies
+# this ConfigMap to the PVC only on pod start. After editing, restart it:
+#   kubectl -n homepage rollout restart deploy/homepage
 apiVersion: v1
 kind: ConfigMap
 metadata:
