@@ -35,7 +35,7 @@ spec:
         kubernetes.io/hostname: calamansi-intel
       containers:
         - name: lazylibrarian
-          image: linuxserver/lazylibrarian:latest
+          image: linuxserver/lazylibrarian:version-754d0eb6
           env:
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }
