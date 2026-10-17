@@ -113,7 +113,7 @@ spec:
             - name: PGID
               value: "1000"
             - name: TZ
-              value: "Asia/Manila"
+              value: "America/Toronto"
           volumeMounts:
             - name: config
               mountPath: /config
@@ -191,7 +191,7 @@ spec:
             - name: PGID
               value: "1000"
             - name: TZ
-              value: "Asia/Manila"
+              value: "America/Toronto"
           volumeMounts:
             - name: config
               mountPath: /config
@@ -281,7 +281,7 @@ spec:
             - name: PGID
               value: "1000"
             - name: TZ
-              value: "Asia/Manila"
+              value: "America/Toronto"
           volumeMounts:
             - name: config
               mountPath: /config
@@ -364,7 +364,7 @@ spec:
             - name: PGID
               value: "1000"
             - name: TZ
-              value: "Asia/Manila"
+              value: "America/Toronto"
           volumeMounts:
             - name: config
               mountPath: /config

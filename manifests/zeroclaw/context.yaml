@@ -595,7 +595,7 @@ data:
     - **media-mcp** — new lookup/add/search tools so ZeroClaw can track + download a
       movie/series.
     - **ZeroClaw budget** — runtime profile `homelab` (500 tool iterations, 200
-      actions/hour, 64k context); daily 08:00 Asia/Manila status/health/forecast cron.
+      actions/hour, 64k context); daily 08:00 America/Toronto status/health/forecast cron.
     - **VPN kill switch** on `.81`; **SSH key-only**; **Grafana** real admin password.
     - **Bitwarden SM cleanup** — 30 secrets (5 artifacts removed; see `CREDENTIALS.md`).
     - **Kepler** power monitor + `homelab-power` dashboard; homepage links fixed.
@@ -876,7 +876,7 @@ data:
     ```bash
     Z() { kubectl -n zeroclaw exec deploy/zeroclaw -c zeroclaw -- zeroclaw "$@"; }
     Z cron list
-    Z cron add '0 8 * * *' '<prompt>' --agent zeroclaw --prompt --channel telegram --to 607008268 --tz Asia/Manila --uses-memory false
+    Z cron add '0 8 * * *' '<prompt>' --agent zeroclaw --prompt --channel telegram --to 607008268 --tz America/Toronto --uses-memory false
     kubectl -n zeroclaw rollout restart deploy/zeroclaw   # REQUIRED: cron loads at startup
     Z config get runtime_profiles.homelab.max_tool_iterations   # 500
     Z config get providers.models.deepseek.default.context_window  # 64000
@@ -1074,7 +1074,7 @@ data:
     - **Budget (runtime profile `homelab`):** 500 tool iterations, 200 actions/hour,
       **64k context window** (DeepSeek), 60k max context, keep 8 tool-context turns,
       30k tool-result chars. Cost caps $10/day, $100/month.
-    - **Scheduled:** daily **08:00 Asia/Manila** status/health/forecast summary →
+    - **Scheduled:** daily **08:00 America/Toronto** status/health/forecast summary →
       Telegram. Cron jobs load at daemon **startup** — restart `zeroclaw` after adding
       or editing one.
     - **State:** config on the PVC; a declarative seed ConfigMap re-initializes a fresh PVC.
