@@ -2,10 +2,14 @@
 
 This repo is the **ArgoCD desired state** for the Bakuran homelab.
 
-**One ArgoCD control plane** runs on `sitaw-amd` (.82, AMD) and manages **both**
-single-node k3s clusters:
-- **sitaw-amd** (.82, AMD) — sites, APIs, platform (in-cluster)
-- **calamansi-intel** (.81, Intel) — the media stack (registered as an external cluster)
+**One ArgoCD control plane** runs on `sitaw-amd` (.82, AMD) and manages **one
+3-node k3s cluster** (embedded etcd, 3 members):
+- **sitaw-amd** (.82, AMD) — platform + sites/APIs (in-cluster)
+- **calamansi-intel** (.81, Intel) — the media stack (in-cluster, pinned via `nodeSelector`)
+- **kamatis-mbp** (.83, MacBook) — 3rd etcd node (tainted); **Immich** runs there
+
+The Cloudflare edge (tunnel/DNS/Access) is **not** in this repo — it lives in
+`bakuran-infra/cloudflare/sync.sh` and is reconciled daily on `.82`.
 
 There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pulls).
 
@@ -27,19 +31,18 @@ There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pul
 
 ```
 bootstrap/root-app.yaml          # the single root app-of-apps (on sitaw-amd)
-clusters/<name>.yaml             # ArgoCD cluster registrations (redacted bootstrap)
 applications/
-  sitaw-amd/*.yaml                   # Applications targeting sitaw-amd (in-cluster)
-  calamansi-intel/*.yaml               # Applications targeting calamansi-intel (media)
-  node-exporter-appset.yaml      # ApplicationSet -> every registered cluster
+  sitaw/*.yaml                   # all Applications (in-cluster)
+  node-exporter-appset.yaml      # ApplicationSet -> every node
 manifests/<app>/*.yaml           # raw Kubernetes manifests referenced by apps
+scripts/                         # generators (generate-zeroclaw-context.sh)
 ```
 
 ## Add a new application
 
 1. Ensure the app repo has `deploy/k8s/` (Namespace, Deployment, Service,
    Ingress). Use the `homelab-app-template`.
-2. Create `applications/<cluster>/<app>.yaml`:
+2. Create `applications/sitaw/<app>.yaml`:
 
    ```yaml
    apiVersion: argoproj.io/v1alpha1
@@ -58,7 +61,7 @@ manifests/<app>/*.yaml           # raw Kubernetes manifests referenced by apps
        targetRevision: main
        path: deploy/k8s
      destination:
-       server: https://kubernetes.default.svc   # or: name: calamansi-intel
+       server: https://kubernetes.default.svc   # everything is in-cluster
        namespace: <ns>
      syncPolicy:
        automated: { prune: true, selfHeal: true }
@@ -73,8 +76,9 @@ manifests/<app>/*.yaml           # raw Kubernetes manifests referenced by apps
 
 ## Cluster targeting
 
-- **sitaw-amd (local):** `destination.server: https://kubernetes.default.svc`
-- **calamansi-intel (remote):** `destination.name: calamansi-intel`
+Use `destination.server: https://kubernetes.default.svc` for everything — there
+are no external cluster registrations. Pin a workload to a node with `nodeSelector`
+(e.g. media → `.81`, Immich → `.83`).
 
 ## Change something already deployed
 
