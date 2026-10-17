@@ -71,9 +71,9 @@ spec:
           image: ghcr.io/karakeep-app/karakeep:release
           env:
             - { name: DATA_DIR, value: /data }
-            # Signups temporarily OPEN so a new user can register. Set back to
-            # "true" afterwards to close public registration (no invite UI exists).
-            - { name: DISABLE_SIGNUPS, value: "false" }
+            # Public registration closed (no invite UI exists; open it briefly to
+            # add someone, then set this back to "true").
+            - { name: DISABLE_SIGNUPS, value: "true" }
             - { name: MEILI_ADDR, value: "http://meilisearch:7700" }
             - { name: BROWSER_WEB_URL, value: "http://chrome:9222" }
             - { name: NEXTAUTH_URL, value: "https://karakeep.bismigel.dev" }
