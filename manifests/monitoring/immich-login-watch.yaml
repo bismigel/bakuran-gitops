@@ -1,0 +1,105 @@
+# Immich-native login alerts.
+#
+# Immich is off Zero Trust (native app can't do an Access challenge), so the
+# Access watcher can't see it and it has no activity-log API. A login creates a
+# row in the `session` table, so this polls that table (joined to `user` for the
+# email) and posts to Alertmanager via the shared AppLogin route. The payload is
+# built in SQL, so only psql + wget are needed.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: immich-watch-db
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: immich-watch-db, template: { data: { password: "{{ .password }}" } } }
+  data:
+    - secretKey: password
+      remoteRef: { key: immich-db-password }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: immich-watch
+  namespace: monitoring
+data:
+  watch.sh: |
+    #!/bin/sh
+    set -eu
+    PAYLOAD=$(psql -t -A -v win="${FRESH_SECONDS:-120}" -f /scripts/query.sql)
+    if [ -z "$PAYLOAD" ] || [ "$PAYLOAD" = "[]" ]; then
+      echo "no immich logins in window"; exit 0
+    fi
+    wget -q -O /dev/null --header='Content-Type: application/json' \
+      --post-data="$PAYLOAD" "$ALERTMANAGER_URL"
+    echo "POSTed immich login alert(s)"
+  query.sql: |
+    SET TIME ZONE 'UTC';
+    select coalesce(json_agg(a), '[]')
+    from (
+      select json_build_object(
+        'labels', json_build_object(
+          'alertname','AppLogin','app','immich',
+          'user', u.email, 'ip', '', 'ray', 'im-'||s.id),
+        'annotations', json_build_object(
+          'summary', 'Immich: '||u.email||' logged in',
+          'details', trim(both ' ' from coalesce(s."deviceOS",'')||' '||coalesce(s."deviceType",''))
+                     ||' at '||to_char(s."createdAt", 'YYYY-MM-DD"T"HH24:MI:SS"Z"')),
+        'startsAt', to_char(s."createdAt", 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'endsAt',   to_char(s."createdAt" + (interval '1 second' * :win), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+      ) as a
+      from session s
+      join "user" u on u.id = s."userId"
+      where s."createdAt" > now() - (interval '1 second' * :win)
+      order by s."createdAt"
+    ) sub;
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-login-watch
+  namespace: monitoring
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 120
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: watch
+              image: postgres:16-alpine
+              command: ["/bin/sh", "/scripts/watch.sh"]
+              env:
+                - { name: PGHOST, value: immich-postgres.immich.svc.cluster.local }
+                - { name: PGPORT, value: "5432" }
+                - { name: PGUSER, value: immich }
+                - { name: PGDATABASE, value: immich }
+                - { name: ALERTMANAGER_URL, value: "http://alertmanager.monitoring.svc:9093/api/v2/alerts" }
+                - { name: HOME, value: /tmp }
+                - name: PGPASSWORD
+                  valueFrom: { secretKeyRef: { name: immich-watch-db, key: password } }
+              volumeMounts:
+                - { name: script, mountPath: /scripts }
+                - { name: tmp, mountPath: /tmp }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { memory: 128Mi }
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 70
+                runAsGroup: 70
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: script
+              configMap: { name: immich-watch }
+            - name: tmp
+              emptyDir: {}
