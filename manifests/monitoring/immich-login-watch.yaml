@@ -28,7 +28,7 @@ data:
   watch.sh: |
     #!/bin/sh
     set -eu
-    PAYLOAD=$(psql -t -A -v win="${FRESH_SECONDS:-120}" -f /scripts/query.sql)
+    PAYLOAD=$(psql -q -t -A -v win="${FRESH_SECONDS:-120}" -f /scripts/query.sql)
     if [ -z "$PAYLOAD" ] || [ "$PAYLOAD" = "[]" ]; then
       echo "no immich logins in window"; exit 0
     fi
@@ -36,13 +36,12 @@ data:
       --post-data="$PAYLOAD" "$ALERTMANAGER_URL"
     echo "POSTed immich login alert(s)"
   query.sql: |
-    SET TIME ZONE 'UTC';
     select coalesce(json_agg(a), '[]')
     from (
       select json_build_object(
         'labels', json_build_object(
           'alertname','AppLogin','app','immich',
-          'user', u.email, 'ip', '', 'ray', 'im-'||s.id),
+          'user', u.email, 'ray', 'im-'||s.id),
         'annotations', json_build_object(
           'summary', 'Immich: '||u.email||' logged in',
           'details', trim(both ' ' from coalesce(s."deviceOS",'')||' '||coalesce(s."deviceType",''))
@@ -81,6 +80,7 @@ spec:
                 - { name: PGPORT, value: "5432" }
                 - { name: PGUSER, value: immich }
                 - { name: PGDATABASE, value: immich }
+                - { name: PGTZ, value: UTC }
                 - { name: ALERTMANAGER_URL, value: "http://alertmanager.monitoring.svc:9093/api/v2/alerts" }
                 - { name: HOME, value: /tmp }
                 - name: PGPASSWORD
