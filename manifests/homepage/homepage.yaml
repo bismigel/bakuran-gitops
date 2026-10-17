@@ -10,48 +10,72 @@ data:
     demo: false
     title: "Bakuran Sosyal Dashboard"
   services.yaml: |
-    - Cluster Services:
-        - Prometheus:
-            href: http://192.168.2.82:30909
-            description: Metrics and monitoring
-            icon: prometheus
+    - Admin:
+        - ArgoCD:
+            href: https://argocd.bismigel.dev
+            description: GitOps / cluster apps
+            icon: argocd
         - Grafana:
             href: https://grafana.bismigel.dev
-            description: Dashboards
+            description: Dashboards (incl. Homelab Power)
             icon: grafana
-        - Kubernetes API:
-            href: https://192.168.2.82:6443
-            description: k3s API Server
-            icon: kubernetes
-        - Homepage:
-            href: http://192.168.2.82:30080
-            description: This dashboard
-    - Downloads:
-        - qBittorrent:
-            href: http://192.168.2.81:30081
-            description: Torrent downloads
+        - Prometheus:
+            href: https://prometheus.bismigel.dev
+            description: Metrics and alerts
+            icon: prometheus
+        - Longhorn:
+            href: https://longhorn.bismigel.dev
+            description: Storage
+            icon: longhorn
+        - ZeroClaw:
+            href: https://agent.bismigel.dev
+            description: Homelab AI agent
+            icon: robot
     - Media:
         - Jellyfin:
-            href: http://192.168.2.81:30096
-            description: Media server with QSV transcoding
+            href: https://jellyfin.bismigel.dev
+            description: Media server (QSV transcoding)
             icon: jellyfin
-        - Prowlarr:
-            href: http://192.168.2.81:30069
-            description: Indexer manager for Sonarr/Radarr
         - Sonarr:
-            href: http://192.168.2.81:30089
+            href: https://sonarr.bismigel.dev
             description: TV show management
+            icon: sonarr
         - Radarr:
-            href: http://192.168.2.81:30078
+            href: https://radarr.bismigel.dev
             description: Movie management
+            icon: radarr
+        - Prowlarr:
+            href: https://prowlarr.bismigel.dev
+            description: Indexer manager
+            icon: prowlarr
         - Bazarr:
-            href: http://192.168.2.81:30067
-            description: Subtitle management
-    - Observability:
-        - OTel Collector:
-            href: http://192.168.2.82:8889/metrics
-            description: OpenTelemetry metrics
-            icon: otel
+            href: https://bazarr.bismigel.dev
+            description: Subtitles
+            icon: bazarr
+        - qBittorrent:
+            href: https://qbittorrent.bismigel.dev
+            description: Torrent downloads
+            icon: qbittorrent
+        - SABnzbd:
+            href: https://sabnzbd.bismigel.dev
+            description: Usenet downloads
+            icon: sabnzbd
+    - Photos:
+        - Immich:
+            href: https://immich.bismigel.dev
+            description: Photo library (MacBook storage)
+            icon: immich
+    - Infrastructure:
+        - Kubernetes API:
+            href: https://192.168.2.82:6443
+            description: k3s API server
+            icon: kubernetes
+        - Homepage:
+            href: https://homepage.bismigel.dev
+            description: This dashboard
+        - Status:
+            href: https://status.bismigel.dev
+            description: Public status page
   kubernetes.yaml: |
     mode: cluster
     ingress: true
