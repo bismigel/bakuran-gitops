@@ -1,0 +1,97 @@
+# Kavita — self-hosted reading server (EPUB/PDF/CBZ/CBR) with highlights/notes.
+# Books live in the media pool at /mnt/media/books (created by media-dirs on .81).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: books
+  labels:
+    app.kubernetes.io/part-of: homelab
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kavita-config
+  namespace: books
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kavita
+  namespace: books
+  labels:
+    app: kavita
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kavita
+  template:
+    metadata:
+      labels:
+        app: kavita
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: calamansi-intel
+      containers:
+        - name: kavita
+          image: linuxserver/kavita:0.9.1
+          env:
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+            - { name: TZ, value: America/Toronto }
+          ports:
+            - { name: http, containerPort: 5000 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: books, mountPath: /books }
+          resources:
+            requests: { cpu: 20m, memory: 128Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: kavita-config
+        - name: books
+          hostPath:
+            path: /mnt/media/books
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kavita
+  namespace: books
+  labels:
+    app: kavita
+spec:
+  selector:
+    app: kavita
+  ports:
+    - { name: http, port: 5000, targetPort: 5000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kavita
+  namespace: books
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: kavita.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kavita
+                port:
+                  number: 5000

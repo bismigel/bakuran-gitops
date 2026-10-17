@@ -1,0 +1,95 @@
+# LazyLibrarian — book manager: Usenet via SABnzbd (category "books"), indexers
+# via Prowlarr/NZBGeek. Post-processes finished books into /books for Kavita.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lazylibrarian-config
+  namespace: books
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lazylibrarian
+  namespace: books
+  labels:
+    app: lazylibrarian
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lazylibrarian
+  template:
+    metadata:
+      labels:
+        app: lazylibrarian
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: calamansi-intel
+      containers:
+        - name: lazylibrarian
+          image: linuxserver/lazylibrarian:latest
+          env:
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+            - { name: TZ, value: America/Toronto }
+          ports:
+            - { name: http, containerPort: 5299 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: books, mountPath: /books }
+            - { name: downloads, mountPath: /downloads }
+          resources:
+            requests: { cpu: 20m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: lazylibrarian-config
+        - name: books
+          hostPath:
+            path: /mnt/media/books
+            type: Directory
+        - name: downloads
+          hostPath:
+            path: /mnt/media/downloads
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lazylibrarian
+  namespace: books
+  labels:
+    app: lazylibrarian
+spec:
+  selector:
+    app: lazylibrarian
+  ports:
+    - { name: http, port: 5299, targetPort: 5299 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lazylibrarian
+  namespace: books
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: lazylibrarian.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lazylibrarian
+                port:
+                  number: 5299
