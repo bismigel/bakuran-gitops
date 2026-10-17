@@ -771,6 +771,16 @@ data:
     Just push to `main`. CI builds the image, bumps the tag in `deploy/k8s/deployment.yaml`,
     and ArgoCD syncs.
     
+    ## Repos / drift discipline
+    
+    - **PR only.** Private repos on GitHub Free can't enable branch protection, so
+      nix-station uses a global `pre-push` hook (`~/.config/git/hooks/pre-push`)
+      that rejects direct pushes to `main`/`master`. Merge on GitHub.
+    - ArgoCD apps are **auto-sync + selfHeal + prune**; `ArgoCDAppOutOfSync` /
+      `ArgoCDAppUnhealthy` fire after 15 min (Prometheus scrapes the controller
+      endpoints — the leader exposes `argocd_app_info`).
+    - Hosts change **only** via `deploy-rs` from `bakuran-infra`.
+    
     ## NixOS host changes
     
     ```bash
@@ -848,9 +858,9 @@ data:
     lost, re-run on `nix-station`:
     
     ```bash
-    ~/projects/bakuran-infra/scripts/kavita-setup.sh        # reset admin password
-    ~/projects/bakuran-infra/scripts/kavita-add-user.sh <name>  # add a reader
-    ~/projects/bakuran-infra/scripts/lazylibrarian-ui-setup.sh  # SABnzbd + NZBGeek + API key
+    # one command (idempotent): media-setup (if missing) -> Kavita admin/library ->
+    # ciceley -> LazyLibrarian (SABnzbd, NZBGeek, API key, Wanted defaults, download dir)
+    BWS_ACCESS_TOKEN=... ~/projects/bakuran-infra/scripts/books-bootstrap.sh
     ```
     
     Kavita account management: `kavita-user.sh list|lock|unlock|register <name>`
@@ -884,12 +894,28 @@ data:
     
     ## Backups / DR
     
+    Daily: credentials (`.81`/`.82`) and appdata (`.82`) → R2, age-encrypted.
+    Retention: `appdata/` **14 days**, `credentials/` **90 days** (R2 lifecycle,
+    enforced by `cloudflare/sync.sh`).
+    
+    Alerts (Telegram via Alertmanager):
+    - a dump/credential is missing → unit aborts before upload → `BackupFailed`
+    - daily 12:00: newest object >36 h → `BackupStale`
+    - weekly Sun 04:30: decrypt + tar + SQLite `integrity_check` (Kavita/LL) +
+      `gzip -t` the Immich dump → `BackupVerifyFailed`
+    - external dead-man's switch on **nix-station** (15 min, via
+      `status.bismigel.dev`): 3 failures → Telegram (`~/.config/homelab-deadman.env`)
+    
     ```bash
-    # back up now (age-encrypts host keys + kubeconfig + BWS token -> R2)
-    ssh ... .81 'systemctl start homelab-backup'   # or .82
-    # restore: download from r2:homelab-backups/credentials/, then
-    #   age -d -i ~/.homelab-backup.agekey <file> | tar xz
+    # back up now
+    ssh ... .81 'systemctl start homelab-backup'          # credentials
+    ssh ... .82 'systemctl start homelab-backup-apps'     # appdata
+    ssh ... .82 'systemctl start homelab-backup-verify'   # prove it restores
+    # restore: age -d -i <age identity> <file> | tar xz
     ```
+    
+    The age identity is at `/root/.config/homelab-backup.agekey` on `.82` (from BWS
+    `backup-age-key`) and `~/.homelab-backup.agekey` on nix-station.
     Full rebuild: `bakuran-infra/docs/REBUILD.md` (+ `scripts/bootstrap-argocd.sh`).
     
     ## Cloudflare Access / auto-login
