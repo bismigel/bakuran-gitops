@@ -12,6 +12,9 @@ data:
     schema_version = 3
 
     [gateway]
+    host = "0.0.0.0"
+    allow_public_bind = true
+    require_pairing = true
 
     [providers.models.openai.local]
     kind = "openai-compatible"
