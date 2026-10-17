@@ -98,9 +98,9 @@ data:
             action: keep
             regex: kepler
           - source_labels: [__address__]
-              regex: '([^:]+)(?::\d+)?'
-              replacement: '$1:9102'
-              target_label: __address__
+            regex: '([^:]+)(?::\d+)?'
+            replacement: '$1:9102'
+            target_label: __address__
         - job_name: 'argocd'
           # Application controller metrics (argocd_app_info) for drift alerts.
           static_configs:
