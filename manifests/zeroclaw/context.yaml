@@ -601,17 +601,24 @@ data:
     - **Kepler** power monitor + `homelab-power` dashboard; homepage links fixed.
     
     **Open:**
-    - **Immich is not backed up** (Postgres DB + photo library) — highest priority: add
-      `pg_dump` + library to the R2 appdata backup.
+    - ~~**Immich is not backed up**~~ **DONE (2026-10-17):** `backup-apps.nix` now
+      `pg_dump`s the DB and tars the photo library into the R2 `appdata/` backup
+      (verified: `immich-db ok (20M)` + `immich-library ok (157M)`).
     - **Media library (~1.2 TB) still unbacked** (intentional, but should be explicit).
     - **Cloudflare `min_tls_version` is 1.0** → set 1.2; **Bot Fight Mode** off. These
       need a dashboard change (API token lacks Zone Settings / Bot scopes).
     - **Rate limiting** on public `jellyfin`/`immich` — free plan allows 1 rule, already
       used by Cloudflare's leaked-credential check.
     - **MFA on Access** — needs an IdP with MFA (or WARP); email OTP is the only factor.
-    - **Jellyfin live config** (12 Mbps cap, KnownProxies, transcode tuning) lives in the
-      PVC — add it to `media-stack-setup.sh` for a from-scratch rebuild.
-    - **Cron jobs load only at daemon startup** — restart `zeroclaw` after adding one.
+    - ~~**Jellyfin live config not in code**~~ **DONE:** `media-stack-setup.sh` now applies
+      the 12 Mbps remote cap + `KnownProxies` (`ensure_jellyfin_remote_settings`); the
+      transcode tuning was already there.
+    - **Cron jobs load only at daemon startup** — the deployment's `postStart` re-creates
+      the daily job if missing; still restart `zeroclaw` after changing a job.
+    - **Fixed drift:** ZeroClaw's `env:` block was nested under `lifecycle` (container had
+      **no env** → DeepSeek key/GH_TOKEN/Telegram missing, silently falling back to
+      `qwen3:8b`); fixed. The gateway `host` had drifted to `127.0.0.1` (broke the
+      readiness probe/Service) — pinned to `0.0.0.0` in the seed.
   README.md: |
     # Homelab Context (LOCAL ONLY — DO NOT COMMIT)
     
