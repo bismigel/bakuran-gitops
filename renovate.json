@@ -12,6 +12,7 @@
   "nix": { "enabled": true },
   "kubernetes": { "enabled": true },
   "argocd": { "enabled": true },
+  "pinDigests": true,
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch", "digest"],

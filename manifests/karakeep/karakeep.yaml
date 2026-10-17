@@ -68,7 +68,7 @@ spec:
     spec:
       containers:
         - name: karakeep
-          image: ghcr.io/karakeep-app/karakeep:release
+          image: ghcr.io/karakeep-app/karakeep:v0.33.2
           env:
             - { name: DATA_DIR, value: /data }
             # Public registration closed (no invite UI exists; open it briefly to
@@ -124,7 +124,7 @@ spec:
     spec:
       containers:
         - name: chrome
-          image: ghcr.io/karakeep-app/karakeep-chrome:release
+          image: ghcr.io/karakeep-app/karakeep-chrome:v0.33.2
           args:
             - --disable-gpu
             - --disable-dev-shm-usage
