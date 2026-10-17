@@ -31,6 +31,10 @@ spec:
                         app.kubernetes.io/component: controller
           config:
             proxy-set-headers: "ingress-nginx/headers"
+            # Trust the real client IP that cloudflared forwards (the ingress is
+            # loopback-only, so only cloudflared reaches it). Lets Jellyfin see
+            # remote clients as remote instead of as the ingress pod IP.
+            use-forwarded-headers: "true"
           service:
             type: NodePort
             # TLS terminates at Cloudflare; the origin leg is HTTP and no Ingress
