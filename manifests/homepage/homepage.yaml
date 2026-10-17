@@ -137,6 +137,37 @@ data:
         - ArgoCD:
             - abbr: AR
               href: https://argocd.bismigel.dev
+        - Cloudflare:
+            - abbr: CF
+              href: https://dash.cloudflare.com/c13ab6fbc2a53cfe719bca75fdc825c2
+        - R2:
+            - abbr: R2
+              href: https://dash.cloudflare.com/c13ab6fbc2a53cfe719bca75fdc825c2/r2
+        - Bitwarden:
+            - abbr: BW
+              href: https://vault.bitwarden.com
+    - Docs:
+        - NixOS packages:
+            - abbr: NX
+              href: https://search.nixos.org/packages
+        - NixOS options:
+            - abbr: NX
+              href: https://search.nixos.org/options
+        - Kubernetes:
+            - abbr: K8s
+              href: https://kubernetes.io/docs/home/
+        - ArgoCD docs:
+            - abbr: AR
+              href: https://argo-cd.readthedocs.io/
+        - External Secrets:
+            - abbr: ESO
+              href: https://external-secrets.io/
+        - Longhorn:
+            - abbr: LH
+              href: https://longhorn.io/docs/
+        - SOPS:
+            - abbr: SO
+              href: https://getsops.io/
   docker.yaml: ""
   custom.css: ""
   custom.js: ""
