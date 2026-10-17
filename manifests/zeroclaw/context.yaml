@@ -358,10 +358,16 @@ data:
     stay fast — a full search across every indexer can take minutes),
     `sonarr_season_search`, `sonarr_grab_release`, `radarr_movies`, `radarr_queue`,
     `prowlarr_indexers`, `prowlarr_search`, `sabnzbd_queue`, `sabnzbd_history`,
-    `qbittorrent_torrents`, `jellyfin_scan`, `jellyfin_users`.
-    **Track new media:** `sonarr_lookup` → `sonarr_add_series` (add + search),
-    `radarr_lookup` → `radarr_add_movie` (add + search), `sonarr_search`,
-    `radarr_search`.
+      `qbittorrent_torrents`, `jellyfin_scan`, `jellyfin_users`.
+      **Track new media:** `sonarr_lookup` → `sonarr_add_series` (add + search),
+      `radarr_lookup` → `radarr_add_movie` (add + search), `sonarr_search`,
+      `radarr_search`.
+      **Books:** `lazylibrarian_find_author` → `lazylibrarian_add_author` (all their
+      books; new authors default to Wanted), `lazylibrarian_authors`,
+      `lazylibrarian_author`, `lazylibrarian_books`, `lazylibrarian_wanted`,
+      `lazylibrarian_snatched`, `lazylibrarian_queue_book` / `unqueue_book`,
+      `lazylibrarian_search_book`. These use LazyLibrarian's API (enabled by the UI
+      setup script; key in BWS `lazylibrarian-api-key`, **must be 32 chars**).
     
     API keys are read from the `media-setup` Secret (ns media), seeded by
     `bakuran-infra/scripts/media-setup-secret.sh`.
@@ -374,8 +380,55 @@ data:
     (**no Access** — native apps can't do the email-OTP; it uses its own login).
     Users mirror Jellyfin: `gio` (admin), `anton`/`ciceley`/`delfin`/`guest`
     (`<name>@bismigel.dev`, same passwords as Jellyfin from Bitwarden). Recreate accounts
-    with `bakuran-infra/scripts/immich-setup.sh`. **Not backed up yet** (DB + library) —
-    see `NEXT-STEPS.md`.
+    with `bakuran-infra/scripts/immich-setup.sh`. **Backed up** by `backup-apps.nix`
+    (`pg_dump` + photo library into the R2 `appdata/` backup).
+    
+    ## Books (Kavita + LazyLibrarian)
+    
+    Namespace `books`, pinned to `.81` (QSV host + local `/mnt/media/books`); book
+    files land in `/mnt/media/books` and are read by Kavita. `lazylibrarian.bismigel.dev`
+    is behind the Access app **Books** (24h sessions). `kavita.bismigel.dev` is
+    **public** (no Access — the mobile app can't do the email-OTP challenge) and
+    relies on Kavita's own login.
+    
+    - **Kavita** — library server. Accounts: `gio` (admin) and `ciceley`
+      (Pleb+Login — the **Login role is required**, otherwise login reports "account
+      is disabled"). The **Books** library (Book type, Epub+Pdf, Hardcover metadata)
+      points at `/books` (`/mnt/media/books`).
+      `bakuran-infra/scripts/kavita-setup.sh` resets the admin password (hash written
+      directly to the ASP.NET Identity table; value in BWS `kavita-admin-password`)
+      **and** creates/refreshes the library. Add a user with
+      `scripts/kavita-add-user.sh <name>` (invite → confirm-email flow, idempotent,
+      password from BWS `jellyfin-<name>`, access to Books). Also
+      `scripts/kavita-user.sh <list|lock|unlock|register>` — lock removes the
+      **Login** role (login then says "account is disabled"); unlock restores it.
+      Already-issued tokens stay valid until they expire.
+      **Library must have EnableMetadata on** (the script sets it): with it off
+      Kavita parses series from filenames, `Title - Author.epub` yields no series,
+      and every scan logs *"Unable to parse any meaningful information out of
+      file"* and imports nothing. Only EPUB/PDF are scanned — MOBI-only books are
+      skipped (LazyLibrarian sometimes saves mobi; wait for an epub release).
+    - **LazyLibrarian** — book acquisition UI. It has **no app auth** (Access is the
+      only gate) and **no config API**. Do **not** seed `/config/config.ini`: the app
+      re-serializes it on startup and drops sections it did not create (tried three
+      ways; only the UI path survives). Configure it with
+      `bakuran-infra/scripts/lazylibrarian-ui-setup.sh`, an idempotent one-off
+      Playwright Job that drives the real `/config` form (fields live in collapsed
+      Bootstrap tabs, so it sets DOM values and submits `config_update`). It wires:
+      - **SABnzbd** (`[SABNZBD]`): `sabnzbd.downloads.svc.cluster.local:8080`,
+        category `books`, key from `media-setup/sabnzbd-api-key`
+      - **NZBGeek** (`[Newznab_0]`): `https://api.nzbgeek.info`, key from
+        `media-setup/nzbgeek-api`
+      Keys are read in-cluster (never passed from the host); the Job runs in `media`
+      to reach that Secret and is pinned to `sitaw-amd` for direct npm egress. The
+      script deletes the Job/ConfigMap afterwards and restarts the deployment.
+      Verify from the app pod: NZBGeek `t=caps` → 200, SAB `/api?mode=version`.
+      **Empty Authors list?** Check the **Show Inactive Authors** toggle (filters to
+      ignored/paused; in-memory, reset by restart). New authors stay hidden
+      (`Status=Loading`) until the Goodreads import finishes (minutes for a prolific
+      author). The setup script sets `LibraryScan` **newauthor_status/newbook_status
+      = Wanted**, so new authors/books are searched automatically (audiobooks stay
+      `Skipped`); to want existing books, select them under Manage Books → Wanted.
     
     ## Login alerts
     
@@ -432,7 +485,8 @@ data:
     The *arr wiring is declarative: `bakuran-infra/scripts/media-stack-setup.sh`
     (root folders, clients, Prowlarr apps/indexers, Jellyfin users/libraries/HW-accel/
     subtitles/scan), plus `media-quality-setup.sh`, `media-bazarr-setup.sh`, and the
-    secret seeders `media-setup-secret.sh` / `media-usenet-secret.sh`.
+    secret seeders `media-setup-secret.sh` / `media-usenet-secret.sh`. The books
+    stack is configured with `kavita-setup.sh` + `lazylibrarian-ui-setup.sh`.
   NEXT-STEPS.md: |
     # Next Steps / Roadmap
     
@@ -599,6 +653,15 @@ data:
     - **VPN kill switch** on `.81`; **SSH key-only**; **Grafana** real admin password.
     - **Bitwarden SM cleanup** — 30 secrets (5 artifacts removed; see `CREDENTIALS.md`).
     - **Kepler** power monitor + `homelab-power` dashboard; homepage links fixed.
+    - **Books stack** — Kavita + LazyLibrarian (`books` ns, `.81`, `/mnt/media/books`,
+      Access app "Books"); Kavita admin reset (`kavita-setup.sh`); LazyLibrarian
+      wired to SABnzbd (category `books`) + NZBGeek via
+      `lazylibrarian-ui-setup.sh` (Playwright, idempotent — the only path because the
+      app drops externally-seeded `config.ini` sections).
+    - **Karakeep** — self-hosted bookmarks (`karakeep` ns, public, signups closed);
+      AI inference local Ollama only (`qwen3:8b` / `qwen2.5vl:7b`).
+    - **Backups** now include Immich (DB + library), Kavita, LazyLibrarian, Karakeep,
+      Meilisearch; verified in the R2 `appdata/` backup.
     
     **Open:**
     - ~~**Immich is not backed up**~~ **DONE (2026-10-17):** `backup-apps.nix` now
@@ -620,21 +683,23 @@ data:
       `qwen3:8b`); fixed. The gateway `host` had drifted to `127.0.0.1` (broke the
       readiness probe/Service) — pinned to `0.0.0.0` in the seed.
   README.md: |
-    # Homelab Context (LOCAL ONLY — DO NOT COMMIT)
+    # Homelab Context
     
-    > ⚠️ **This folder contains plaintext secrets and is intentionally NOT a git
-    > repo.** It exists so a future LLM/human has full context to operate the
-    > homelab. Never copy it into any repository, chat, or backup that leaves this
-    > machine without encrypting it first.
+    > Operating context for the Bakuran homelab, kept in the **private**
+    > `bismigel/homelab-context` repo so a future LLM/human has full context.
+    >
+    > **Secrets stay out of git.** `CREDENTIALS.md` is gitignored and lives only on
+    > `nix-station` (the disaster-recovery copy is the age-encrypted credentials
+    > backup in R2 — see `RUNBOOK.md`). Everything else here is non-secret.
     >
     > Path: `~/projects/homelab-context/`
-    > Last updated: 2026-10-13
+    > Last updated: 2026-10-17
     
     ## Read order for an LLM/agent
     
     1. **`SYSTEM.md`** — architecture, repos, automation flow (the "how it works").
     2. **`INVENTORY.md`** — hosts, IPs, ports, services, endpoints.
-    3. **`CREDENTIALS.md`** — passwords, tokens, keys (sensitive).
+    3. **`CREDENTIALS.md`** — passwords, tokens, keys (local only, **not** in git).
     4. **`RUNBOOK.md`** — common tasks (deploy app, rebuild host, rotate secrets).
     5. **`KNOWN-ISSUES.md`** — what's broken / pending.
     6. **`NEXT-STEPS.md`** — prioritized roadmap of outstanding work.
@@ -775,6 +840,28 @@ data:
     
     Media host paths on `.81`: `/mnt/media/{tv,movies,downloads,temp}` (hostPath
     mounts; the *arrs see them as `/tv`, `/movies`, `/downloads`).
+    
+    ## Books stack (.81) — after a rebuild
+    
+    ArgoCD app `books` (`manifests/books/`) brings up Kavita + LazyLibrarian. Their
+    settings live in PVCs (and are in the R2 `appdata/` backup); if the PVCs are
+    lost, re-run on `nix-station`:
+    
+    ```bash
+    ~/projects/bakuran-infra/scripts/kavita-setup.sh        # reset admin password
+    ~/projects/bakuran-infra/scripts/kavita-add-user.sh <name>  # add a reader
+    ~/projects/bakuran-infra/scripts/lazylibrarian-ui-setup.sh  # SABnzbd + NZBGeek + API key
+    ```
+    
+    Kavita account management: `kavita-user.sh list|lock|unlock|register <name>`
+    (lock removes the Login role; the user keeps existing sessions until their token
+    expires). `lazylibrarian-ui-setup.sh` also enables the LazyLibrarian API for
+    media-mcp; its key is BWS `lazylibrarian-api-key` and must be **32 characters**.
+    
+    `lazylibrarian-ui-setup.sh` runs a throwaway Playwright Job (npm installs in the
+    pod, reads keys from the `media-setup` Secret, deletes itself, restarts the app).
+    LazyLibrarian has no config API and drops externally-seeded `config.ini` sections,
+    so the UI is the only durable path — do not hand-edit the file.
     
     ## ZeroClaw agent
     
