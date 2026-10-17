@@ -9,6 +9,24 @@ data:
   settings.yaml: |
     demo: false
     title: "Bakuran Sosyal Dashboard"
+    theme: dark
+    layout:
+      Admin:
+        icon: mdi-shield-account
+        style: row
+        columns: 4
+      Media:
+        icon: mdi-movie-open
+        style: row
+        columns: 4
+      Photos:
+        icon: mdi-image-multiple
+        style: row
+        columns: 2
+      Infrastructure:
+        icon: mdi-server
+        style: row
+        columns: 3
   services.yaml: |
     - Admin:
         - ArgoCD:
@@ -93,7 +111,29 @@ data:
     - search:
         provider: duckduckgo
         target: _blank
-  bookmarks.yaml: "[]"
+    - datetime:
+        text_size: xl
+        format:
+          timeStyle: short
+          dateStyle: long
+  bookmarks.yaml: |
+    - Repos:
+        - bakuran-gitops:
+            - abbr: BG
+              href: https://github.com/bismigel/bakuran-gitops
+        - bakuran-infra:
+            - abbr: BI
+              href: https://github.com/bismigel/bakuran-infra
+        - media-mcp:
+            - abbr: MM
+              href: https://github.com/bismigel/media-mcp
+    - Services:
+        - Cloudflare Zero Trust:
+            - abbr: CF
+              href: https://one.dash.cloudflare.com
+        - ArgoCD:
+            - abbr: AR
+              href: https://argocd.bismigel.dev
   docker.yaml: ""
   custom.css: ""
   custom.js: ""
