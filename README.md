@@ -10,7 +10,8 @@ k3s cluster**. It contains **no application code and no plaintext secrets**.
 bootstrap/root-app.yaml     # app-of-apps: points ArgoCD at ./applications (applied once)
 applications/               # one ArgoCD Application per workload (recursed)
 ├── sitaw/                  # platform + apps (in-cluster)
-└── node-exporter-appset.yaml  # ApplicationSet -> every node
+├── calamansi-intel/media.yaml  # the media app (still in-cluster, pinned to .81)
+└── node-exporter-appset.yaml   # ApplicationSet -> every node
 manifests/<app>/            # raw Kubernetes manifests
 scripts/                    # generators (e.g. generate-zeroclaw-context.sh)
 ```

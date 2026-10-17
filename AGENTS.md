@@ -32,7 +32,8 @@ There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pul
 ```
 bootstrap/root-app.yaml          # the single root app-of-apps (on sitaw-amd)
 applications/
-  sitaw/*.yaml                   # all Applications (in-cluster)
+  sitaw/*.yaml                   # platform + apps (in-cluster)
+  calamansi-intel/media.yaml     # the media app (in-cluster, pinned to .81)
   node-exporter-appset.yaml      # ApplicationSet -> every node
 manifests/<app>/*.yaml           # raw Kubernetes manifests referenced by apps
 scripts/                         # generators (generate-zeroclaw-context.sh)
