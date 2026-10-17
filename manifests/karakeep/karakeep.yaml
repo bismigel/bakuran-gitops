@@ -1,0 +1,212 @@
+# Karakeep — self-hosted "bookmark everything" with AI auto-tagging.
+# Self-hosted stack per upstream compose: karakeep (web+jobs, SQLite), a headless
+# Chrome for archiving, and Meilisearch for full-text search.
+# AI: LOCAL Ollama only (no OPENAI_API_KEY) — qwen3 for text, a Qwen-VL for images.
+# Served publicly (no Access) so the iOS/Android apps can reach it; Karakeep has
+# its own login (NextAuth).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: karakeep
+  labels:
+    app.kubernetes.io/part-of: homelab
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: karakeep-secrets
+  namespace: karakeep
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: karakeep-secrets
+    template:
+      data:
+        meili-master-key: "{{ .meili }}"
+        nextauth-secret: "{{ .auth }}"
+  data:
+    - { secretKey: meili, remoteRef: { key: karakeep-meili-key } }
+    - { secretKey: auth, remoteRef: { key: karakeep-nextauth-secret } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: karakeep-data
+  namespace: karakeep
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: meilisearch-data
+  namespace: karakeep
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karakeep
+  namespace: karakeep
+  labels: { app: karakeep }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: karakeep } }
+  template:
+    metadata: { labels: { app: karakeep } }
+    spec:
+      containers:
+        - name: karakeep
+          image: ghcr.io/karakeep-app/karakeep:release
+          env:
+            - { name: DATA_DIR, value: /data }
+            - { name: MEILI_ADDR, value: "http://meilisearch:7700" }
+            - { name: BROWSER_WEB_URL, value: "http://chrome:9222" }
+            - { name: NEXTAUTH_URL, value: "https://karakeep.bismigel.dev" }
+            - name: MEILI_MASTER_KEY
+              valueFrom: { secretKeyRef: { name: karakeep-secrets, key: meili-master-key } }
+            - name: NEXTAUTH_SECRET
+              valueFrom: { secretKeyRef: { name: karakeep-secrets, key: nextauth-secret } }
+            # --- AI: local Ollama (qwen) only ---
+            - { name: OLLAMA_BASE_URL, value: "http://192.168.2.12:11434" }
+            - { name: INFERENCE_TEXT_MODEL, value: "qwen3:8b" }
+            - { name: INFERENCE_IMAGE_MODEL, value: "qwen2.5vl:7b" }
+            - { name: INFERENCE_ENABLE_AUTO_TAGGING, value: "true" }
+            - { name: INFERENCE_ENABLE_AUTO_SUMMARIZATION, value: "true" }
+          ports:
+            - { name: http, containerPort: 3000 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: karakeep-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: karakeep
+  namespace: karakeep
+  labels: { app: karakeep }
+spec:
+  selector: { app: karakeep }
+  ports:
+    - { name: http, port: 3000, targetPort: 3000 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chrome
+  namespace: karakeep
+  labels: { app: chrome }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: chrome } }
+  template:
+    metadata: { labels: { app: chrome } }
+    spec:
+      containers:
+        - name: chrome
+          image: ghcr.io/karakeep-app/karakeep-chrome:release
+          args:
+            - --disable-gpu
+            - --disable-dev-shm-usage
+            - --hide-scrollbars
+            - --disable-blink-features=AutomationControlled
+            - --window-size=1440,900
+          ports:
+            - { name: debug, containerPort: 9222 }
+          volumeMounts:
+            - { name: shm, mountPath: /dev/shm }
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chrome
+  namespace: karakeep
+  labels: { app: chrome }
+spec:
+  selector: { app: chrome }
+  ports:
+    - { name: debug, port: 9222, targetPort: 9222 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meilisearch
+  namespace: karakeep
+  labels: { app: meilisearch }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: meilisearch } }
+  template:
+    metadata: { labels: { app: meilisearch } }
+    spec:
+      containers:
+        - name: meilisearch
+          image: getmeili/meilisearch:v1.41.0
+          env:
+            - { name: MEILI_NO_ANALYTICS, value: "true" }
+            - name: MEILI_MASTER_KEY
+              valueFrom: { secretKeyRef: { name: karakeep-secrets, key: meili-master-key } }
+          ports:
+            - { name: http, containerPort: 7700 }
+          volumeMounts:
+            - { name: data, mountPath: /meili_data }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: meilisearch-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meilisearch
+  namespace: karakeep
+  labels: { app: meilisearch }
+spec:
+  selector: { app: meilisearch }
+  ports:
+    - { name: http, port: 7700, targetPort: 7700 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: karakeep
+  namespace: karakeep
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: karakeep.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 3000
