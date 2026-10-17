@@ -102,9 +102,14 @@ data:
             replacement: '$1:9102'
             target_label: __address__
       - job_name: 'argocd'
-        # Application controller metrics (argocd_app_info) for drift alerts.
-        static_configs:
-          - targets: ['argocd-metrics.argocd.svc.cluster.local:8082']
+        # Scrape each controller endpoint (not the Service) so the leader's
+        # argocd_app_info metrics are always collected.
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+            action: keep
+            regex: argocd;argocd-metrics
 ---
 apiVersion: v1
 kind: Service
