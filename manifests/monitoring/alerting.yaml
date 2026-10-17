@@ -35,20 +35,20 @@ data:
               summary: "memory on {{ $labels.instance }} >90%"
           # NOTE: BackupFailed alerts are *pushed* to Alertmanager by the systemd
           # OnFailure hooks (see modules/backup*.nix), so there's no rule for them.
-        - name: argocd
-          rules:
-            - alert: ArgoCDAppOutOfSync
-              expr: argocd_app_info{sync_status!="Synced"} == 1
-              for: 15m
-              labels: { severity: warning }
-              annotations:
-                summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
-            - alert: ArgoCDAppUnhealthy
-              expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
-              for: 15m
-              labels: { severity: warning }
-              annotations:
-                summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
+      - name: argocd
+        rules:
+          - alert: ArgoCDAppOutOfSync
+            expr: argocd_app_info{sync_status!="Synced"} == 1
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
+          - alert: ArgoCDAppUnhealthy
+            expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
 ---
 # Alertmanager
 apiVersion: v1
