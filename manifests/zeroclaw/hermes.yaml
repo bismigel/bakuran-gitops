@@ -1,0 +1,345 @@
+# Hermes Agent — replacement for ZeroClaw.
+# Data (config, sessions, memory, skills, cron) lives on the PVC at /opt/data.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hermes
+  namespace: zeroclaw
+---
+# Least privilege: the agent (and its MCP server) get read/observe only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: homelab-agent-read
+rules:
+  - apiGroups: [""]
+    resources:
+      [pods, pods/log, services, endpoints, configmaps, events, namespaces,
+       nodes, persistentvolumes, persistentvolumeclaims, replicationcontrollers,
+       serviceaccounts, resourcequotas, limitranges]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: [deployments, statefulsets, daemonsets, replicasets, controllerrevisions]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: [jobs, cronjobs]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses, ingressclasses, networkpolicies]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [roles, rolebindings, clusterroles, clusterrolebindings]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: [customresourcedefinitions]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: [applications, applicationsets, appprojects]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["longhorn.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      [external-secrets.io, cert-manager.io, monitoring.coreos.com,
+       opentelemetry.io, coordination.k8s.io, apiregistration.k8s.io]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hermes-agent-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: homelab-agent-read
+subjects:
+  - kind: ServiceAccount
+    name: hermes
+    namespace: zeroclaw
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-data
+  namespace: zeroclaw
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: github-token
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: github-token }
+  data:
+    - { secretKey: gh-token, remoteRef: { key: github-pat } }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: telegram-bot-token
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: telegram-bot-token }
+  data:
+    - { secretKey: bot-token, remoteRef: { key: telegram-bot-token } }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cloudflare-api-token
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: cloudflare-api-token }
+  data:
+    - { secretKey: token, remoteRef: { key: cloudflare-api-token } }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hermes-secrets
+  namespace: zeroclaw
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: hermes-secrets }
+  data:
+    - { secretKey: dashboard-password, remoteRef: { key: hermes-dashboard-password } }
+    - { secretKey: dashboard-secret, remoteRef: { key: hermes-dashboard-secret } }
+    - { secretKey: api-key, remoteRef: { key: hermes-api-key } }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-config
+  namespace: zeroclaw
+data:
+  config.yaml: |
+    model:
+      provider: custom
+      default: deepseek-chat
+      base_url: https://api.deepseek.com/v1
+      api_key: "${DEEPSEEK_API_KEY}"
+
+    mcp_servers:
+      kubernetes:
+        url: http://kubernetes-mcp.zeroclaw.svc.cluster.local:8080/mcp
+      media:
+        url: http://media-mcp.media.svc.cluster.local:8080/mcp
+      prometheus:
+        url: http://prometheus-mcp.zeroclaw.svc.cluster.local:8080/mcp
+      github:
+        url: https://api.githubcopilot.com/mcp/
+        headers:
+          Authorization: "Bearer ${GH_TOKEN}"
+  SOUL.md: |
+    # SOUL.md — Bakuran homelab agent
+
+    You are the Bakuran homelab agent. You operate a small self-hosted lab:
+    one three-node k3s cluster (platform/media/quorum), Cloudflare Tunnel and
+    Access at the edge, Bitwarden + External Secrets for secrets, and a media
+    and book stack. The full operational docs are in `/opt/data` (AGENTS.md,
+    SYSTEM.md, INVENTORY.md, MEDIA.md, RUNBOOK.md, KNOWN-ISSUES.md,
+    NEXT-STEPS.md).
+
+    Rules:
+    - **Pull requests only.** Never push to `main`. Work on a branch, open a PR,
+      and leave review/merge to the human.
+    - **Ask before anything destructive** (deletes, data loss, cluster changes).
+    - **Cloudflare is read-only.** Use `http://127.0.0.1:8788/client/v4/<path>`;
+      every write is blocked. If a change is needed, ask the human and state the
+      exact change and impact.
+    - **Never expose secrets.** They arrive as environment variables; do not
+      write them to files or logs.
+    - Prefer the MCP tools (kubernetes, media, prometheus, github) over raw
+      shell when one fits. Keep replies short and concrete.
+    - The docs may still mention the previous agent (ZeroClaw); the operating
+      rules above are the current ones.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cf-proxy-config
+  namespace: zeroclaw
+data:
+  default.conf.template: |
+    server {
+        listen 127.0.0.1:8788;
+        proxy_ssl_server_name on;
+        resolver 1.1.1.1 ipv6=off;
+
+        # Guardrail: every state-changing request is blocked.
+        if ($request_method !~ ^(GET|HEAD|OPTIONS)$) {
+            return 403 "Blocked by the Cloudflare guardrail: changes require explicit human approval.\n";
+        }
+
+        location / {
+            proxy_pass https://api.cloudflare.com;
+            proxy_set_header Authorization "Bearer ${CF_TOKEN}";
+            proxy_set_header Host api.cloudflare.com;
+            proxy_set_header Accept-Encoding "";
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes
+  namespace: zeroclaw
+  labels: { app: hermes }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # single writer per data directory
+  selector:
+    matchLabels: { app: hermes }
+  template:
+    metadata:
+      labels: { app: hermes }
+    spec:
+      serviceAccountName: hermes
+      securityContext:
+        fsGroup: 10000
+      initContainers:
+        - name: fetch-tools
+          image: alpine:3.20
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              apk add --no-cache curl tar gzip >/dev/null
+              cd /opt/bin
+              [ -x kubectl ] || curl -fsSL -o kubectl https://dl.k8s.io/release/v1.34.5/bin/linux/amd64/kubectl
+              [ -x gh ] && true || { curl -fsSL -o gh.tgz https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz; tar xzf gh.tgz --strip-components=2 gh_2.102.0_linux_amd64/bin/gh; rm -f gh.tgz; }
+              [ -x jq ] || curl -fsSL -o jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
+              chmod +x kubectl gh jq
+          volumeMounts:
+            - { name: tools, mountPath: /opt/bin }
+        - name: seed-data
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              D=/opt/data
+              mkdir -p "$D"
+              [ -f "$D/config.yaml" ] || cp /seed/config.yaml "$D/config.yaml"
+              cp -f /seed/SOUL.md "$D/SOUL.md"
+              for f in /context/*.md; do cp -f "$f" "$D/"; done
+              chown -R 10000:10000 "$D"
+          volumeMounts:
+            - { name: data, mountPath: /opt/data }
+            - { name: seed, mountPath: /seed, readOnly: true }
+            - { name: context, mountPath: /context, readOnly: true }
+      containers:
+        - name: hermes
+          image: nousresearch/hermes-agent:stable@sha256:36099926da316742423544e055d4734777105ffe6341873af5459b957d0c2919
+          workingDir: /opt/data
+          args: ["gateway", "run"]
+          ports:
+            - { name: dashboard, containerPort: 9119 }
+            - { name: api, containerPort: 8642 }
+          env:
+            - { name: HERMES_HOME, value: /opt/data }
+            - { name: PATH, value: "/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" }
+            - { name: TZ, value: America/Toronto }
+            - { name: HERMES_UID, value: "10000" }
+            - { name: HERMES_GID, value: "10000" }
+            - { name: HERMES_DASHBOARD, value: "1" }
+            - { name: HERMES_DASHBOARD_HOST, value: "0.0.0.0" }
+            - { name: HERMES_DASHBOARD_PORT, value: "9119" }
+            - { name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME, value: admin }
+            - name: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+              valueFrom: { secretKeyRef: { name: hermes-secrets, key: dashboard-password } }
+            - name: HERMES_DASHBOARD_BASIC_AUTH_SECRET
+              valueFrom: { secretKeyRef: { name: hermes-secrets, key: dashboard-secret } }
+            - { name: API_SERVER_ENABLED, value: "true" }
+            - { name: API_SERVER_HOST, value: "0.0.0.0" }
+            - name: API_SERVER_KEY
+              valueFrom: { secretKeyRef: { name: hermes-secrets, key: api-key } }
+            - name: DEEPSEEK_API_KEY
+              valueFrom: { secretKeyRef: { name: deepseek-api-key, key: api_key } }
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom: { secretKeyRef: { name: telegram-bot-token, key: bot-token } }
+            - { name: TELEGRAM_ALLOWED_USERS, value: "607008268" }
+            - name: GH_TOKEN
+              valueFrom: { secretKeyRef: { name: github-token, key: gh-token } }
+          volumeMounts:
+            - { name: data, mountPath: /opt/data }
+            - { name: tools, mountPath: /opt/bin }
+          readinessProbe:
+            tcpSocket: { port: 8642 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 9119 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 300m, memory: 512Mi }
+            limits: { memory: 2Gi }
+        - name: cf-proxy
+          image: nginx:alpine
+          ports:
+            - { name: cfproxy, containerPort: 8788 }
+          env:
+            - name: CF_TOKEN
+              valueFrom: { secretKeyRef: { name: cloudflare-api-token, key: token, optional: true } }
+          volumeMounts:
+            - { name: cf-proxy-config, mountPath: /etc/nginx/templates, readOnly: true }
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 64Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: hermes-data }
+        - name: tools
+          emptyDir: {}
+        - name: seed
+          configMap: { name: hermes-config }
+        - name: context
+          configMap: { name: homelab-context }
+        - name: cf-proxy-config
+          configMap: { name: cf-proxy-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes
+  namespace: zeroclaw
+spec:
+  selector: { app: hermes }
+  ports:
+    - { name: dashboard, port: 9119, targetPort: 9119 }
+    - { name: api, port: 8642, targetPort: 8642 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hermes
+  namespace: zeroclaw
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: agent.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes
+                port: { number: 9119 }
