@@ -6,7 +6,9 @@
 # tunnel + connector health, TLS/certificate state, DNS inventory and Access
 # app count. Those are the signals that actually page you when the edge breaks.
 #
-# Read-only by construction: it only ever issues GETs.
+# Web Analytics (RUM) is free on every plan and already collecting here via
+# auto-install; its account-scoped dataset is queried over GraphQL, which the
+# exporter does directly (the read-only proxy is only the agent's guardrail).
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -40,6 +42,11 @@ data:
     you: zone status, tunnel/connector health, TLS state, DNS inventory and the
     Access app count.
 
+    Web Analytics (RUM) is the exception: it is free on every plan, it is already
+    collecting on these zones (auto-install), and its dataset is account-scoped —
+    `rumPageloadEventsAdaptiveGroups`. That part needs a GraphQL POST, which the
+    exporter does directly (the read-only proxy is only the agent's guardrail).
+
     stdlib only; refreshes in the background and serves the cached snapshot so a
     Prometheus scrape never waits on the Cloudflare API.
     """
@@ -49,15 +56,19 @@ data:
     import threading
     import time
     import urllib.request
+    from datetime import datetime, timedelta, timezone
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     API = os.environ.get("CF_API_BASE", "https://api.cloudflare.com/client/v4").rstrip("/")
+    GRAPHQL = os.environ.get("CF_GRAPHQL_URL", API + "/graphql")
     TOKEN = os.environ.get("CF_API_TOKEN", "")
     ACCOUNT = os.environ.get("CF_ACCOUNT_ID", "")
     PORT = int(os.environ.get("PORT", "9182"))
     REFRESH = int(os.environ.get("CF_REFRESH_SECONDS", "60"))
     TIMEOUT = int(os.environ.get("CF_TIMEOUT_SECONDS", "15"))
-    VERSION = "1.0.0"
+    RUM_ENABLED = os.environ.get("CF_RUM_ENABLED", "true").lower() != "false"
+    RUM_DAYS = int(os.environ.get("CF_RUM_DAYS", "7"))
+    VERSION = "1.1.0"
 
     _lock = threading.Lock()
     _state = {"text": "", "ok": 0}
@@ -75,11 +86,36 @@ data:
         "cloudflare_tunnel_connector_up": "A connector instance is connected.",
         "cloudflare_tunnel_edges_by_colo": "Edge connections per Cloudflare colo.",
         "cloudflare_access_apps_total": "Access applications in the account.",
+        "cloudflare_rum_site_info": "A Web Analytics (RUM) property exists for this zone.",
+        "cloudflare_rum_up": "Last RUM GraphQL query succeeded.",
+        "cloudflare_rum_pageviews_24h": "RUM pageviews in the last 24h.",
+        "cloudflare_rum_pageviews_window": "RUM pageviews over the configured window.",
+        "cloudflare_rum_visits_24h": "RUM visits in the last 24h.",
+        "cloudflare_rum_visits_window": "RUM visits over the configured window.",
         "cloudflare_api_up": "Last refresh completed without errors.",
         "cloudflare_api_last_duration_seconds": "Duration of each API call in the last refresh.",
         "cloudflare_export_timestamp_seconds": "Unix time of this snapshot.",
         "cloudflare_exporter_build_info": "Exporter build info.",
     }
+
+    RUM_QUERY = """
+    query($acc: String!, $site: String!, $since: Time!, $until: Time!) {
+      viewer {
+        accounts(filter: {accountTag: $acc}) {
+          rumPageloadEventsAdaptiveGroups(
+            limit: 1000
+            filter: {siteTag: $site, datetime_geq: $since, datetime_lt: $until}
+            orderBy: [date_ASC]
+          ) {
+            count
+            sum { visits }
+            avg { sampleInterval }
+            dimensions { date }
+          }
+        }
+      }
+    }
+    """
 
 
     def api_get(path):
@@ -93,6 +129,21 @@ data:
         return body
 
 
+    def graphql(query, variables):
+        payload = json.dumps({"query": query, "variables": variables}).encode()
+        req = urllib.request.Request(
+            GRAPHQL, data=payload,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+        )
+        if TOKEN:
+            req.add_header("Authorization", "Bearer " + TOKEN)
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            body = json.load(resp)
+        if body.get("errors"):
+            raise RuntimeError("graphql: %s" % str(body["errors"])[:200])
+        return body.get("data") or {}
+
+
     def esc(v):
         return str(v).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
@@ -102,6 +153,60 @@ data:
         if labels:
             lbl = "{" + ",".join('%s="%s"' % (k, esc(v)) for k, v in sorted(labels.items())) + "}"
         return "%s%s %s" % (name, lbl, value)
+
+
+    def rum_metrics(lines):
+        """Web Analytics: inventory over REST, numbers over GraphQL."""
+        rum_ok = 1
+        try:
+            listed = api_get("/accounts/%s/rum/site_info/list" % ACCOUNT).get("result", [])
+        except Exception:
+            listed, rum_ok = [], 0
+
+        until = datetime.now(timezone.utc)
+        since = until - timedelta(days=RUM_DAYS)
+        today = until.strftime("%Y-%m-%d")
+
+        for entry in listed:
+            tag = entry.get("site_tag")
+            if not tag:
+                continue
+            zone = "unknown"
+            try:
+                detail = api_get("/accounts/%s/rum/site_info/%s" % (ACCOUNT, tag)).get("result") or {}
+                ruleset = detail.get("ruleset") or {}
+                zone = ruleset.get("zone_name") or "unknown"
+                lines.append(sample("cloudflare_rum_site_info", 1, zone=zone,
+                                    auto_install="true" if detail.get("auto_install") else "false",
+                                    enabled="true" if ruleset.get("enabled") else "false"))
+            except Exception:
+                rum_ok = 0
+                lines.append(sample("cloudflare_rum_site_info", 1, zone=zone))
+
+            if not RUM_ENABLED:
+                continue
+            try:
+                data = graphql(RUM_QUERY, {
+                    "acc": ACCOUNT, "site": tag,
+                    "since": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "until": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                })
+                groups = (data.get("viewer", {}).get("accounts") or [{}])[0].get(
+                    "rumPageloadEventsAdaptiveGroups", []) or []
+                pv_win = sum(g.get("count", 0) for g in groups)
+                vis_win = sum((g.get("sum") or {}).get("visits", 0) for g in groups)
+                pv_24 = sum(g.get("count", 0) for g in groups
+                            if (g.get("dimensions") or {}).get("date") == today)
+                vis_24 = sum((g.get("sum") or {}).get("visits", 0) for g in groups
+                             if (g.get("dimensions") or {}).get("date") == today)
+                lines.append(sample("cloudflare_rum_pageviews_24h", pv_24, zone=zone))
+                lines.append(sample("cloudflare_rum_pageviews_window", pv_win, zone=zone, days=RUM_DAYS))
+                lines.append(sample("cloudflare_rum_visits_24h", vis_24, zone=zone))
+                lines.append(sample("cloudflare_rum_visits_window", vis_win, zone=zone, days=RUM_DAYS))
+            except Exception:
+                rum_ok = 0
+
+        lines.append(sample("cloudflare_rum_up", rum_ok))
 
 
     def collect():
@@ -180,6 +285,11 @@ data:
                 lines.append(sample("cloudflare_access_apps_total", len(apps)))
             except Exception:
                 ok = 0
+
+            try:
+                rum_metrics(lines)
+            except Exception:
+                lines.append(sample("cloudflare_rum_up", 0))
 
         for key, dur in durations.items():
             lines.append(sample("cloudflare_api_last_duration_seconds", "%.3f" % dur, endpoint=key))
