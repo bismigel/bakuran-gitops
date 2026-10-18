@@ -110,6 +110,29 @@ data:
           - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
             action: keep
             regex: argocd;argocd-metrics
+      - job_name: 'blackbox'
+        # Public-path probes: the exporter runs in the cluster and the request
+        # goes out through Cloudflare and back through the tunnel.
+        metrics_path: /probe
+        scrape_interval: 30s
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - https://bismigel.dev/
+              - https://status.bismigel.dev/
+              - https://ciceley.cc/
+              - https://jellyfin.bismigel.dev/
+              - https://immich.bismigel.dev/api/server/ping
+              - https://karakeep.bismigel.dev/
+              - https://kavita.bismigel.dev/
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter.monitoring.svc:9115
 ---
 apiVersion: v1
 kind: Service
@@ -417,6 +440,7 @@ spec:
               - configMap: { name: grafana-dashboard-control-plane }
               - configMap: { name: grafana-dashboard-power }
               - configMap: { name: grafana-dashboard-edge }
+              - configMap: { name: grafana-dashboard-slo }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
