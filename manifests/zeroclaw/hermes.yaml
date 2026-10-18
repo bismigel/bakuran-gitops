@@ -254,7 +254,7 @@ spec:
             - { name: api, containerPort: 8642 }
           env:
             - { name: HERMES_HOME, value: /opt/data }
-            - { name: PATH, value: "/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" }
+            - { name: PATH, value: "/opt/bin:/opt/hermes/bin:/opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" }
             - { name: TZ, value: America/Toronto }
             - { name: HERMES_UID, value: "10000" }
             - { name: HERMES_GID, value: "10000" }
