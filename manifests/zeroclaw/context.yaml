@@ -35,7 +35,7 @@ data:
     Docs here: `SYSTEM.md`, `INVENTORY.md`, `RUNBOOK.md`, `KNOWN-ISSUES.md`,
     `NEXT-STEPS.md`, `MEDIA.md`. Hosts: **sitaw-amd** (.82, control plane/ArgoCD,
     ingress, cloudflared); **calamansi-intel** (.81, media). Media pool `/mnt/media`
-    (mergerfs). MCP tools: `kubernetes__*` (both clusters), `github__*`, and
+    (mergerfs). MCP tools: `kubernetes__*` (one cluster), `github__*`, and
     `media__*` (Sonarr/Radarr/Prowlarr/SABnzbd/qBittorrent/Jellyfin, see MEDIA.md).
     
     ## The lab at a glance (permanent facts)
@@ -268,7 +268,7 @@ data:
       `Recreate` strategy + a `fix-permissions` init container handle the root-owned
       local-path volumes). The global `X-WEBAUTH-USER: admin` ingress header was
       removed (nothing consumed it; it was a latent auto-admin foot-gun). Grafana's
-      admin password is still `admin/admin`, see `NEXT-STEPS.md`.
+      admin password comes from BWS (`grafana-admin-password`) through ESO.
     - **Hermes** has **read-only** Kubernetes access (`homelab-agent-read`), a repo-scoped
       `GH_TOKEN`, and full MCP tool trust (kubernetes/media/prometheus/github) plus a
       shell. Guardrails are the PR-only rule, the read-only k8s role, the Cloudflare
@@ -330,9 +330,9 @@ data:
         each if ever needed (the NZBGeek username `bloopbloop` is still documented there).
       - **Cloudflare edge is now self-healing**, `modules/cloudflare-sync.nix` runs
         `cloudflare/sync.sh` daily on `.82` (CF token from SOPS). Admin-only Access apps
-        use a 24h session; media stays 730h. Still manual (token lacks scope): set
-        `min_tls_version` to 1.2, Bot Fight Mode, and rate-limiting for the public
-        `jellyfin`/`immich` hostnames, do these in the Cloudflare dashboard.
+        use a 24h session; media stays 730h. Minimum TLS is 1.2 and Bot Fight Mode is
+        on. HSTS and rate limiting for the public `jellyfin`/`immich` hostnames are
+        still manual dashboard changes.
   MEDIA.md: |
     # MEDIA.md: the media stack
     
@@ -631,16 +631,17 @@ data:
     
     ## Optional / nice-to-have
     
-    9. **Hermes privilege**, autonomy is already **`full`** (`config-seed.yaml`:
-       `risk_profiles.default.level = "full"`) with a cluster-admin SA + a
-       `repo`-scoped PAT. Scope the PAT down and/or use a non-admin SA.
+    9. **Hermes privilege** is scoped: read-only Kubernetes RBAC, a repo-scoped PAT,
+       and a GET-only Cloudflare proxy. Autonomy is still `full` within those tools.
+       The remaining risk is the shell and the soft PR-only rule. Review its branches
+       and pull requests.
     10. **Rename the `calamansi` OS user** in `modules/base.nix` (leftover from the old
         host name), cosmetic; changing a username touches the home dir.
     11. ~~**Clean stale `.env` values**~~ **DONE (2026-10-13):** `ciceleywebsite/.env`
         now holds only the Notion key + DB id; deploy values live in `CREDENTIALS.md`.
-    12. **Grafana admin password** is still `admin/admin`. Create
-        `grafana-admin-password` in the Bitwarden BWS project, then point
-        `GF_SECURITY_ADMIN_PASSWORD` at an ESO-synced Secret.
+    12. ~~**Grafana admin password** is still `admin/admin`.~~ **DONE
+        (2026-10-18):** `grafana-admin-password` is in BWS, ESO syncs `grafana-admin`,
+        and the Deployment reads `admin-password` from it.
     13. **`docs/HOMELAB-MIGRATION.md`** is historical, could be moved to an `archive/`
         or deleted once no longer referenced.
     
@@ -679,8 +680,9 @@ data:
       `pg_dump`s the DB and tars the photo library into the R2 `appdata/` backup
       (verified: `immich-db ok (20M)` + `immich-library ok (157M)`).
     - **Media library (~1.2 TB) still unbacked** (intentional, but should be explicit).
-    - **Cloudflare `min_tls_version` is 1.0** → set 1.2; **Bot Fight Mode** off. These
-      need a dashboard change (API token lacks Zone Settings / Bot scopes).
+    - ~~**Cloudflare `min_tls_version` is 1.0**~~ **DONE (2026-10-18):** minimum TLS
+      is 1.2 and Bot Fight Mode is on. `security_header` (HSTS) is still disabled;
+      enable it after confirming every subdomain is HTTPS-only.
     - **Rate limiting** on public `jellyfin`/`immich`, free plan allows 1 rule, already
       used by Cloudflare's leaked-credential check.
     - **MFA on Access**, needs an IdP with MFA (or WARP); email OTP is the only factor.
@@ -912,7 +914,7 @@ data:
     Prometheus and Alertmanager are GitOps-managed. Prometheus **reloads itself**
     when `prometheus-config` or `prometheus-rules` changes (`--web.enable-lifecycle`
     plus a checksum reloader sidecar), so rule edits need no manual restart.
-    Grafana provisions the four `grafana-dashboard-*.yaml` ConfigMaps; the file
+    Grafana provisions the five `grafana-dashboard-*.yaml` ConfigMaps; the file
     provider polls every 30s but only applies a change when the dashboard `version`
     increases, **bump it in the same commit**. Kube-state-metrics uses a dedicated
     least-privilege SA (no secret/configmap reads).
