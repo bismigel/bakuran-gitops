@@ -48,7 +48,7 @@ data:
             href: https://longhorn.bismigel.dev
             description: Storage
             icon: longhorn
-        - ZeroClaw:
+        - Hermes:
             href: https://agent.bismigel.dev
             description: Homelab AI agent
             icon: robot
