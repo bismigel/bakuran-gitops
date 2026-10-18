@@ -176,8 +176,6 @@ data:
         telegram_configs:
           - bot_token_file: /etc/alertmanager/secret/bot-token
             chat_id: 607008268
-          - bot_token_file: /etc/alertmanager/secret/bot-token
-            chat_id: 607008268
             send_resolved: false
             message: '{{ range .Alerts }}🔐 {{ .Annotations.summary }} ({{ .Annotations.details }}){{ "\n" }}{{ end }}'
 ---
@@ -228,7 +226,7 @@ spec:
         - name: config
           configMap: { name: alertmanager-config }
         - name: secret
-          secret: { name: alertmanager-telegram }
+          secret: { secretName: alertmanager-telegram }
         - name: data
           emptyDir: {}
 ---
