@@ -106,7 +106,7 @@ spec:
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
   target: { name: cloudflare-api-token }
   data:
-    - { secretKey: token, remoteRef: { key: cloudflare-api-token } }
+    - { secretKey: token, remoteRef: { key: cloudflare-read-token } }
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
