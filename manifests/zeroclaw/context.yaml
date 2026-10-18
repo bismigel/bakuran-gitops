@@ -606,10 +606,10 @@ data:
       install a `homelab-alert@` template unit and set `OnFailure=` on both backup
       jobs, so a failed backup POSTs an alert into the same Alertmanager → Telegram
       path.
-    - **Grafana dashboard (as code)** — `grafana-dashboards` +
-      `grafana-dashboard-provider` ConfigMaps provision the `homelab-overview`
-      dashboard (nodes/alerts/pods/PVCs/restarts, CPU/mem/disk/load, firing-alerts
-      table); datasource pinned to `uid: prometheus`.
+    - **Grafana dashboards (as code)** — four dashboards (`overview`, `storage`,
+      `control-plane`, `power`) in separate ConfigMaps; panels pinned to
+      `uid: prometheus`; KSM RBAC fixed. Bump the dashboard `version` when editing
+      or the provider will not reload it.
     - Verified: rules loaded, Alertmanager up, a test alert routed to the `telegram`
       receiver, and a host-pushed `BackupFailed` received.
     
@@ -905,6 +905,16 @@ data:
     - Data on the `hermes-data` PVC (`/opt/data`); `hermes-config` seeds config/SOUL,
       `homelab-context` seeds the docs, `hermes-cron-seed` seeds the daily job.
     
+    ## Monitoring / dashboards
+    
+    Prometheus and Alertmanager are GitOps-managed. Prometheus **reloads itself**
+    when `prometheus-config` or `prometheus-rules` changes (`--web.enable-lifecycle`
+    plus a checksum reloader sidecar), so rule edits need no manual restart.
+    Grafana provisions the four `grafana-dashboard-*.yaml` ConfigMaps; the file
+    provider polls every 30s but only applies a change when the dashboard `version`
+    increases — **bump it in the same commit**. Kube-state-metrics uses a dedicated
+    least-privilege SA (no secret/configmap reads).
+    
     ## Backups / DR
     
     Daily: credentials (`.81`/`.82`) and appdata (`.82`) → R2, age-encrypted.
@@ -1008,7 +1018,9 @@ data:
     kubectl -n zeroclaw rollout restart deploy/hermes
     ```
     The daily job is seeded from `hermes-cron-seed` on a fresh PVC; edit it with
-    `hermes cron edit` or the dashboard.
+    `hermes cron edit` or the dashboard. If you change it, update
+    `hermes-cron-seed` too so a fresh PVC gets the new version (live edits persist
+    on the PVC and in the R2 backup).
     
     ### Bitwarden Secrets Manager
     ```bash
@@ -1103,7 +1115,7 @@ data:
     - `argocd` — the **single** control plane
     - `apps`: ciceley-site, bismigel-site, private-api, status-api
       (`miguelarbis.dev` is a Cloudflare Bulk Redirect, **not** a k8s app)
-    - `monitoring`: grafana (per-user SSO, PVC-backed; datasources + `homelab-overview` **and `homelab-power`** dashboards provisioned as code), prometheus (PVC-backed; alert rules in `prometheus-rules`), alertmanager (Telegram, NodePort 30903), kube-state-metrics, node-exporter, **kepler** (power/RAPL `:9102`, all nodes)
+    - `monitoring`: grafana (per-user SSO, PVC-backed; four dashboards provisioned from `grafana-dashboard-*.yaml`), prometheus (PVC-backed; alert rules; **self-reloads** on config/rule changes via `--web.enable-lifecycle` + a reloader sidecar), alertmanager (Telegram, NodePort 30903), kube-state-metrics (least-privilege RBAC), node-exporter, **kepler** (power/RAPL `:9102`, all nodes), etcd-metrics-proxy
     - **login watchers** (CronJobs in `monitoring`): `access-login-watch` (Cloudflare Access logins), `jellyfin-login-watch` (Jellyfin activity log via API key), `immich-login-watch` (Immich `session` table) → Alertmanager → Telegram
     - **Immich ML** container runs here (CPU-bound); Immich server/DB/valkey stay on `.83`
     - `observability`: otel-collector; `opentelemetry-operator-system`
