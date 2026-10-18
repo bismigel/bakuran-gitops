@@ -239,11 +239,13 @@ spec:
               [ -f "$D/config.yaml" ] || cp /seed/config.yaml "$D/config.yaml"
               cp -f /seed/SOUL.md "$D/SOUL.md"
               for f in /context/*.md; do cp -f "$f" "$D/"; done
+              mkdir -p "$D/cron"; [ -f "$D/cron/jobs.json" ] || cp /cron-seed/jobs.json "$D/cron/jobs.json"
               chown -R 10000:10000 "$D"
           volumeMounts:
             - { name: data, mountPath: /opt/data }
             - { name: seed, mountPath: /seed, readOnly: true }
             - { name: context, mountPath: /context, readOnly: true }
+            - { name: cron-seed, mountPath: /cron-seed, readOnly: true }
       containers:
         - name: hermes
           image: nousresearch/hermes-agent:stable@sha256:36099926da316742423544e055d4734777105ffe6341873af5459b957d0c2919
@@ -266,10 +268,6 @@ spec:
               valueFrom: { secretKeyRef: { name: hermes-secrets, key: dashboard-password } }
             - name: HERMES_DASHBOARD_BASIC_AUTH_SECRET
               valueFrom: { secretKeyRef: { name: hermes-secrets, key: dashboard-secret } }
-            - { name: API_SERVER_ENABLED, value: "true" }
-            - { name: API_SERVER_HOST, value: "0.0.0.0" }
-            - name: API_SERVER_KEY
-              valueFrom: { secretKeyRef: { name: hermes-secrets, key: api-key } }
             - name: DEEPSEEK_API_KEY
               valueFrom: { secretKeyRef: { name: deepseek-api-key, key: api_key } }
             - name: TELEGRAM_BOT_TOKEN
@@ -281,7 +279,7 @@ spec:
             - { name: data, mountPath: /opt/data }
             - { name: tools, mountPath: /opt/bin }
           readinessProbe:
-            tcpSocket: { port: 8642 }
+            tcpSocket: { port: 9119 }
             initialDelaySeconds: 20
             periodSeconds: 10
           livenessProbe:
@@ -312,6 +310,8 @@ spec:
           configMap: { name: hermes-config }
         - name: context
           configMap: { name: homelab-context }
+        - name: cron-seed
+          configMap: { name: hermes-cron-seed }
         - name: cf-proxy-config
           configMap: { name: cf-proxy-config }
 ---
@@ -343,3 +343,59 @@ spec:
               service:
                 name: hermes
                 port: { number: 9119 }
+---
+apiVersion: v1
+data:
+  jobs.json: |-
+    {
+      "jobs": [
+        {
+          "id": "6513dba5f40d",
+          "name": "Daily homelab report",
+          "prompt": "Daily homelab report. Check Kubernetes nodes, pods, restarts and ArgoCD sync/health with the kubernetes tools; query Prometheus for firing alerts and for filesystem and memory trends with the prometheus tools. Flag anything unhealthy, disks over 85 percent, and notable memory growth. Reply in Telegram under 15 lines, no secrets. Start with All good if everything is healthy.",
+          "skills": [],
+          "skill": null,
+          "model": null,
+          "provider": null,
+          "base_url": null,
+          "script": null,
+          "no_agent": false,
+          "monitor_script": null,
+          "monitor_url": null,
+          "monitor_state": null,
+          "context_from": null,
+          "schedule": {
+            "kind": "cron",
+            "expr": "0 8 * * *",
+            "display": "0 8 * * *"
+          },
+          "schedule_display": "0 8 * * *",
+          "repeat": {
+            "times": null,
+            "completed": 0
+          },
+          "enabled": true,
+          "state": "scheduled",
+          "paused_at": null,
+          "paused_reason": null,
+          "created_at": "2026-10-17T20:54:09.373394-04:00",
+          "next_run_at": "2026-10-18T08:00:00-04:00",
+          "last_run_at": null,
+          "last_status": null,
+          "last_error": null,
+          "last_delivery_error": null,
+          "last_delivery_unverified": null,
+          "last_failure": null,
+          "failure_streak": 0,
+          "deliver": "telegram:607008268",
+          "origin": null,
+          "enabled_toolsets": null,
+          "workdir": null
+        }
+      ],
+      "updated_at": "2026-10-17T20:54:09.386159-04:00"
+    }
+kind: ConfigMap
+metadata:
+  name: hermes-cron-seed
+  namespace: zeroclaw
