@@ -67,10 +67,15 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      ttlSecondsAfterFinished: 120
-      template:
-        spec:
-          restartPolicy: Never
+        ttlSecondsAfterFinished: 120
+        template:
+          spec:
+            # Pin to the platform node. NAT on the media node masks the pod
+            # source IP, which breaks namespace-based NetworkPolicy matching for
+            # cross-node calls to immich.
+            nodeSelector:
+              kubernetes.io/hostname: sitaw-amd
+            restartPolicy: Never
           containers:
             - name: watch
               image: postgres:16-alpine
