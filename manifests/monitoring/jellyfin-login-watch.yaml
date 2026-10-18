@@ -104,7 +104,7 @@ spec:
             containers:
               - name: watch
                 image: python:3.12-alpine
-                command: ["python", "/scripts/watch.py"]
+                command: ["/bin/sh", "-c", "sleep 5; exec python /scripts/watch.py"]
                 env:
                   - { name: JELLYFIN_URL, value: "http://jellyfin.default.svc.cluster.local:8096" }
                   - { name: PYTHONDONTWRITEBYTECODE, value: "1" }

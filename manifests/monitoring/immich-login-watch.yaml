@@ -79,7 +79,7 @@ spec:
             containers:
               - name: watch
                 image: postgres:16-alpine
-                command: ["/bin/sh", "/scripts/watch.sh"]
+                command: ["/bin/sh", "-c", "sleep 5; exec /bin/sh /scripts/watch.sh"]
                 env:
                   - { name: PGHOST, value: immich-postgres.immich.svc.cluster.local }
                   - { name: PGPORT, value: "5432" }
