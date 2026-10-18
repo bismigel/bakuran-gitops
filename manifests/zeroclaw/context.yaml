@@ -1348,6 +1348,11 @@ data:
       hostnames. Media LAN clients use **hostPorts** on `.81` (Jellyfin `:8096`, Sonarr
       `:8989`, Radarr `:7878`, Prowlarr `:9696`, Bazarr `:6767`, qBittorrent `:8081`,
       SABnzbd `:8082`).
+    - **NetworkPolicies** default to ingress-only deny in the app namespaces (`apps`,
+      `books`, `default`, `downloads`, `homepage`, `immich`, `karakeep`, `media`,
+      `zeroclaw`). Same-namespace and `ingress-nginx` are allowed; media to
+      books/default/downloads, monitoring to default/immich, and zeroclaw to media
+      are explicit. Egress stays open.
     - **Zero Trust Access** gates the admin/browser apps, `argocd`, `grafana`,
       `longhorn`, `agent`, `private`, `homepage`, `prometheus`, and the media UIs
       (`sonarr`, `radarr`, `prowlarr`, `bazarr`, `qbittorrent`, `sabnzbd`), allow-listed
