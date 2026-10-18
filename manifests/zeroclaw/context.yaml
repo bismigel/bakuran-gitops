@@ -918,8 +918,8 @@ data:
     ## Backups / DR
     
     Daily: credentials (`.81`/`.82`) and appdata (`.82`) → R2, age-encrypted.
-    Retention: `appdata/` **14 days**, `credentials/` **90 days** (R2 lifecycle,
-    enforced by `cloudflare/sync.sh`).
+    Retention: `appdata/` **14 days**, `credentials/` and `nixstation/` **90 days**
+    (R2 lifecycle, enforced by `cloudflare/sync.sh`).
     
     Alerts (Telegram via Alertmanager):
     - a dump/credential is missing → unit aborts before upload → `BackupFailed`
