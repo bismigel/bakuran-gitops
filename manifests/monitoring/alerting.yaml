@@ -88,60 +88,60 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "etcd DB > 1.5GiB (2GiB quota) — compact/defrag or raise the quota"
-        - name: cloudflare
-          rules:
-            # Cloudflare edge health from the REST-only exporter. Free-plan zones
-            # have no GraphQL analytics, but tunnel/zone/TLS state is real data.
-            - alert: CloudflareTunnelDown
-              expr: cloudflare_tunnel_up == 0
-              for: 5m
-              labels: { severity: critical }
-              annotations:
-                summary: "Cloudflare tunnel {{ $labels.tunnel }} is {{ $labels.status }}"
-            - alert: CloudflareTunnelSingleConnector
-              expr: cloudflare_tunnel_connectors < 2
-              for: 15m
-              labels: { severity: warning }
-              annotations:
-                summary: "cloudflare tunnel {{ $labels.tunnel }} has {{ $value }} connector(s), edge HA is degraded"
-            - alert: CloudflareZoneNotActive
-              expr: cloudflare_zone_up == 0
-              for: 10m
-              labels: { severity: critical }
-              annotations:
-                summary: "zone {{ $labels.zone }} is not active in Cloudflare"
-            - alert: CloudflareZonePaused
-              expr: cloudflare_zone_paused == 1
-              for: 10m
-              labels: { severity: warning }
-              annotations:
-                summary: "zone {{ $labels.zone }} is paused, traffic bypasses Cloudflare"
-            - alert: CloudflareCertificateInactive
-              expr: cloudflare_zone_certificate_active == 0
-              for: 30m
-              labels: { severity: warning }
-              annotations:
-                summary: "universal certificate for {{ $labels.zone }} is {{ $labels.status }}"
-            - alert: CloudflareExporterStale
-              expr: time() - cloudflare_export_timestamp_seconds > 600
-              for: 10m
-              labels: { severity: warning }
-              annotations:
-                summary: "cloudflare edge exporter has not refreshed in 10m: token expired or API unreachable"
-        - name: argocd
-          rules:
-            - alert: ArgoCDAppOutOfSync
-              expr: argocd_app_info{sync_status!="Synced"} == 1
-              for: 15m
-              labels: { severity: warning }
-              annotations:
-                summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
-            - alert: ArgoCDAppUnhealthy
-              expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
-              for: 15m
-              labels: { severity: warning }
-              annotations:
-                summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
+      - name: cloudflare
+        rules:
+          # Cloudflare edge health from the REST-only exporter. Free-plan zones
+          # have no GraphQL analytics, but tunnel/zone/TLS state is real data.
+          - alert: CloudflareTunnelDown
+            expr: cloudflare_tunnel_up == 0
+            for: 5m
+            labels: { severity: critical }
+            annotations:
+              summary: "Cloudflare tunnel {{ $labels.tunnel }} is {{ $labels.status }}"
+          - alert: CloudflareTunnelSingleConnector
+            expr: cloudflare_tunnel_connectors < 2
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "cloudflare tunnel {{ $labels.tunnel }} has {{ $value }} connector(s), edge HA is degraded"
+          - alert: CloudflareZoneNotActive
+            expr: cloudflare_zone_up == 0
+            for: 10m
+            labels: { severity: critical }
+            annotations:
+              summary: "zone {{ $labels.zone }} is not active in Cloudflare"
+          - alert: CloudflareZonePaused
+            expr: cloudflare_zone_paused == 1
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "zone {{ $labels.zone }} is paused, traffic bypasses Cloudflare"
+          - alert: CloudflareCertificateInactive
+            expr: cloudflare_zone_certificate_active == 0
+            for: 30m
+            labels: { severity: warning }
+            annotations:
+              summary: "universal certificate for {{ $labels.zone }} is {{ $labels.status }}"
+          - alert: CloudflareExporterStale
+            expr: time() - cloudflare_export_timestamp_seconds > 600
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "cloudflare edge exporter has not refreshed in 10m: token expired or API unreachable"
+      - name: argocd
+        rules:
+          - alert: ArgoCDAppOutOfSync
+            expr: argocd_app_info{sync_status!="Synced"} == 1
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
+          - alert: ArgoCDAppUnhealthy
+            expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
   slo.yml: |
     groups:
       - name: slo
