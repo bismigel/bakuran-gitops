@@ -416,6 +416,7 @@ spec:
               - configMap: { name: grafana-dashboard-storage }
               - configMap: { name: grafana-dashboard-control-plane }
               - configMap: { name: grafana-dashboard-power }
+              - configMap: { name: grafana-dashboard-edge }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider

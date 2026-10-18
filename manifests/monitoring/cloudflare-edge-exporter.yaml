@@ -1,0 +1,411 @@
+# Cloudflare edge exporter.
+#
+# Free-plan friendly by design: Cloudflare's request/bandwidth analytics are
+# GraphQL-only and Free zones have no access to the GraphQL Analytics API, so
+# this exporter sticks to plain REST GETs that every plan serves — zone status,
+# tunnel + connector health, TLS/certificate state, DNS inventory and Access
+# app count. Those are the signals that actually page you when the edge breaks.
+#
+# Web Analytics (RUM) is free on every plan and already collecting here via
+# auto-install; its account-scoped dataset is queried over GraphQL, which the
+# exporter does directly (the read-only proxy is only the agent's guardrail).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cloudflare-edge-token
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: cloudflare-edge-token
+  data:
+    - secretKey: token
+      remoteRef:
+        key: cloudflare-api-token
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflare-edge-exporter
+  namespace: monitoring
+data:
+  exporter.py: |
+    #!/usr/bin/env python3
+    """Cloudflare edge exporter — free-plan friendly.
+
+    Cloudflare's HTTP traffic analytics are GraphQL-only, and per Cloudflare's own
+    docs Free-plan zones have no access to the GraphQL Analytics API. What every
+    plan *does* expose over plain REST GETs is the edge health that actually pages
+    you: zone status, tunnel/connector health, TLS state, DNS inventory and the
+    Access app count.
+
+    Web Analytics (RUM) is the exception: it is free on every plan, it is already
+    collecting on these zones (auto-install), and its dataset is account-scoped —
+    `rumPageloadEventsAdaptiveGroups`. That part needs a GraphQL POST, which the
+    exporter does directly (the read-only proxy is only the agent's guardrail).
+
+    stdlib only; refreshes in the background and serves the cached snapshot so a
+    Prometheus scrape never waits on the Cloudflare API.
+    """
+
+    import json
+    import os
+    import threading
+    import time
+    import urllib.request
+    from datetime import datetime, timedelta, timezone
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    API = os.environ.get("CF_API_BASE", "https://api.cloudflare.com/client/v4").rstrip("/")
+    GRAPHQL = os.environ.get("CF_GRAPHQL_URL", API + "/graphql")
+    TOKEN = os.environ.get("CF_API_TOKEN", "")
+    ACCOUNT = os.environ.get("CF_ACCOUNT_ID", "")
+    PORT = int(os.environ.get("PORT", "9182"))
+    REFRESH = int(os.environ.get("CF_REFRESH_SECONDS", "60"))
+    TIMEOUT = int(os.environ.get("CF_TIMEOUT_SECONDS", "15"))
+    RUM_ENABLED = os.environ.get("CF_RUM_ENABLED", "true").lower() != "false"
+    RUM_DAYS = int(os.environ.get("CF_RUM_DAYS", "7"))
+    VERSION = "1.1.0"
+
+    _lock = threading.Lock()
+    _state = {"text": "", "ok": 0}
+
+    HELP = {
+        "cloudflare_zone_up": "Zone is active in Cloudflare.",
+        "cloudflare_zone_paused": "Zone is paused (traffic bypasses Cloudflare).",
+        "cloudflare_zone_development_mode": "Zone has development mode enabled.",
+        "cloudflare_zone_dns_records": "Number of DNS records in the zone.",
+        "cloudflare_zone_tls_mode": "Zone SSL/TLS mode (label carries the mode).",
+        "cloudflare_zone_certificate_active": "Universal certificate reports active.",
+        "cloudflare_tunnel_up": "Tunnel status is healthy.",
+        "cloudflare_tunnel_connectors": "Connector instances attached to the tunnel.",
+        "cloudflare_tunnel_edge_connections": "Edge connections held by the connectors.",
+        "cloudflare_tunnel_connector_up": "A connector instance is connected.",
+        "cloudflare_tunnel_edges_by_colo": "Edge connections per Cloudflare colo.",
+        "cloudflare_access_apps_total": "Access applications in the account.",
+        "cloudflare_rum_site_info": "A Web Analytics (RUM) property exists for this zone.",
+        "cloudflare_rum_up": "Last RUM GraphQL query succeeded.",
+        "cloudflare_rum_pageviews_24h": "RUM pageviews in the last 24h.",
+        "cloudflare_rum_pageviews_window": "RUM pageviews over the configured window.",
+        "cloudflare_rum_visits_24h": "RUM visits in the last 24h.",
+        "cloudflare_rum_visits_window": "RUM visits over the configured window.",
+        "cloudflare_api_up": "Last refresh completed without errors.",
+        "cloudflare_api_last_duration_seconds": "Duration of each API call in the last refresh.",
+        "cloudflare_export_timestamp_seconds": "Unix time of this snapshot.",
+        "cloudflare_exporter_build_info": "Exporter build info.",
+    }
+
+    RUM_QUERY = """
+    query($acc: String!, $site: String!, $since: Time!, $until: Time!) {
+      viewer {
+        accounts(filter: {accountTag: $acc}) {
+          rumPageloadEventsAdaptiveGroups(
+            limit: 1000
+            filter: {siteTag: $site, datetime_geq: $since, datetime_lt: $until}
+            orderBy: [date_ASC]
+          ) {
+            count
+            sum { visits }
+            avg { sampleInterval }
+            dimensions { date }
+          }
+        }
+      }
+    }
+    """
+
+
+    def api_get(path):
+        req = urllib.request.Request(API + path, headers={"Accept": "application/json"})
+        if TOKEN:
+            req.add_header("Authorization", "Bearer " + TOKEN)
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            body = json.load(resp)
+        if not body.get("success", False):
+            raise RuntimeError("api: %s" % str(body.get("errors"))[:200])
+        return body
+
+
+    def graphql(query, variables):
+        payload = json.dumps({"query": query, "variables": variables}).encode()
+        req = urllib.request.Request(
+            GRAPHQL, data=payload,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+        )
+        if TOKEN:
+            req.add_header("Authorization", "Bearer " + TOKEN)
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            body = json.load(resp)
+        if body.get("errors"):
+            raise RuntimeError("graphql: %s" % str(body["errors"])[:200])
+        return body.get("data") or {}
+
+
+    def esc(v):
+        return str(v).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+    def sample(name, value, **labels):
+        lbl = ""
+        if labels:
+            lbl = "{" + ",".join('%s="%s"' % (k, esc(v)) for k, v in sorted(labels.items())) + "}"
+        return "%s%s %s" % (name, lbl, value)
+
+
+    def rum_metrics(lines):
+        """Web Analytics: inventory over REST, numbers over GraphQL."""
+        rum_ok = 1
+        try:
+            listed = api_get("/accounts/%s/rum/site_info/list" % ACCOUNT).get("result", [])
+        except Exception:
+            listed, rum_ok = [], 0
+
+        until = datetime.now(timezone.utc)
+        since = until - timedelta(days=RUM_DAYS)
+        today = until.strftime("%Y-%m-%d")
+
+        for entry in listed:
+            tag = entry.get("site_tag")
+            if not tag:
+                continue
+            zone = "unknown"
+            try:
+                detail = api_get("/accounts/%s/rum/site_info/%s" % (ACCOUNT, tag)).get("result") or {}
+                ruleset = detail.get("ruleset") or {}
+                zone = ruleset.get("zone_name") or "unknown"
+                lines.append(sample("cloudflare_rum_site_info", 1, zone=zone,
+                                    auto_install="true" if detail.get("auto_install") else "false",
+                                    enabled="true" if ruleset.get("enabled") else "false"))
+            except Exception:
+                rum_ok = 0
+                lines.append(sample("cloudflare_rum_site_info", 1, zone=zone))
+
+            if not RUM_ENABLED:
+                continue
+            try:
+                data = graphql(RUM_QUERY, {
+                    "acc": ACCOUNT, "site": tag,
+                    "since": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "until": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                })
+                groups = (data.get("viewer", {}).get("accounts") or [{}])[0].get(
+                    "rumPageloadEventsAdaptiveGroups", []) or []
+                pv_win = sum(g.get("count", 0) for g in groups)
+                vis_win = sum((g.get("sum") or {}).get("visits", 0) for g in groups)
+                pv_24 = sum(g.get("count", 0) for g in groups
+                            if (g.get("dimensions") or {}).get("date") == today)
+                vis_24 = sum((g.get("sum") or {}).get("visits", 0) for g in groups
+                             if (g.get("dimensions") or {}).get("date") == today)
+                lines.append(sample("cloudflare_rum_pageviews_24h", pv_24, zone=zone))
+                lines.append(sample("cloudflare_rum_pageviews_window", pv_win, zone=zone, days=RUM_DAYS))
+                lines.append(sample("cloudflare_rum_visits_24h", vis_24, zone=zone))
+                lines.append(sample("cloudflare_rum_visits_window", vis_win, zone=zone, days=RUM_DAYS))
+            except Exception:
+                rum_ok = 0
+
+        lines.append(sample("cloudflare_rum_up", rum_ok))
+
+
+    def collect():
+        lines, durations = [], {}
+        ok = 1
+
+        def timed(path, key):
+            t0 = time.time()
+            try:
+                return api_get(path)
+            finally:
+                durations[key] = time.time() - t0
+
+        try:
+            zones = timed("/zones?per_page=50", "zones").get("result", [])
+        except Exception:
+            zones, ok = [], 0
+
+        for z in zones:
+            zid, zname = z["id"], z["name"]
+            plan = (z.get("plan") or {}).get("name", "unknown")
+            lines.append(sample("cloudflare_zone_up", 1 if z.get("status") == "active" else 0,
+                                zone=zname, plan=plan))
+            lines.append(sample("cloudflare_zone_paused", 1 if z.get("paused") else 0, zone=zname))
+            lines.append(sample("cloudflare_zone_development_mode",
+                                1 if z.get("development_mode", 0) else 0, zone=zname))
+            try:
+                info = timed("/zones/%s/dns_records?per_page=1" % zid, "dns_records").get("result_info") or {}
+                if info.get("total_count") is not None:
+                    lines.append(sample("cloudflare_zone_dns_records", int(info["total_count"]), zone=zname))
+            except Exception:
+                ok = 0
+            try:
+                ssl = timed("/zones/%s/settings/ssl" % zid, "ssl").get("result", {})
+                lines.append(sample("cloudflare_zone_tls_mode", 1, zone=zname, mode=ssl.get("value", "unknown")))
+                lines.append(sample("cloudflare_zone_certificate_active",
+                                    1 if ssl.get("certificate_status") == "active" else 0,
+                                    zone=zname, status=ssl.get("certificate_status", "unknown")))
+            except Exception:
+                ok = 0
+
+        if ACCOUNT:
+            try:
+                tunnels = timed("/accounts/%s/cfd_tunnel?is_deleted=false" % ACCOUNT, "tunnels").get("result", [])
+            except Exception:
+                tunnels, ok = [], 0
+
+            for t in tunnels:
+                name, tid = t.get("name", t["id"]), t["id"]
+                status = t.get("status", "unknown")
+                lines.append(sample("cloudflare_tunnel_up", 1 if status == "healthy" else 0,
+                                    tunnel=name, status=status))
+                try:
+                    detail = timed("/accounts/%s/cfd_tunnel/%s/connections" % (ACCOUNT, tid),
+                                   "tunnel_connections").get("result", [])
+                except Exception:
+                    detail, ok = [], 0
+
+                lines.append(sample("cloudflare_tunnel_connectors", len(detail), tunnel=name))
+                by_colo, edges = {}, 0
+                for connector in detail:
+                    cid = connector.get("id", "?")
+                    lines.append(sample("cloudflare_tunnel_connector_up", 1, tunnel=name,
+                                        connector=cid[:8], version=connector.get("version", "?"),
+                                        arch=connector.get("arch", "?")))
+                    for c in connector.get("conns") or []:
+                        edges += 1
+                        colo = c.get("colo_name", "?")
+                        by_colo[colo] = by_colo.get(colo, 0) + 1
+                lines.append(sample("cloudflare_tunnel_edge_connections", edges, tunnel=name))
+                for colo, n in by_colo.items():
+                    lines.append(sample("cloudflare_tunnel_edges_by_colo", n, tunnel=name, colo=colo))
+
+            try:
+                apps = timed("/accounts/%s/access/apps" % ACCOUNT, "access_apps").get("result", [])
+                lines.append(sample("cloudflare_access_apps_total", len(apps)))
+            except Exception:
+                ok = 0
+
+            try:
+                rum_metrics(lines)
+            except Exception:
+                lines.append(sample("cloudflare_rum_up", 0))
+
+        for key, dur in durations.items():
+            lines.append(sample("cloudflare_api_last_duration_seconds", "%.3f" % dur, endpoint=key))
+        lines.append(sample("cloudflare_api_up", ok))
+        lines.append(sample("cloudflare_export_timestamp_seconds", int(time.time())))
+        lines.append(sample("cloudflare_exporter_build_info", 1, version=VERSION))
+
+        header = []
+        for name, text in HELP.items():
+            header.append("# HELP %s %s" % (name, text))
+            header.append("# TYPE %s gauge" % name)
+        return ok, "\n".join(header + lines) + "\n"
+
+
+    def refresher():
+        while True:
+            try:
+                ok, text = collect()
+                with _lock:
+                    _state.update(text=text, ok=ok)
+            except Exception as exc:  # never kill the server
+                with _lock:
+                    _state.update(
+                        ok=0,
+                        text="cloudflare_api_up 0\n# error: %s\n" % str(exc).replace("\n", " ")[:200],
+                    )
+            time.sleep(REFRESH)
+
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.startswith("/healthz"):
+                body = b"ok\n"
+            else:
+                with _lock:
+                    body = (_state["text"] or "# no data yet\n").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+
+    if __name__ == "__main__":
+        threading.Thread(target=refresher, daemon=True).start()
+        time.sleep(min(5, REFRESH))
+        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflare-edge-exporter
+  namespace: monitoring
+  labels:
+    app: cloudflare-edge-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflare-edge-exporter
+  template:
+    metadata:
+      labels:
+        app: cloudflare-edge-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9182"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: exporter
+          image: python:3.12-alpine
+          command: ["python", "/app/exporter.py"]
+          env:
+            - name: CF_ACCOUNT_ID
+              value: c13ab6fbc2a53cfe719bca75fdc825c2
+            - name: CF_REFRESH_SECONDS
+              value: "60"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: CF_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflare-edge-token
+                  key: token
+          ports:
+            - name: metrics
+              containerPort: 9182
+          readinessProbe:
+            httpGet: { path: /healthz, port: 9182 }
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9182 }
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          resources:
+            requests: { cpu: 10m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: script
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: cloudflare-edge-exporter
