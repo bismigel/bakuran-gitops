@@ -1,0 +1,33 @@
+# Managed by GitOps. Edit panels here; Grafana reloads them within 30s.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-power
+  namespace: monitoring
+data:
+  power.json: |
+    {
+      "uid": "homelab-power",
+      "title": "Homelab Power",
+      "tags": ["homelab","power"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from":"now-24h","to":"now"},
+      "templating": {"list":[]},
+      "annotations": {"list":[{"builtIn":1,"datasource":{"type":"grafana","uid":"-- Grafana --"},"enable":true,"hide":true,"iconColor":"rgba(0, 211, 255, 1)","name":"Annotations & Alerts","type":"dashboard"}]},
+      "editable": true,
+      "panels": [
+        {"id":1,"type":"stat","title":"Cluster power (W)","gridPos":{"h":5,"w":4,"x":0,"y":0},"targets":[{"expr":"sum(rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])) + sum(rate(kepler_node_dram_joules_total{mode=\"dynamic\"}[5m]))","refId":"A"}],"description":"Measured RAPL energy: CPU package + DRAM. Excludes disks, board and PSU losses.","fieldConfig":{"defaults":{"unit":"watt"}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":2,"type":"stat","title":"Energy (24h)","gridPos":{"h":5,"w":4,"x":4,"y":0},"targets":[{"expr":"sum(increase(kepler_node_package_joules_total{mode=\"dynamic\"}[24h])) / 3.6e6","refId":"A"}],"description":"Measured CPU package energy over the last 24h, in kWh.","fieldConfig":{"defaults":{"unit":"kwatth"}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":3,"type":"stat","title":"Average (24h)","gridPos":{"h":5,"w":4,"x":8,"y":0},"targets":[{"expr":"avg_over_time((sum(rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])) + sum(rate(kepler_node_dram_joules_total{mode=\"dynamic\"}[5m])))[24h:5m])","refId":"A"}],"description":"24h mean of total measured draw.","fieldConfig":{"defaults":{"unit":"watt"}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":4,"type":"stat","title":"Nodes reporting","gridPos":{"h":5,"w":4,"x":12,"y":0},"targets":[{"expr":"count(kepler_node_info) or vector(0)","refId":"A"}],"fieldConfig":{"defaults":{"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":3}]},"color":{"mode":"thresholds"}}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":5,"type":"stat","title":"Pods tracked","gridPos":{"h":5,"w":4,"x":16,"y":0},"targets":[{"expr":"count(count by (pod_name) (kepler_container_joules_total{mode=\"dynamic\"})) or vector(0)","refId":"A"}],"description":"Containers with energy attribution.","fieldConfig":{"defaults":{"unit":"short"}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":6,"type":"stat","title":"Busiest node share","gridPos":{"h":5,"w":4,"x":20,"y":0},"targets":[{"expr":"max(rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])) / sum(rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])) * 100","refId":"A"}],"description":"Which node dominates the power budget.","fieldConfig":{"defaults":{"unit":"percent"}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":7,"type":"timeseries","title":"CPU package power by node","gridPos":{"h":8,"w":12,"x":0,"y":5},"targets":[{"expr":"rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])","refId":"A","legendFormat":"{{instance}}"}],"fieldConfig":{"defaults":{"unit":"watt","custom":{"lineWidth":1,"fillOpacity":8,"showPoints":"never","spanNulls":true},"min":0,"max":null}},"options":{"legend":{"displayMode":"list","placement":"bottom","calcs":[]},"tooltip":{"mode":"multi","sort":"desc"}}},
+        {"id":8,"type":"timeseries","title":"Node components","gridPos":{"h":8,"w":12,"x":12,"y":5},"targets":[{"expr":"rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])","refId":"A","legendFormat":"package {{instance}}"},{"expr":"rate(kepler_node_dram_joules_total{mode=\"dynamic\"}[5m])","refId":"B","legendFormat":"dram {{instance}}"},{"expr":"rate(kepler_node_uncore_joules_total{mode=\"dynamic\"}[5m])","refId":"C","legendFormat":"uncore {{instance}}"}],"fieldConfig":{"defaults":{"unit":"watt","custom":{"lineWidth":1,"fillOpacity":8,"showPoints":"never","spanNulls":true},"min":0,"max":null}},"options":{"legend":{"displayMode":"list","placement":"bottom","calcs":[]},"tooltip":{"mode":"multi","sort":"desc"}}},
+        {"id":9,"type":"timeseries","title":"Per-node measured total (W)","gridPos":{"h":8,"w":12,"x":0,"y":13},"targets":[{"expr":"sum by (instance) (rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])) + sum by (instance) (rate(kepler_node_dram_joules_total{mode=\"dynamic\"}[5m]))","refId":"A","legendFormat":"{{instance}}"}],"fieldConfig":{"defaults":{"unit":"watt","custom":{"lineWidth":1,"fillOpacity":8,"showPoints":"never","spanNulls":true},"min":0,"max":null}},"options":{"legend":{"displayMode":"list","placement":"bottom","calcs":[]},"tooltip":{"mode":"multi","sort":"desc"}}},
+        {"id":10,"type":"timeseries","title":"Top pods by power (W)","gridPos":{"h":8,"w":12,"x":12,"y":13},"targets":[{"expr":"topk(10, sum by (pod_name) (rate(kepler_container_joules_total{mode=\"dynamic\"}[5m])))","refId":"A","legendFormat":"{{pod_name}}"}],"description":"Honest per-container attribution, useful for spotting runaway workloads.","fieldConfig":{"defaults":{"unit":"watt","custom":{"lineWidth":1,"fillOpacity":8,"showPoints":"never","spanNulls":true},"min":0,"max":null}},"options":{"legend":{"displayMode":"list","placement":"bottom","calcs":[]},"tooltip":{"mode":"multi","sort":"desc"}}}
+      ]
+    }
