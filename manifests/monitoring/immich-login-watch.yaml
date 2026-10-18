@@ -76,35 +76,35 @@ spec:
             nodeSelector:
               kubernetes.io/hostname: sitaw-amd
             restartPolicy: Never
-          containers:
-            - name: watch
-              image: postgres:16-alpine
-              command: ["/bin/sh", "/scripts/watch.sh"]
-              env:
-                - { name: PGHOST, value: immich-postgres.immich.svc.cluster.local }
-                - { name: PGPORT, value: "5432" }
-                - { name: PGUSER, value: immich }
-                - { name: PGDATABASE, value: immich }
-                - { name: PGTZ, value: UTC }
-                - { name: ALERTMANAGER_URL, value: "http://alertmanager.monitoring.svc:9093/api/v2/alerts" }
-                - { name: HOME, value: /tmp }
-                - name: PGPASSWORD
-                  valueFrom: { secretKeyRef: { name: immich-watch-db, key: password } }
-              volumeMounts:
-                - { name: script, mountPath: /scripts }
-                - { name: tmp, mountPath: /tmp }
-              resources:
-                requests: { cpu: 10m, memory: 32Mi }
-                limits: { memory: 128Mi }
-              securityContext:
-                runAsNonRoot: true
-                runAsUser: 70
-                runAsGroup: 70
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities: { drop: ["ALL"] }
-          volumes:
-            - name: script
-              configMap: { name: immich-watch }
-            - name: tmp
-              emptyDir: {}
+            containers:
+              - name: watch
+                image: postgres:16-alpine
+                command: ["/bin/sh", "/scripts/watch.sh"]
+                env:
+                  - { name: PGHOST, value: immich-postgres.immich.svc.cluster.local }
+                  - { name: PGPORT, value: "5432" }
+                  - { name: PGUSER, value: immich }
+                  - { name: PGDATABASE, value: immich }
+                  - { name: PGTZ, value: UTC }
+                  - { name: ALERTMANAGER_URL, value: "http://alertmanager.monitoring.svc:9093/api/v2/alerts" }
+                  - { name: HOME, value: /tmp }
+                  - name: PGPASSWORD
+                    valueFrom: { secretKeyRef: { name: immich-watch-db, key: password } }
+                volumeMounts:
+                  - { name: script, mountPath: /scripts }
+                  - { name: tmp, mountPath: /tmp }
+                resources:
+                  requests: { cpu: 10m, memory: 32Mi }
+                  limits: { memory: 128Mi }
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 70
+                  runAsGroup: 70
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities: { drop: ["ALL"] }
+            volumes:
+              - name: script
+                configMap: { name: immich-watch }
+              - name: tmp
+                emptyDir: {}
