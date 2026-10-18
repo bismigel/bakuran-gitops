@@ -818,13 +818,14 @@ data:
     - allow monitoring only where metrics are scraped;
     - verify the public URL, the background jobs and the backup path.
     
-    ### Phase 3: Egress policy, optional
+    ### Phase 3: Egress policy
     
-    Status: deferred (not needed yet)
+    Status: in progress (apps pilot)
     
-    Only after ingress policy is stable in every app namespace. Start with DNS,
-    monitoring and the API server. Keep egress open for anything that talks to the
-    LAN or the internet until its flows are known.
+    The static and API apps namespace now has default-deny egress with DNS and
+    same-namespace allowed. A test pod still resolves DNS, external HTTPS is
+    blocked, and the public sites stay at 200. Other namespaces stay open until
+    their flow matrix is written.
     
     ### Phase 4: Golden path for new apps
     
@@ -844,7 +845,11 @@ data:
     
     ### Phase 5: Trust-zone edge
     
-    Status: blocked on a narrow Cloudflare token
+    Status: Kubernetes side ready; Cloudflare switch pending
+    
+    A second ingress controller (`ingress-nginx-admin`, class `nginx-admin`) is live
+    on loopback NodePort 32081. No hostnames have moved yet. The remaining switch is
+    the Cloudflare tunnel route for admin hostnames.
     
     Design first, then implement:
     
@@ -885,9 +890,9 @@ data:
     | 0. Baseline | done | 2026-10-18 | k3s policy controller present |
     | 1. Karakeep pilot | done | 2026-10-18 | ingress-only default deny; public 200, cross-namespace blocked, same-namespace works |
     | 2. Rollout | done | 2026-10-18 | one-shot with restore point; app namespaces covered |
-    | 3. Egress | pending | | optional |
+    | 3. Egress | in progress | 2026-10-18 | apps pilot: DNS allow, external blocked |
     | 4. Golden path | done | 2026-10-18 | template ships policy and secure defaults |
-    | 5. Trust-zone edge | pending | | design first |
+    | 5. Trust-zone edge | prepared | 2026-10-18 | admin ingress live on 32081; tunnel switch pending |
     | 6. Simplicity | pending | | ongoing |
     | 7. SRE follow-ups | in progress | 2026-10-18 | SLOs live; restore verification 29s; host rebuild pending |
   README.md: |
