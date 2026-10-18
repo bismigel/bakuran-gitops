@@ -703,8 +703,11 @@ data:
       Decide Kavita explicitly: accept the risk, put it behind a VPN, or remove it
       from the public edge.
     - **Cloudflare account.** Hardware-key MFA on the Cloudflare account and the
-      email behind it. Narrow the write-capable API token so it no longer carries
-      R2 scope; the exporter and agent already use the read-only token.
+      email behind it. The `Bakuran` API token currently has two all-permissions
+      policies: billing, account API tokens, Workers, R2, DNS, Tunnel, Access and
+      more. Recreate it with only `Cloudflare Tunnel Write`, `DNS Write` and
+      `Access: Apps and Policies Write`, then revoke the old token. The exporter and
+      agent stay on the read-only token.
     - **Supply chain and agent.** Pin images that publish stable versions, add egress
       policy after ingress policy is stable, and reduce the Hermes GitHub token to
       the smallest repo scope that still works.
@@ -841,7 +844,7 @@ data:
     
     ### Phase 5: Trust-zone edge
     
-    Status: pending
+    Status: blocked on a narrow Cloudflare token
     
     Design first, then implement:
     
