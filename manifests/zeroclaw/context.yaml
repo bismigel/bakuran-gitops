@@ -99,8 +99,10 @@ data:
     `kubernetes__pods_top` (metrics-server / `metrics.k8s.io`). Read-only RBAC
     (`homelab-agent-metrics-read`) is bound to the `kubernetes-mcp` and `zeroclaw`
     SAs. `nodes_stats_summary` needs `nodes/proxy` and is deliberately not granted.
-    Historical metrics live in Prometheus (`prometheus.monitoring.svc:9090`) with no
-    MCP tool yet.
+    
+    **Historical metrics:** `prometheus__execute_query` / `execute_range_query`,
+    `list_metrics`, `get_targets` (Prometheus MCP at
+    `http://prometheus-mcp.zeroclaw.svc:8080/mcp`, tools prefixed `prometheus__`).
     
     ArgoCD Applications (all **in-cluster** on the one 3-node cluster): `root,
     namespaces, ingress-nginx, ingress-headers, cert-manager, external-secrets,
