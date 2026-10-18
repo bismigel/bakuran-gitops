@@ -695,6 +695,21 @@ data:
       **no env** → DeepSeek key/GH_TOKEN/Telegram missing, silently falling back to
       `qwen3:8b`); fixed. The gateway `host` had drifted to `127.0.0.1` (broke the
       readiness probe/Service), pinned to `0.0.0.0` in the seed.
+    
+    ## Security follow-ups (2026-10-18)
+    
+    - **Public app identities.** Unique passwords for Jellyfin, Immich, Karakeep and
+      Kavita, stored in a password manager, and MFA wherever the app supports it.
+      Decide Kavita explicitly: accept the risk, put it behind a VPN, or remove it
+      from the public edge.
+    - **Cloudflare account.** Hardware-key MFA on the Cloudflare account and the
+      email behind it. Narrow the write-capable API token so it no longer carries
+      R2 scope; the exporter and agent already use the read-only token.
+    - **Supply chain and agent.** Pin images that publish stable versions, add egress
+      policy after ingress policy is stable, and reduce the Hermes GitHub token to
+      the smallest repo scope that still works.
+    - **Edge gaps.** HSTS is still off. Rate limiting and Access MFA are limited by
+      the free plan and email OTP. Keep these visible until closed.
   PLATFORM-MIGRATION.md: |
     # Platform migration plan
     
@@ -797,7 +812,7 @@ data:
     
     ### Phase 3: Egress policy, optional
     
-    Status: pending
+    Status: deferred (not needed yet)
     
     Only after ingress policy is stable in every app namespace. Start with DNS,
     monitoring and the API server. Keep egress open for anything that talks to the
@@ -805,7 +820,12 @@ data:
     
     ### Phase 4: Golden path for new apps
     
-    Status: pending
+    Status: done (2026-10-18)
+    
+    The app template now ships an ingress-only NetworkPolicy and secure defaults:
+    non-root, no service-account token, seccomp, dropped capabilities, read-only
+    root, probes and limits. New apps start from that instead of copying a live
+    manifest directory.
     
     Use the existing app template instead of copying a manifest directory. Define
     the minimum an app must provide: namespace, deployment, service, ingress,
@@ -855,7 +875,7 @@ data:
     | 1. Karakeep pilot | done | 2026-10-18 | ingress-only default deny; public 200, cross-namespace blocked, same-namespace works |
     | 2. Rollout | done | 2026-10-18 | one-shot with restore point; app namespaces covered |
     | 3. Egress | pending | | optional |
-    | 4. Golden path | pending | | template first |
+    | 4. Golden path | done | 2026-10-18 | template ships policy and secure defaults |
     | 5. Trust-zone edge | pending | | design first |
     | 6. Simplicity | pending | | ongoing |
     | 7. SRE follow-ups | pending | | SLOs and DR |
