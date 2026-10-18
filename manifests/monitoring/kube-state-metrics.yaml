@@ -16,8 +16,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources:
-      - configmaps
-      - endpoints
+        - endpoints
       - limitranges
       - namespaces
       - nodes
