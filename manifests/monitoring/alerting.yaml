@@ -22,7 +22,9 @@ data:
             annotations:
               summary: "target {{ $labels.job }}/{{ $labels.instance }} down"
           - alert: DiskFillingUp
-            expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) * 100 > 85
+            # /mnt/media is excluded here: the media pool is a mergerfs union of
+            # four branches across two hosts, so it gets its own pair of alerts.
+            expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!="/mnt/media"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!="/mnt/media"}) * 100 > 85
             for: 30m
             labels: { severity: warning }
             annotations:
@@ -33,8 +35,59 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "memory on {{ $labels.instance }} >90%"
+          # Media pool (/mnt/media on calamansi-intel): the whole media stack and
+          # every *arr import dies when this fills, so warn early and loud.
+          - alert: MediaPoolFillingUp
+            expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 85
+            for: 30m
+            labels: { severity: warning }
+            annotations:
+              summary: "media pool (/mnt/media) >85% full"
+              description: "{{ $value }}% used — reclaim space (arr cleanup) or add a disk before imports start failing."
+          - alert: MediaPoolCritical
+            expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 92
+            for: 15m
+            labels: { severity: critical }
+            annotations:
+              summary: "media pool (/mnt/media) >92% full — downloads/imports will fail"
+              description: "{{ $value }}% used on the mergerfs pool."
           # NOTE: BackupFailed alerts are *pushed* to Alertmanager by the systemd
           # OnFailure hooks (see modules/backup*.nix), so there's no rule for them.
+      - name: etcd
+        rules:
+          # Metrics come from the etcd-metrics-proxy DaemonSet (node loopback
+          # 127.0.0.1:2381 relayed to <node-ip>:9101, scraped by kubernetes-pods),
+          # so these selectors deliberately avoid a `job=` filter.
+          - alert: EtcdNoLeader
+            expr: etcd_server_has_leader == 0
+            for: 2m
+            labels: { severity: critical }
+            annotations:
+              summary: "etcd {{ $labels.instance }} has no leader"
+          - alert: EtcdMemberUnreachable
+            expr: count(etcd_server_has_leader) < 3
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "only {{ $value }}/3 etcd members are reporting metrics"
+          - alert: EtcdQuorumAtRisk
+            expr: sum(etcd_server_has_leader) < 2
+            for: 5m
+            labels: { severity: critical }
+            annotations:
+              summary: "etcd quorum lost or at risk ({{ $value }}/3 leaders)"
+          - alert: EtcdHighFsyncLatency
+            expr: histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) by (le)) > 0.5
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "etcd WAL fsync p99 > 500ms — disk is the bottleneck"
+          - alert: EtcdDbSizeNearQuota
+            expr: max(etcd_mvcc_db_total_size_in_bytes) > 1.5e9
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "etcd DB > 1.5GiB (2GiB quota) — compact/defrag or raise the quota"
       - name: argocd
         rules:
           - alert: ArgoCDAppOutOfSync

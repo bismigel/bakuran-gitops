@@ -27,6 +27,13 @@ spec:
           args:
             - '--path.procfs=/host/proc'
             - '--path.sysfs=/host/sys'
+            # Stat filesystems through the HOST root (mounted at /rootfs), not the
+            # container's overlay. Without this the filesystem collector reads the
+            # host mount list from /host/proc/mounts but stats the container's own
+            # /, so every host mount outside /proc|/sys|/dev|/etc|/host is
+            # invisible — this is why /mnt/media (mergerfs on calamansi-intel)
+            # never showed up, and why the "/" numbers were the overlay's.
+            - '--path.rootfs=/rootfs'
             - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
           securityContext:
             runAsNonRoot: true
