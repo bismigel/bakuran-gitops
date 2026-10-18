@@ -797,6 +797,9 @@ data:
     
     Egress remains open. Infrastructure namespaces are intentionally not managed.
     
+    Jellyfin keeps a LAN-only `192.168.2.0/24:8096` exception for TV clients;
+    the public path stays on the tunnel.
+    
     Verified: public URLs return 200, all pods Ready, media to Jellyfin and
     LazyLibrarian work, Hermes can reach media-mcp, and a namespace without an
     explicit allow is refused.
@@ -859,11 +862,12 @@ data:
     
     ### Phase 7: SRE follow-ups
     
-    Status: pending
+    Status: in progress (SLOs done, DR rehearsal pending)
     
     These are not from the reference repo, but the comparison confirmed them:
     
-    - define two or three SLOs and error budgets for public services;
+    - **SLOs:** blackbox probes, 99.5% 7d availability target, error budget and burn
+    alerts are live in the Homelab SLOs dashboard.
     - run a full disaster-recovery rehearsal and record the time;
     - keep the image-pinning gap visible until it is closed.
     
@@ -878,7 +882,7 @@ data:
     | 4. Golden path | done | 2026-10-18 | template ships policy and secure defaults |
     | 5. Trust-zone edge | pending | | design first |
     | 6. Simplicity | pending | | ongoing |
-    | 7. SRE follow-ups | pending | | SLOs and DR |
+    | 7. SRE follow-ups | in progress | 2026-10-18 | SLOs live; DR rehearsal pending |
   README.md: |
     # Homelab Context
     
@@ -1374,7 +1378,8 @@ data:
       `books`, `default`, `downloads`, `homepage`, `immich`, `karakeep`, `media`,
       `zeroclaw`). Same-namespace and `ingress-nginx` are allowed; media to
       books/default/downloads, monitoring to default/immich, and zeroclaw to media
-      are explicit. Egress stays open.
+      are explicit. Egress stays open. Jellyfin keeps a LAN-only `192.168.2.0/24:8096`
+      exception for TV clients; the public path stays on the tunnel.
     - **Zero Trust Access** gates the admin/browser apps, `argocd`, `grafana`,
       `longhorn`, `agent`, `private`, `homepage`, `prometheus`, and the media UIs
       (`sonarr`, `radarr`, `prowlarr`, `bazarr`, `qbittorrent`, `sabnzbd`), allow-listed
