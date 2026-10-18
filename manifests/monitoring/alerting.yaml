@@ -141,7 +141,39 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
-              summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
+                summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
+  slo.yml: |
+    groups:
+      - name: slo
+        rules:
+          - record: slo:probe_success:ratio5m
+            expr: avg_over_time(probe_success[5m])
+          - record: slo:probe_success:ratio1h
+            expr: avg_over_time(probe_success[1h])
+          - record: slo:probe_success:ratio6h
+            expr: avg_over_time(probe_success[6h])
+          - record: slo:probe_success:ratio7d
+            expr: avg_over_time(probe_success[7d])
+          - record: slo:probe_success:budget_remaining7d
+            expr: clamp_min(1 - ((1 - avg_over_time(probe_success[7d])) / 0.005), 0)
+          - alert: PublicProbeDown
+            expr: probe_success == 0
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "public probe {{ $labels.instance }} is down"
+          - alert: PublicSLOFastBurn
+            expr: avg_over_time(probe_success[1h]) < 0.99 and avg_over_time(probe_success[5m]) < 0.99
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "public SLO fast burn: {{ $labels.instance }} at {{ $value | humanizePercentage }}"
+          - alert: PublicSLOSlowBurn
+            expr: avg_over_time(probe_success[6h]) < 0.995
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "public SLO slow burn: {{ $labels.instance }} below 99.5%"
 ---
 # Alertmanager
 apiVersion: v1
