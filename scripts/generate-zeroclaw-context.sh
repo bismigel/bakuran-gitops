@@ -8,7 +8,7 @@ set -euo pipefail
 
 SRC="${HOMELAB_CONTEXT_DIR:-$HOME/projects/homelab-context}"
 OUT="${1:-manifests/zeroclaw/context.yaml}"
-DOCS=(AGENTS.md INVENTORY.md KNOWN-ISSUES.md MEDIA.md NEXT-STEPS.md README.md RUNBOOK.md SYSTEM.md)
+DOCS=(AGENTS.md INVENTORY.md KNOWN-ISSUES.md MEDIA.md NEXT-STEPS.md PLATFORM-MIGRATION.md README.md RUNBOOK.md SYSTEM.md)
 
 {
   printf '%s\n' \

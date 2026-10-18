@@ -695,6 +695,149 @@ data:
       **no env** → DeepSeek key/GH_TOKEN/Telegram missing, silently falling back to
       `qwen3:8b`); fixed. The gateway `host` had drifted to `127.0.0.1` (broke the
       readiness probe/Service), pinned to `0.0.0.0` in the seed.
+  PLATFORM-MIGRATION.md: |
+    # Platform migration plan
+    
+    Last updated: 2026-10-18
+    
+    Goal: adopt the useful principles from the reference homelab without turning the
+    lab into a rewrite. The reference is better at network isolation, environment
+    separation and small, legible structure. This plan takes those lessons one phase
+    at a time.
+    
+    Non-goals:
+    
+    - No CNI replacement. k3s already runs the built-in network policy controller.
+    - No second environment until there is a real need for one.
+    - No big-bang refactor of every manifest.
+    - No change to the backup, delivery or observability paths without a rollback.
+    
+    Guardrails:
+    
+    - One phase per pull request.
+    - One namespace at a time for network policy.
+    - Verify public access, internal traffic and pod readiness before the next phase.
+    - Leave 24 hours between network policy namespaces.
+    - Rollback is a revert of the PR; ArgoCD prunes the policy.
+    - Do not start with kube-system, argocd, longhorn-system or monitoring.
+    
+    ## Phases
+    
+    ### Phase 0: Baseline
+    
+    Status: done (2026-10-18)
+    
+    - Confirmed k3s is not started with `--disable-network-policy`.
+    - Confirmed no NetworkPolicies exist today.
+    - Mapped the main traffic paths: ingress-nginx to apps, same-namespace calls,
+      Prometheus scraping, media/downloads/books cross-namespace calls, and the
+      Cloudflare tunnel terminating at ingress-nginx.
+    - Chose Karakeep as the pilot because it has no Prometheus scrape annotations, no
+      cross-namespace dependencies and no probes that could be blocked.
+    
+    ### Phase 1: Network policy pilot in `karakeep`
+    
+    Status: done (2026-10-18)
+    
+    Add an ingress-only default-deny policy. Allow:
+    
+    - pods in the same namespace, for Karakeep, Meilisearch and Chrome;
+    - pods in `ingress-nginx`, for the public hostname.
+    
+    Do not restrict egress yet.
+    
+    Acceptance:
+    
+    - `https://karakeep.bismigel.dev` still returns the app.
+    - Karakeep can reach Meilisearch and Chrome.
+    - A pod outside the namespace cannot reach the Karakeep Service.
+    - Pods stay Ready and do not restart.
+    
+    ### Phase 2: Network policy rollout
+    
+    Status: pending
+    
+    Order:
+    
+    1. `books`
+    2. `media`
+    3. `downloads`
+    4. `immich`
+    5. `homepage`
+    6. admin namespaces last, one at a time
+    
+    For each namespace:
+    
+    - list the ingress sources before writing the policy;
+    - allow same-namespace and ingress-nginx;
+    - allow monitoring only where metrics are scraped;
+    - verify the public URL, the background jobs and the backup path;
+    - wait 24 hours before the next namespace.
+    
+    ### Phase 3: Egress policy, optional
+    
+    Status: pending
+    
+    Only after ingress policy is stable in every app namespace. Start with DNS,
+    monitoring and the API server. Keep egress open for anything that talks to the
+    LAN or the internet until its flows are known.
+    
+    ### Phase 4: Golden path for new apps
+    
+    Status: pending
+    
+    Use the existing app template instead of copying a manifest directory. Define
+    the minimum an app must provide: namespace, deployment, service, ingress,
+    resource limits, security context, probes, NetworkPolicy and a backup note.
+    
+    Do not build base/overlay directories for a second environment yet. Add them
+    when a second environment exists, not before.
+    
+    ### Phase 5: Trust-zone edge
+    
+    Status: pending
+    
+    Design first, then implement:
+    
+    - public apps on one edge path;
+    - admin apps on another;
+    - no shared ingress route between them.
+    
+    Possible shapes: one tunnel per trust zone, or two ingress classes with
+    different Access policies. Keep the current two-connector tunnel until the new
+    path is proven.
+    
+    ### Phase 6: Reduce bespoke glue
+    
+    Status: pending
+    
+    Inventory the setup scripts and one-off steps. Keep the ones that encode a real
+    failure (path mounts, account roles, metadata parsing). Replace the rest with
+    the golden path or a documented manual step. The goal is a smaller surface, not
+    a smaller feature set.
+    
+    ### Phase 7: SRE follow-ups
+    
+    Status: pending
+    
+    These are not from the reference repo, but the comparison confirmed them:
+    
+    - define two or three SLOs and error budgets for public services;
+    - run a full disaster-recovery rehearsal and record the time;
+    - keep the image-pinning gap visible until it is closed.
+    
+    ## Progress
+    
+    | Phase | Status | Date | Notes |
+    |---|---|---|---|
+    | 0. Baseline | done | 2026-10-18 | k3s policy controller present |
+    | 1. Karakeep pilot | done | 2026-10-18 | ingress-only default deny; public 200, cross-namespace blocked, same-namespace works |
+    | 2. Rollout | pending | | one namespace at a time |
+    | 3. Egress | pending | | optional |
+    | 4. Golden path | pending | | template first |
+    | 5. Trust-zone edge | pending | | design first |
+    | 6. Simplicity | pending | | ongoing |
+    | 7. SRE follow-ups | pending | | SLOs and DR |
   README.md: |
     # Homelab Context
     
