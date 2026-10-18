@@ -1,0 +1,50 @@
+# Prometheus MCP server for the agent: historical metrics, PromQL and targets.
+# Read-only by nature (Prometheus API); internal-only Service, no ingress.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-mcp
+  namespace: zeroclaw
+  labels: { app: prometheus-mcp }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: prometheus-mcp }
+  template:
+    metadata:
+      labels: { app: prometheus-mcp }
+    spec:
+      containers:
+        - name: prometheus-mcp
+          image: ghcr.io/pab1it0/prometheus-mcp-server:latest@sha256:3c3921301229618d0b00a46a06e3b0c25745b31855f16919cf7b4fa040d47ec6
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: PROMETHEUS_URL, value: "http://prometheus.monitoring.svc.cluster.local:9090" }
+            - { name: PROMETHEUS_MCP_SERVER_TRANSPORT, value: "http" }
+            - { name: PROMETHEUS_MCP_BIND_HOST, value: "0.0.0.0" }
+            - { name: PROMETHEUS_MCP_BIND_PORT, value: "8080" }
+            - { name: PROMETHEUS_MCP_STATELESS_HTTP, value: "true" }
+            # Drop Prometheus UI links from results to keep agent context small.
+            - { name: PROMETHEUS_DISABLE_LINKS, value: "true" }
+            - { name: PROMETHEUS_REQUEST_TIMEOUT, value: "20" }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-mcp
+  namespace: zeroclaw
+  labels: { app: prometheus-mcp }
+spec:
+  selector: { app: prometheus-mcp }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }

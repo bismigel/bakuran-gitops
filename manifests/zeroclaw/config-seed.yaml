@@ -143,8 +143,14 @@ data:
     transport = "http"
     url = "http://media-mcp.media.svc.cluster.local:8080/mcp"
 
+    # Prometheus (history, PromQL, targets) — read-only.
+    [[mcp.servers]]
+    name = "prometheus"
+    transport = "http"
+    url = "http://prometheus-mcp.zeroclaw.svc.cluster.local:8080/mcp"
+
     [mcp_bundles.homelab]
-    servers = ["kubernetes", "github", "media"]
+    servers = ["kubernetes", "github", "media", "prometheus"]
 
     # Larger working budget for the agent: more tool-call iterations, a bigger
     # context window, and 10x the default action rate. Cost caps still apply.
