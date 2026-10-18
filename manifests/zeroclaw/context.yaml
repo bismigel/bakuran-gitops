@@ -333,6 +333,11 @@ data:
         use a 24h session; media stays 730h. Minimum TLS is 1.2 and Bot Fight Mode is
         on. HSTS and rate limiting for the public `jellyfin`/`immich` hostnames are
         still manual dashboard changes.
+    
+    - **Reboot order for NFS media:** after a full reboot, bring `.82` up before
+      `.81`. If `.81` boots first, `mnt-remote82-*.mount` fails, the mergerfs pool
+      does not mount, and Kavita/LazyLibrarian stay in `ContainerCreating`. Remount
+      the remote branches, restart `mnt-media.mount`, then restart those pods.
   MEDIA.md: |
     # MEDIA.md: the media stack
     
@@ -896,6 +901,15 @@ data:
     | 5. Trust-zone edge | prepared | 2026-10-18 | admin ingress live on 32081; tunnel switch pending |
     | 6. Simplicity | pending | | ongoing |
     | 7. SRE follow-ups | in progress | 2026-10-18 | SLOs live; restore verification 29s; host rebuild pending |
+    
+    ## Cilium pilot
+    
+    Status: attempted and rolled back (2026-10-18)
+    
+    Cilium 1.20.3 came up with kube-proxy, but pod-to-service and external traffic
+    failed. The uninstall left stale iptables and ip rules that broke etcd. Flannel
+    was restored, the nodes were rebooted, and the media mounts were repaired. No
+    data was lost. Cilium stays deferred.
   README.md: |
     # Homelab Context
     
