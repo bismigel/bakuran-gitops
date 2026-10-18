@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx-admin
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.15.1
+    helm:
+      values: |
+        controller:
+          # Separate trust zone for admin/browser surfaces. The Cloudflare
+          # tunnel will point admin hostnames at this loopback NodePort.
+          replicaCount: 2
+          ingressClass: nginx-admin
+          ingressClassResource:
+            name: nginx-admin
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/name: ingress-nginx
+                        app.kubernetes.io/component: controller
+          config:
+            # The origin is loopback-only; cloudflared is the only client.
+            use-forwarded-headers: "true"
+          service:
+            type: NodePort
+            enableHttps: false
+            nodePorts:
+              http: 32081
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx-admin
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
