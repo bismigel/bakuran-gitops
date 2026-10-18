@@ -39,5 +39,5 @@ roleRef:
   name: homelab-agent-metrics-read
 subjects:
   - kind: ServiceAccount
-    name: zeroclaw
+    name: hermes
     namespace: zeroclaw
