@@ -715,6 +715,8 @@ data:
     
     Last updated: 2026-10-18
     
+    Learnings and blog notes: [MIGRATION-LEARNINGS.md](MIGRATION-LEARNINGS.md)
+    
     Goal: adopt the useful principles from the reference homelab without turning the
     lab into a rewrite. The reference is better at network isolation, environment
     separation and small, legible structure. This plan takes those lessons one phase
@@ -862,12 +864,14 @@ data:
     
     ### Phase 7: SRE follow-ups
     
-    Status: in progress (SLOs done, DR rehearsal pending)
+    Status: in progress (SLOs done, restore verification timed, host rebuild pending)
     
     These are not from the reference repo, but the comparison confirmed them:
     
     - **SLOs:** blackbox probes, 99.5% 7d availability target, error budget and burn
     alerts are live in the Homelab SLOs dashboard.
+    - **Restore verification:** ran on 2026-10-18 against the newest appdata archive in
+      29 seconds. A full host rebuild is still pending.
     - run a full disaster-recovery rehearsal and record the time;
     - keep the image-pinning gap visible until it is closed.
     
@@ -882,7 +886,7 @@ data:
     | 4. Golden path | done | 2026-10-18 | template ships policy and secure defaults |
     | 5. Trust-zone edge | pending | | design first |
     | 6. Simplicity | pending | | ongoing |
-    | 7. SRE follow-ups | in progress | 2026-10-18 | SLOs live; DR rehearsal pending |
+    | 7. SRE follow-ups | in progress | 2026-10-18 | SLOs live; restore verification 29s; host rebuild pending |
   README.md: |
     # Homelab Context
     
