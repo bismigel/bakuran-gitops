@@ -95,6 +95,13 @@ data:
     Media hostPorts on `.81` are the LAN path (see below). Edge is reconciled daily by
     `cloudflare-sync.timer` on `.82`.
     
+    **Live metrics for the agent:** `kubernetes__nodes_top` and
+    `kubernetes__pods_top` (metrics-server / `metrics.k8s.io`). Read-only RBAC
+    (`homelab-agent-metrics-read`) is bound to the `kubernetes-mcp` and `zeroclaw`
+    SAs. `nodes_stats_summary` needs `nodes/proxy` and is deliberately not granted.
+    Historical metrics live in Prometheus (`prometheus.monitoring.svc:9090`) with no
+    MCP tool yet.
+    
     ArgoCD Applications (all **in-cluster** on the one 3-node cluster): `root,
     namespaces, ingress-nginx, ingress-headers, cert-manager, external-secrets,
     external-secrets-config, homepage, monitoring, observability,
