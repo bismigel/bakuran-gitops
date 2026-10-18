@@ -24,7 +24,7 @@ spec:
   data:
     - secretKey: token
       remoteRef:
-        key: cloudflare-api-token
+        key: cloudflare-read-token
 ---
 apiVersion: v1
 kind: ConfigMap
