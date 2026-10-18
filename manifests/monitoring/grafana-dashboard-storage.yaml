@@ -1,0 +1,33 @@
+# Managed by GitOps. Edit panels here; Grafana reloads them within 30s.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-storage
+  namespace: monitoring
+data:
+  storage.json: |
+    {
+      "uid": "homelab-storage",
+      "title": "Homelab Storage & Media",
+      "tags": ["homelab","storage","media"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from":"now-30d","to":"now"},
+      "templating": {"list":[]},
+      "annotations": {"list":[{"builtIn":1,"datasource":{"type":"grafana","uid":"-- Grafana --"},"enable":true,"hide":true,"iconColor":"rgba(0, 211, 255, 1)","name":"Annotations & Alerts","type":"dashboard"}]},
+      "editable": true,
+      "panels": [
+        {"id":1,"type":"stat","title":"Media pool used %","gridPos":{"h":5,"w":6,"x":0,"y":0},"targets":[{"expr":"(1 - node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"} / node_filesystem_size_bytes{mountpoint=\"/mnt/media\"}) * 100","refId":"A"}],"description":"Alerts fire at 85% (warning) and 92% (critical).","fieldConfig":{"defaults":{"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":85},{"color":"red","value":92}]},"color":{"mode":"thresholds"}}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":2,"type":"stat","title":"Media pool free","gridPos":{"h":5,"w":6,"x":6,"y":0},"targets":[{"expr":"node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"}","refId":"A"}],"description":"Free bytes in the mergerfs pool.","fieldConfig":{"defaults":{"unit":"bytes","thresholds":{"mode":"absolute","steps":[{"color":"red","value":200000000000.0},{"color":"yellow","value":500000000000.0},{"color":"green","value":1000000000000.0}]},"color":{"mode":"thresholds"}}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":3,"type":"stat","title":"Media pool size","gridPos":{"h":5,"w":6,"x":12,"y":0},"targets":[{"expr":"node_filesystem_size_bytes{mountpoint=\"/mnt/media\"}","refId":"A"}],"description":"Union size of all four branches.","fieldConfig":{"defaults":{"unit":"bytes"}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":4,"type":"stat","title":"Projected full in","gridPos":{"h":5,"w":6,"x":18,"y":0},"targets":[{"expr":"clamp_min(node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"} / (-deriv(node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"}[6h])) / 86400, 0)","refId":"A"}],"description":"Days until full at the 6h write rate. 0 means flat or growing.","fieldConfig":{"defaults":{"unit":"d","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":30},{"color":"green","value":90}]},"color":{"mode":"thresholds"}}},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","justifyMode":"auto","textMode":"auto","orientation":"auto"}},
+        {"id":5,"type":"timeseries","title":"Media pool used % (30d)","gridPos":{"h":8,"w":12,"x":0,"y":5},"targets":[{"expr":"(1 - node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"} / node_filesystem_size_bytes{mountpoint=\"/mnt/media\"}) * 100","refId":"A","legendFormat":"used %"}],"description":"Capacity trend with the alert thresholds drawn in.","fieldConfig":{"defaults":{"unit":"percent","custom":{"lineWidth":1,"fillOpacity":8,"showPoints":"never","spanNulls":true},"min":0,"max":100,"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":85},{"color":"red","value":92}]},"color":{"mode":"thresholds"}}},"options":{"legend":{"displayMode":"list","placement":"bottom","calcs":[]},"tooltip":{"mode":"multi","sort":"desc"}}},
+        {"id":6,"type":"timeseries","title":"Media pool free bytes","gridPos":{"h":8,"w":12,"x":12,"y":5},"targets":[{"expr":"node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"}","refId":"A","legendFormat":"free"}],"description":"Free space. The *arrs start failing imports before this reaches zero.","fieldConfig":{"defaults":{"unit":"bytes","custom":{"lineWidth":1,"fillOpacity":8,"showPoints":"never","spanNulls":true},"min":0,"max":null}},"options":{"legend":{"displayMode":"list","placement":"bottom","calcs":[]},"tooltip":{"mode":"multi","sort":"desc"}}},
+        {"id":7,"type":"table","title":"Filesystems on the media box","gridPos":{"h":8,"w":12,"x":0,"y":13},"targets":[{"expr":"node_filesystem_avail_bytes{instance=~\"192.168.2.81.*\",fstype!~\"tmpfs|overlay|squashfs|nsfs\"}","refId":"A","format":"table","instant":true}],"description":"Each mergerfs branch and its backing filesystem, as seen on calamansi-intel.","fieldConfig":{"defaults":{"custom":{"align":"auto","filterable":true}}},"options":{"showHeader":true,"cellHeight":"sm"}},
+        {"id":8,"type":"table","title":"PVC usage","gridPos":{"h":8,"w":12,"x":12,"y":13},"targets":[{"expr":"(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100","refId":"A","format":"table","instant":true}],"description":"Every mounted PVC, sorted by how full it is.","fieldConfig":{"defaults":{"unit":"percent","custom":{"align":"auto","filterable":true}}},"options":{"showHeader":true,"cellHeight":"sm"}},
+        {"id":9,"type":"table","title":"Largest container logs","gridPos":{"h":8,"w":12,"x":0,"y":21},"targets":[{"expr":"topk(10, kubelet_container_log_filesystem_used_bytes)","refId":"A","format":"table","instant":true}],"description":"Log files that quietly eat disk. Spot them before they matter.","fieldConfig":{"defaults":{"custom":{"align":"auto","filterable":true}}},"options":{"showHeader":true,"cellHeight":"sm"}},
+        {"id":10,"type":"timeseries","title":"Volume used bytes","gridPos":{"h":8,"w":12,"x":12,"y":21},"targets":[{"expr":"kubelet_volume_stats_used_bytes / 1024 / 1024","refId":"A","legendFormat":"{{namespace}}/{{persistentvolumeclaim}}"}],"description":"Absolute growth per volume, in MiB.","fieldConfig":{"defaults":{"unit":"decmbytes","custom":{"lineWidth":1,"fillOpacity":8,"showPoints":"never","spanNulls":true},"min":0,"max":null}},"options":{"legend":{"displayMode":"list","placement":"bottom","calcs":[]},"tooltip":{"mode":"multi","sort":"desc"}}}
+      ]
+    }
