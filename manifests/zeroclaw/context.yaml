@@ -715,11 +715,25 @@ data:
     Guardrails:
     
     - One phase per pull request.
-    - One namespace at a time for network policy.
-    - Verify public access, internal traffic and pod readiness before the next phase.
-    - Leave 24 hours between network policy namespaces.
+    - Network policy normally goes one namespace at a time. The 2026-10-18 rollout
+      was a deliberate one-shot with a restore point; future namespaces follow the
+      one-at-a-time rule.
+    - Verify public access, internal traffic and pod readiness before moving on.
     - Rollback is a revert of the PR; ArgoCD prunes the policy.
     - Do not start with kube-system, argocd, longhorn-system or monitoring.
+    
+    ## Restore point for the one-shot
+    
+    Created before the 2026-10-18 rollout:
+    
+    - Git tags `pre-platform-migration-2026-10-18` in `bakuran-gitops`,
+      `homelab-context` and `bismigel-site`.
+    - etcd snapshot
+      `pre-platform-migration-2026-10-18-sitaw-amd-1792343580` on `.82`.
+    - Fresh `credentials/` and `appdata/` backups in R2. The appdata backup now
+      includes the live Hermes directory, with cache and sockets excluded.
+    - Rollback: revert the network-policy PR and let ArgoCD prune it. Use the etcd
+      snapshot only if cluster state itself is damaged.
     
     ## Phases
     
@@ -755,24 +769,29 @@ data:
     
     ### Phase 2: Network policy rollout
     
-    Status: pending
+    Status: done (2026-10-18, one-shot with restore point)
     
-    Order:
+    Ingress-only policies now cover:
     
-    1. `books`
-    2. `media`
-    3. `downloads`
-    4. `immich`
-    5. `homepage`
-    6. admin namespaces last, one at a time
+    - `apps`, `homepage`, `zeroclaw`: same namespace and ingress-nginx;
+    - `books`: same namespace, ingress-nginx and media;
+    - `media`: same namespace, ingress-nginx and zeroclaw;
+    - `default`: same namespace, ingress-nginx, media and monitoring;
+    - `downloads`: same namespace, ingress-nginx, media and books;
+    - `immich`: same namespace, ingress-nginx and monitoring.
     
-    For each namespace:
+    Egress remains open. Infrastructure namespaces are intentionally not managed.
+    
+    Verified: public URLs return 200, all pods Ready, media to Jellyfin and
+    LazyLibrarian work, Hermes can reach media-mcp, and a namespace without an
+    explicit allow is refused.
+    
+    For future namespaces:
     
     - list the ingress sources before writing the policy;
     - allow same-namespace and ingress-nginx;
     - allow monitoring only where metrics are scraped;
-    - verify the public URL, the background jobs and the backup path;
-    - wait 24 hours before the next namespace.
+    - verify the public URL, the background jobs and the backup path.
     
     ### Phase 3: Egress policy, optional
     
@@ -832,7 +851,7 @@ data:
     |---|---|---|---|
     | 0. Baseline | done | 2026-10-18 | k3s policy controller present |
     | 1. Karakeep pilot | done | 2026-10-18 | ingress-only default deny; public 200, cross-namespace blocked, same-namespace works |
-    | 2. Rollout | pending | | one namespace at a time |
+    | 2. Rollout | done | 2026-10-18 | one-shot with restore point; app namespaces covered |
     | 3. Egress | pending | | optional |
     | 4. Golden path | pending | | template first |
     | 5. Trust-zone edge | pending | | design first |
