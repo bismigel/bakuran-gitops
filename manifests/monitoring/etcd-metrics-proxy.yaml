@@ -1,0 +1,57 @@
+# etcd metrics for the embedded k3s datastore.
+#
+# k3s runs etcd in-process and ALWAYS serves its Prometheus metrics on the node's
+# loopback interface: http://127.0.0.1:2381/metrics (plain HTTP, no auth).
+# That address does not exist in the pod network, and turning on
+# `--etcd-expose-metrics` would additionally bind 0.0.0.0:2381 — unauthenticated
+# and reachable from the LAN — which is exposure we don't want.
+#
+# This DaemonSet puts a socat relay in each node's host network namespace:
+# <node-ip>:9101 -> 127.0.0.1:2381. Prometheus then scrapes it through the
+# existing annotation-driven `kubernetes-pods` job, which is why the pod carries
+# prometheus.io/* annotations instead of needing a new scrape config.
+#
+# All three nodes are control-plane + etcd members, so no nodeSelector: every
+# node has something to proxy. If a future node runs no etcd, the relay still
+# accepts the TCP connection and the scrape fails, which TargetDown reports.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: etcd-metrics-proxy
+  namespace: monitoring
+  labels:
+    app: etcd-metrics-proxy
+spec:
+  selector:
+    matchLabels:
+      app: etcd-metrics-proxy
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: etcd-metrics-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9101"
+        prometheus.io/path: "/metrics"
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: socat
+          image: alpine/socat:1.8.0.0
+          args:
+            - 'TCP-LISTEN:9101,fork,reuseaddr,keepalive'
+            - 'TCP:127.0.0.1:2381'
+          ports:
+            - name: etcd-metrics
+              containerPort: 9101
+          resources:
+            requests:
+              memory: 8Mi
+              cpu: 5m
+            limits:
+              memory: 32Mi
