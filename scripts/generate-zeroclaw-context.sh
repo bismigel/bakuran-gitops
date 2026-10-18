@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Regenerate manifests/zeroclaw/context.yaml — the ZeroClaw knowledge-base
-# ConfigMap — from the local homelab-context docs. CREDENTIALS.md is excluded.
+# Regenerate manifests/zeroclaw/context.yaml: the Hermes knowledge-base
+# ConfigMap from the local homelab-context docs. CREDENTIALS.md is excluded.
 #
 #   ./scripts/generate-zeroclaw-context.sh
 #   HOMELAB_CONTEXT_DIR=/path/to/homelab-context ./scripts/generate-zeroclaw-context.sh
@@ -12,7 +12,7 @@ DOCS=(AGENTS.md INVENTORY.md KNOWN-ISSUES.md MEDIA.md NEXT-STEPS.md README.md RU
 
 {
   printf '%s\n' \
-    '# Homelab context for the ZeroClaw agent. GENERATED — do not edit by hand.' \
+    '# Homelab context for the Hermes agent. GENERATED; do not edit by hand.' \
     '# Source: ~/projects/homelab-context (CREDENTIALS.md excluded).' \
     '# Regenerate: scripts/generate-zeroclaw-context.sh' \
     'apiVersion: v1' \
