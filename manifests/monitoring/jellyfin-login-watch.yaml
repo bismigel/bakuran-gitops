@@ -101,28 +101,28 @@ spec:
             nodeSelector:
               kubernetes.io/hostname: sitaw-amd
             restartPolicy: Never
-          containers:
-            - name: watch
-              image: python:3.12-alpine
-              command: ["python", "/scripts/watch.py"]
-              env:
-                - { name: JELLYFIN_URL, value: "http://jellyfin.default.svc.cluster.local:8096" }
-                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
-                - { name: PYTHONUNBUFFERED, value: "1" }
-                - name: JELLYFIN_API_KEY
-                  valueFrom: { secretKeyRef: { name: jellyfin-watch-key, key: api-key } }
-              volumeMounts:
-                - { name: script, mountPath: /scripts }
-              resources:
-                requests: { cpu: 10m, memory: 32Mi }
-                limits: { memory: 128Mi }
-              securityContext:
-                runAsNonRoot: true
-                runAsUser: 65534
-                runAsGroup: 65534
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities: { drop: ["ALL"] }
-          volumes:
-            - name: script
-              configMap: { name: jellyfin-watch }
+            containers:
+              - name: watch
+                image: python:3.12-alpine
+                command: ["python", "/scripts/watch.py"]
+                env:
+                  - { name: JELLYFIN_URL, value: "http://jellyfin.default.svc.cluster.local:8096" }
+                  - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+                  - { name: PYTHONUNBUFFERED, value: "1" }
+                  - name: JELLYFIN_API_KEY
+                    valueFrom: { secretKeyRef: { name: jellyfin-watch-key, key: api-key } }
+                volumeMounts:
+                  - { name: script, mountPath: /scripts }
+                resources:
+                  requests: { cpu: 10m, memory: 32Mi }
+                  limits: { memory: 128Mi }
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65534
+                  runAsGroup: 65534
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities: { drop: ["ALL"] }
+            volumes:
+              - name: script
+                configMap: { name: jellyfin-watch }
