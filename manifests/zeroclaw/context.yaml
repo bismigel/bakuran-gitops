@@ -786,6 +786,8 @@ data:
     LazyLibrarian work, Hermes can reach media-mcp, and a namespace without an
     explicit allow is refused.
     
+    Note: the login watchers are pinned to sitaw-amd and wait five seconds after start. The media node NAT masks pod source IPs, and kube-router programs the policy after the pod starts.
+    
     For future namespaces:
     
     - list the ingress sources before writing the policy;
