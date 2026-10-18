@@ -60,9 +60,17 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: media
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: monitoring
+      # Jellyfin hostPort 8096 is for LAN TVs and phones. Keep it narrow:
+      # only the LAN CIDR, only the Jellyfin HTTP port.
+      - from:
+          - ipBlock:
+              cidr: 192.168.2.0/24
+        ports:
+          - protocol: TCP
+            port: 8096
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
