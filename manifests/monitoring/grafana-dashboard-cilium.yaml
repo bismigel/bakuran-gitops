@@ -24,7 +24,7 @@ data:
           "title": "Cilium agents up",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
-          "targets": [{"refId": "A", "expr": "sum(up{job=\"kubernetes-pods\",pod=~\"cilium-.*\"})", "instant": true}],
+          "targets": [{"refId": "A", "expr": "sum(up{job=\"kubernetes-pods\",instance=~\".*:9962\"})", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 3}]}}, "overrides": []}
         },
@@ -34,7 +34,7 @@ data:
           "title": "Ready endpoints",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
-          "targets": [{"refId": "A", "expr": "sum(cilium_endpoint_state{state=\"ready\"})", "instant": true}],
+          "targets": [{"refId": "A", "expr": "sum(cilium_endpoint_state{endpoint_state=\"ready\"})", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
         },
@@ -84,7 +84,7 @@ data:
           "title": "BPF map pressure",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
-          "targets": [{"refId": "A", "expr": "max(cilium_bpf_map_pressure) by (map)", "legendFormat": "{{map}}"}],
+          "targets": [{"refId": "A", "expr": "max(cilium_bpf_map_pressure) by (map_name)", "legendFormat": "{{map}}"}],
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
         },
