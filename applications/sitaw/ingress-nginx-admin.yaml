@@ -21,6 +21,7 @@ spec:
           replicaCount: 2
           ingressClass: nginx-admin
           ingressClassResource:
+            enabled: false
             name: nginx-admin
             controllerValue: k8s.io/ingress-nginx-admin
           affinity:
