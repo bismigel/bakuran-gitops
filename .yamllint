@@ -13,4 +13,3 @@ rules:
   comments: disable
   empty-lines: disable
   key-duplicates: enable
-  syntax: enable
