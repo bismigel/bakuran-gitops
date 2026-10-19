@@ -142,6 +142,15 @@ data:
         - media-mcp:
             - abbr: MM
               href: https://github.com/bismigel/media-mcp
+        - bismigel-site:
+            - abbr: BS
+              href: https://github.com/bismigel/bismigel-site
+        - homelab-app-template:
+            - abbr: HT
+              href: https://github.com/bismigel/homelab-app-template
+        - nixos-k3s reference:
+            - abbr: NK
+              href: https://github.com/niki-on-github/nixos-k3s
     - Services:
         - Cloudflare Zero Trust:
             - abbr: CF
@@ -158,6 +167,61 @@ data:
         - Bitwarden:
             - abbr: BW
               href: https://vault.bitwarden.com
+    - Homelab:
+        - Homepage:
+            - abbr: HP
+              href: https://homepage.bismigel.dev
+        - Status:
+            - abbr: ST
+              href: https://status.bismigel.dev
+        - Grafana:
+            - abbr: GR
+              href: https://grafana.bismigel.dev
+        - Prometheus:
+            - abbr: PR
+              href: https://prometheus.bismigel.dev
+        - Longhorn:
+            - abbr: LH
+              href: https://longhorn.bismigel.dev
+        - Hermes:
+            - abbr: HE
+              href: https://agent.bismigel.dev
+        - Immich:
+            - abbr: IM
+              href: https://immich.bismigel.dev
+        - Jellyfin:
+            - abbr: JF
+              href: https://jellyfin.bismigel.dev
+        - Kavita:
+            - abbr: KV
+              href: https://kavita.bismigel.dev
+        - Karakeep:
+            - abbr: KP
+              href: https://karakeep.bismigel.dev
+        - LazyLibrarian:
+            - abbr: LL
+              href: https://lazylibrarian.bismigel.dev
+        - Sonarr:
+            - abbr: SO
+              href: https://sonarr.bismigel.dev
+        - Radarr:
+            - abbr: RD
+              href: https://radarr.bismigel.dev
+        - Prowlarr:
+            - abbr: PL
+              href: https://prowlarr.bismigel.dev
+        - Bazarr:
+            - abbr: BZ
+              href: https://bazarr.bismigel.dev
+        - qBittorrent:
+            - abbr: QB
+              href: https://qbittorrent.bismigel.dev
+        - SABnzbd:
+            - abbr: SB
+              href: https://sabnzbd.bismigel.dev
+        - Private API:
+            - abbr: PA
+              href: https://private.bismigel.dev
     - Docs:
         - NixOS packages:
             - abbr: NX
@@ -180,6 +244,15 @@ data:
         - SOPS:
             - abbr: SO
               href: https://getsops.io/
+        - Cilium:
+            - abbr: CI
+              href: https://docs.cilium.io/
+        - ingress-nginx:
+            - abbr: NG
+              href: https://kubernetes.github.io/ingress-nginx/
+        - nixos-k3s:
+            - abbr: NK
+              href: https://github.com/niki-on-github/nixos-k3s
   docker.yaml: ""
   custom.css: ""
   custom.js: ""
