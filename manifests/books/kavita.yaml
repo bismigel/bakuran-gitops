@@ -42,7 +42,11 @@ spec:
         kubernetes.io/hostname: calamansi-intel
       containers:
         - name: kavita
-          image: linuxserver/kavita:0.9.1
+          image: linuxserver/kavita:version-v0.9.1.4@sha256:49be245da019056e5627f0c01d46871a89b25683aa0b68c7c7afac3918bca0f5
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }
@@ -82,6 +86,10 @@ kind: Ingress
 metadata:
   name: kavita
   namespace: books
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
 spec:
   ingressClassName: nginx
   rules:
