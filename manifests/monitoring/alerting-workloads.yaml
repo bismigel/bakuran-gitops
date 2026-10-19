@@ -33,7 +33,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ humanizePercentage $value }}% of periods"
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ humanizePercentage $value }} of periods"
               description: "The container is hitting its CPU limit. Raise the limit or find what is spinning."
           - alert: ContainerMemoryNearLimit
             expr: |
@@ -43,7 +43,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] at {{ humanizePercentage $value }}% of its memory limit"
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] at {{ humanizePercentage $value }} of its memory limit"
               description: "Above 90% of the container memory limit for 10 minutes — OOMKill is next."
           - alert: PodRestartingOften
             expr: increase(kube_pod_container_status_restarts_total[1h]) > 3
@@ -64,22 +64,35 @@ data:
 
       - name: longhorn
         rules:
+          # longhorn_volume_robustness is an enum-style metric: one series per
+          # state label (healthy/degraded/faulted/unknown), with value 1 for the
+          # state that is current. Comparing the value to 2 or 3 never matches,
+          # which made these two rules dead on arrival — the state has to be
+          # selected by label, not by value.
           - alert: LonghornVolumeDegraded
-            expr: longhorn_volume_robustness == 2
+            expr: longhorn_volume_robustness{state="degraded"} == 1
             for: 5m
             labels:
               severity: warning
             annotations:
-              summary: "Longhorn volume {{ $labels.volume }} is DEGRADED"
+              summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.volume }}) is DEGRADED"
               description: "A replica is gone or rebuilding. Tolerated, but do not lose a second one."
           - alert: LonghornVolumeFaulted
-            expr: longhorn_volume_robustness == 3
+            expr: longhorn_volume_robustness{state="faulted"} == 1
             for: 2m
             labels:
               severity: critical
             annotations:
-              summary: "Longhorn volume {{ $labels.volume }} is FAULTED"
+              summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.volume }}) is FAULTED"
               description: "Data unavailable to the workload using this PVC."
+          - alert: LonghornVolumeUnknown
+            expr: longhorn_volume_robustness{state="unknown"} == 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn volume {{ $labels.pvc }} robustness is UNKNOWN"
+              description: "Longhorn cannot determine replica health — check the volume in the Longhorn UI."
           - alert: LonghornNodeStorageLow
             expr: |
               sum by (node) (longhorn_node_storage_usage_bytes)
@@ -88,7 +101,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "Longhorn storage on {{ $labels.node }} is {{ humanizePercentage $value }}% full"
+              summary: "Longhorn storage on {{ $labels.node }} is {{ humanizePercentage $value }} full"
               description: "Once a Longhorn node fills, replicas cannot rebuild and new PVCs stay Pending."
           - alert: LonghornDiskStorageLow
             expr: longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes > 0.9
@@ -96,7 +109,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }}% full"
+              summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }} full"
           - alert: LonghornScrapeFailing
             expr: up{job="longhorn"} == 0
             for: 10m
