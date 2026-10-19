@@ -22,6 +22,7 @@ spec:
           ingressClass: nginx-admin
           ingressClassResource:
             name: nginx-admin
+            controllerValue: k8s.io/ingress-nginx-admin
           affinity:
             podAntiAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
