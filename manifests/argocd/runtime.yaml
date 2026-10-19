@@ -839,7 +839,6 @@ spec:
                 matchLabels:
                   app.kubernetes.io/name: argocd-redis-ha-haproxy
               topologyKey: kubernetes.io/hostname
-      automountServiceAccountToken: true
       containers:
         - env:
             - name: AUTH
@@ -1009,7 +1008,6 @@ spec:
                 matchLabels:
                   app.kubernetes.io/name: argocd-repo-server
               topologyKey: kubernetes.io/hostname
-      automountServiceAccountToken: false
       containers:
         - args:
             - /usr/local/bin/argocd-repo-server
@@ -2472,7 +2470,6 @@ spec:
                 matchLabels:
                   app.kubernetes.io/name: argocd-redis-ha
               topologyKey: kubernetes.io/hostname
-      automountServiceAccountToken: false
       containers:
         - args:
             - /data/conf/redis.conf
@@ -3160,7 +3157,6 @@ spec:
   sessionAffinity: None
   type: ClusterIP
 apiVersion: v1
-automountServiceAccountToken: true
 kind: ServiceAccount
 metadata:
   annotations: {}
@@ -3175,7 +3171,6 @@ metadata:
   name: argocd-application-controller
   namespace: argocd
 apiVersion: v1
-automountServiceAccountToken: true
 kind: ServiceAccount
 metadata:
   annotations: {}
@@ -3190,7 +3185,6 @@ metadata:
   name: argocd-applicationset-controller
   namespace: argocd
 apiVersion: v1
-automountServiceAccountToken: true
 kind: ServiceAccount
 metadata:
   annotations: {}
@@ -3205,7 +3199,6 @@ metadata:
   name: argocd-dex-server
   namespace: argocd
 apiVersion: v1
-automountServiceAccountToken: true
 kind: ServiceAccount
 metadata:
   annotations: {}
@@ -3254,7 +3247,6 @@ metadata:
   name: argocd-redis-ha-haproxy
   namespace: argocd
 apiVersion: v1
-automountServiceAccountToken: true
 kind: ServiceAccount
 metadata:
   annotations:
@@ -3271,7 +3263,6 @@ metadata:
   name: argocd-redis-secret-init
   namespace: argocd
 apiVersion: v1
-automountServiceAccountToken: true
 kind: ServiceAccount
 metadata:
   annotations: {}
@@ -3286,7 +3277,6 @@ metadata:
   name: argocd-repo-server
   namespace: argocd
 apiVersion: v1
-automountServiceAccountToken: true
 kind: ServiceAccount
 metadata:
   annotations: {}
