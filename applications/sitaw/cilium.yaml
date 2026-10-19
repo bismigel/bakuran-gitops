@@ -32,6 +32,12 @@ spec:
           configMap: cilium-cni-config
           confPath: /etc/cni/net.d
           binPath: /opt/cni/bin
+        prometheus:
+          enabled: true
+        podAnnotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "9962"
+          prometheus.io/path: "/metrics"
         hubble:
           enabled: true
           relay:
