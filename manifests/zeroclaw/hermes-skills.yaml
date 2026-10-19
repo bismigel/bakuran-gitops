@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-skills
+  namespace: zeroclaw
+data:
+  homelab-media.md: |
+    ---
+    name: homelab-media
+    description: "Manage the Bakuran media stack through media-mcp: libraries, requests, queues and books."
+    version: 1.0.0
+    metadata:
+      hermes:
+        tags: [homelab, media, sonarr, radarr, prowlarr, jellyfin, books]
+    ---
+
+    # Homelab media
+
+    Use the `media` MCP tools for Sonarr, Radarr, Prowlarr, SABnzbd,
+    qBittorrent, Jellyfin and LazyLibrarian. Prefer these tools over shell
+    commands and never read or print API keys.
+
+    ## Safety
+
+    - Read the current library and queue before changing anything.
+    - Ask before destructive actions, deletes, or mass changes.
+    - Do not remove media files.
+    - Confirm the exact title, year, season or author before adding.
+    - If a tool fails, report the tool, HTTP error and the smallest next step.
+
+    ## First checks
+
+    1. `sonarr_series` and `radarr_movies` for library state.
+    2. `sonarr_queue`, `radarr_queue`, `sabnzbd_queue`, `qbittorrent_torrents`.
+    3. `prowlarr_indexers` if searches fail.
+    4. `jellyfin_users` only when the request is about access.
+
+    ## Add media
+
+    - TV: `sonarr_lookup` -> confirm -> `sonarr_add_series` -> `sonarr_search`.
+    - Movie: `radarr_lookup` -> confirm -> `radarr_add_movie` -> `radarr_search`.
+    - A specific release: `sonarr_find_releases` or `prowlarr_search`, then
+      `sonarr_grab_release` only after confirming the release.
+    - Never add a duplicate. Search the library first.
+
+    ## Books
+
+    - `lazylibrarian_find_author` -> `lazylibrarian_add_author`.
+    - Use `lazylibrarian_search_book`, `lazylibrarian_queue_book` and
+      `lazylibrarian_unqueue_book` for individual books.
+    - New authors default to Wanted; do not promise immediate downloads.
+
+    ## Reporting
+
+    Reply with the library, the action taken, the queue state and any blocker.
+    Keep it short. Do not paste API responses or credentials.
+  media-triage.md: |
+    ---
+    name: media-triage
+    description: "Triage stuck downloads, failed imports and missing media in the Bakuran stack."
+    version: 1.0.0
+    metadata:
+      hermes:
+        tags: [homelab, media, troubleshooting, downloads]
+    ---
+
+    # Media triage
+
+    Use this when something is stuck, missing, or failed to import.
+
+    ## Order of checks
+
+    1. `sonarr_queue` / `radarr_queue`: identify the item and error.
+    2. `sabnzbd_queue` / `sabnzbd_history`: Usenet state.
+    3. `qbittorrent_torrents`: torrent state, ratio and errors.
+    4. `prowlarr_indexers`: failed indexer or authentication.
+    5. `sonarr_series` / `radarr_movies`: confirm the item is monitored.
+    6. `jellyfin_scan` only after the file is present.
+
+    ## Common outcomes
+
+    - Indexer failure: report the indexer and ask before changing it.
+    - No release: run a targeted search and report the result.
+    - Stuck import: report the path and error; do not delete files.
+    - Disk or permission error: report the volume and the exact error.
+    - Missing episode or movie: confirm monitoring, then trigger a search.
+
+    ## Rules
+
+    - No file deletion, no queue clearing, no mass retries.
+    - Do not expose API keys, cookies or download credentials.
+    - Ask before changing indexers, download clients, root folders or quality
+      profiles.

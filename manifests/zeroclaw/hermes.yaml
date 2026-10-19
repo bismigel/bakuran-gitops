@@ -246,6 +246,20 @@ spec:
             - { name: seed, mountPath: /seed, readOnly: true }
             - { name: context, mountPath: /context, readOnly: true }
             - { name: cron-seed, mountPath: /cron-seed, readOnly: true }
+        - name: seed-skills
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              D=/opt/data
+              mkdir -p "$D/skills/homelab-media" "$D/skills/media-triage"
+              cp -f /skills/homelab-media.md "$D/skills/homelab-media/SKILL.md"
+              cp -f /skills/media-triage.md "$D/skills/media-triage/SKILL.md"
+              chown -R 10000:10000 "$D/skills/homelab-media" "$D/skills/media-triage"
+          volumeMounts:
+            - { name: data, mountPath: /opt/data }
+            - { name: skills, mountPath: /skills, readOnly: true }
       containers:
         - name: hermes
           image: nousresearch/hermes-agent:stable@sha256:36099926da316742423544e055d4734777105ffe6341873af5459b957d0c2919
@@ -312,6 +326,8 @@ spec:
           configMap: { name: homelab-context }
         - name: cron-seed
           configMap: { name: hermes-cron-seed }
+        - name: skills
+          configMap: { name: hermes-skills }
         - name: cf-proxy-config
           configMap: { name: cf-proxy-config }
 ---
