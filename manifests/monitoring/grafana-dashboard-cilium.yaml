@@ -84,7 +84,7 @@ data:
           "title": "BPF map pressure",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
-          "targets": [{"refId": "A", "expr": "max(cilium_bpf_map_pressure) by (map_name)", "legendFormat": "{{map}}"}],
+          "targets": [{"refId": "A", "expr": "max(cilium_bpf_map_pressure) by (map_name)", "legendFormat": "{{map_name}}"}],
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
         },
