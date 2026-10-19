@@ -19,8 +19,9 @@ spec:
         k8sServiceHost: 192.168.2.82
         k8sServicePort: "6443"
         kubeProxyReplacement: "false"
-        routingMode: tunnel
-        tunnelProtocol: vxlan
+        routingMode: native
+        autoDirectNodeRoutes: true
+        ipv4NativeRoutingCIDR: "10.42.0.0/16"
         ipv4:
           enabled: true
         ipv6:
