@@ -4,7 +4,7 @@ metadata:
   name: longhorn-ui
   namespace: longhorn-system
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: longhorn.bismigel.dev
       http:

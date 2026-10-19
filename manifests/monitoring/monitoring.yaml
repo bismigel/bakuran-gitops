@@ -155,7 +155,7 @@ metadata:
   name: prometheus
   namespace: monitoring
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: prometheus.bismigel.dev
       http:
@@ -454,7 +454,7 @@ metadata:
   name: grafana
   namespace: monitoring
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: grafana.bismigel.dev
       http:

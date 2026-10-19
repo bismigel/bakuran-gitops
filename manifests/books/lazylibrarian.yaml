@@ -89,7 +89,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-redirect-from: "http://lazylibrarian.bismigel.dev"
     nginx.ingress.kubernetes.io/proxy-redirect-to: "https://lazylibrarian.bismigel.dev"
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: lazylibrarian.bismigel.dev
       http:

@@ -140,7 +140,7 @@ metadata:
   name: sabnzbd
   namespace: downloads
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: sabnzbd.bismigel.dev
       http:

@@ -332,7 +332,7 @@ metadata:
   name: hermes
   namespace: zeroclaw
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: agent.bismigel.dev
       http:

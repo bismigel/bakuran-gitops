@@ -39,7 +39,7 @@ metadata:
   name: qbittorrent
   namespace: downloads
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: qbittorrent.bismigel.dev
       http:
