@@ -22,6 +22,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -38,6 +41,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: media
@@ -57,6 +63,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: media
@@ -90,6 +99,9 @@ spec:
               kubernetes.io/metadata.name: ingress-nginx
         - namespaceSelector:
             matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
+        - namespaceSelector:
+            matchLabels:
               kubernetes.io/metadata.name: media
         - namespaceSelector:
             matchLabels:
@@ -110,6 +122,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -126,6 +141,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
@@ -147,6 +165,9 @@ spec:
               kubernetes.io/metadata.name: ingress-nginx
         - namespaceSelector:
             matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
+        - namespaceSelector:
+            matchLabels:
               kubernetes.io/metadata.name: zeroclaw
 ---
 apiVersion: networking.k8s.io/v1
@@ -164,6 +185,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx-admin
 ---
 # Egress pilot for the static/API apps. These workloads do not need internet
 # access; they need DNS and, for safety, same-namespace traffic.
