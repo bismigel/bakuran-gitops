@@ -1,0 +1,97 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: arr-auth
+  namespace: media
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: bitwarden
+    kind: ClusterSecretStore
+  target:
+    name: arr-auth
+  data:
+    - secretKey: qbt-password
+      remoteRef:
+        key: qbittorrent-password
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: arr-auth-sync
+  namespace: media
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: alpine:3.20
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  apk add --no-cache curl jq >/dev/null 2>&1
+                  for spec in \
+                    "sonarr:8989:v3:${SONARR_API_KEY}" \
+                    "radarr:7878:v3:${RADARR_API_KEY}" \
+                    "prowlarr:9696:v1:${PROWLARR_API_KEY}"; do
+                    name=${spec%%:*}
+                    rest=${spec#*:}
+                    port=${rest%%:*}
+                    rest=${rest#*:}
+                    ver=${rest%%:*}
+                    key=${rest#*:}
+                    url="http://${name}:${port}/api/${ver}/config/host"
+                    cfg=$(curl -sf --max-time 10 -H "X-Api-Key: ${key}" "$url" || true)
+                    [ -n "$cfg" ] || { echo "$name: not ready"; continue; }
+                    required=$(printf '%s' "$cfg" | jq -r '.authenticationRequired // ""')
+                    user=$(printf '%s' "$cfg" | jq -r '.username // ""')
+                    pass_set=$(printf '%s' "$cfg" | jq -r '(.password // "") != ""')
+                    if [ "$required" = "enabled" ] && [ "$user" = "admin" ] && [ "$pass_set" = "true" ]; then
+                      echo "$name: already configured"
+                      continue
+                    fi
+                    body=$(printf '%s' "$cfg" | jq \
+                      --arg p "$ARR_PASSWORD" \
+                      '.username="admin" | .password=$p | .passwordConfirmation=$p | .authenticationMethod="Forms" | .authenticationRequired="Enabled"')
+                    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X PUT \
+                      -H "X-Api-Key: ${key}" -H 'Content-Type: application/json' \
+                      --data "$body" "$url")
+                    echo "$name: applied HTTP $code"
+                  done
+              env:
+                - name: ARR_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-auth
+                      key: qbt-password
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: media-setup
+                      key: sonarr-api-key
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: media-setup
+                      key: radarr-api-key
+                - name: PROWLARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: media-setup
+                      key: prowlarr-api-key
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
