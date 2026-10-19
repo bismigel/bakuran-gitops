@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/bismigel/status-api
     targetRevision: main
-    path: deploy/k8s
+    path: deploy/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: apps
