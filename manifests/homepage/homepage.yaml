@@ -48,6 +48,10 @@ data:
             href: https://longhorn.bismigel.dev
             description: Storage
             icon: longhorn
+        - Cilium:
+            href: https://grafana.bismigel.dev/d/homelab-cilium/cilium
+            description: Cilium health, drops and BPF pressure
+            icon: kubernetes
         - Hermes:
             href: https://agent.bismigel.dev
             description: Homelab AI agent
@@ -247,6 +251,12 @@ data:
         - Cilium:
             - abbr: CI
               href: https://docs.cilium.io/
+        - Native vs encapsulation:
+            - abbr: NB
+              href: https://bismigel.dev/posts/2026-10-19-native-vs-encapsulation/
+        - Cilium VXLAN troubleshooting:
+            - abbr: CT
+              href: https://bismigel.dev/posts/2026-10-19-cilium-vxlan-troubleshooting/
         - ingress-nginx:
             - abbr: NG
               href: https://kubernetes.github.io/ingress-nginx/
