@@ -1,0 +1,41 @@
+name: gitops-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          python3 -m pip install --user yamllint
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /tmp kubeconform
+          sudo install /tmp/kubeconform /usr/local/bin/kubeconform
+          sudo curl -sSfL -o /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          curl -sSfL https://github.com/prometheus/prometheus/releases/download/v2.51.0/prometheus-2.51.0.linux-amd64.tar.gz \
+            | tar -xz -C /tmp
+          sudo install /tmp/prometheus-2.51.0.linux-amd64/promtool /usr/local/bin/promtool
+
+      - name: YAML lint
+        run: python3 -m yamllint -c .yamllint manifests applications
+
+      - name: Kubernetes schema validation
+        run: |
+          find manifests applications -name '*.yaml' -print0 |
+            xargs -0 kubeconform -strict -ignore-missing-schemas -summary
+
+      - name: Prometheus rule validation
+        run: .github/scripts/check-prometheus-rules.sh
