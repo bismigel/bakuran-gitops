@@ -34,6 +34,12 @@ spec:
           binPath: /opt/cni/bin
         prometheus:
           enabled: true
+        # Envoy is a separate DaemonSet. Without its own prometheus endpoint the
+        # chart's cilium-envoy Service is still annotated for scraping, so the
+        # target sits at up=0 and TargetDown fires forever.
+        envoy:
+          prometheus:
+            enabled: true
         podAnnotations:
           prometheus.io/scrape: "true"
           prometheus.io/port: "9962"
@@ -46,6 +52,10 @@ spec:
             enabled: false
         operator:
           replicas: 1
+          # Operator metrics (:9963). The host firewall must allow the port —
+          # see modules/base.nix in bakuran-infra.
+          prometheus:
+            enabled: true
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
