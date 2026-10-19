@@ -262,7 +262,7 @@ metadata:
   name: homepage
   namespace: homepage
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: homepage.bismigel.dev
       http:

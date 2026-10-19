@@ -412,7 +412,7 @@ metadata:
   name: sonarr
   namespace: media
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: sonarr.bismigel.dev
       http:
@@ -431,7 +431,7 @@ metadata:
   name: radarr
   namespace: media
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: radarr.bismigel.dev
       http:
@@ -450,7 +450,7 @@ metadata:
   name: prowlarr
   namespace: media
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: prowlarr.bismigel.dev
       http:
@@ -469,7 +469,7 @@ metadata:
   name: bazarr
   namespace: media
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: bazarr.bismigel.dev
       http:
