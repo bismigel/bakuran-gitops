@@ -439,9 +439,9 @@ spec:
               - configMap: { name: grafana-dashboard-storage }
               - configMap: { name: grafana-dashboard-control-plane }
               - configMap: { name: grafana-dashboard-power }
-                - configMap: { name: grafana-dashboard-edge }
-                - configMap: { name: grafana-dashboard-slo }
-                - configMap: { name: grafana-dashboard-cilium }
+              - configMap: { name: grafana-dashboard-edge }
+              - configMap: { name: grafana-dashboard-slo }
+              - configMap: { name: grafana-dashboard-cilium }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
