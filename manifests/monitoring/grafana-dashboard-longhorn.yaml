@@ -1,0 +1,104 @@
+# Managed by GitOps. Longhorn volume/disk health from the manager's :9500 metrics.
+# Until now volume robustness was only readable through the Longhorn CRD, i.e.
+# by asking the API — not something an alert or a graph could watch.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-longhorn
+  namespace: monitoring
+data:
+  longhorn.json: |
+    {
+      "uid": "homelab-longhorn",
+      "title": "Longhorn",
+      "tags": ["homelab", "storage", "longhorn"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-6h", "to": "now"},
+      "annotations": {"list": []},
+      "editable": true,
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Volumes healthy",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "targets": [{"refId": "A", "expr": "sum(longhorn_volume_robustness == 1)", "instant": true}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Degraded or faulted",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "targets": [{"refId": "A", "expr": "sum(longhorn_volume_robustness >= 2)", "instant": true}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []}
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Worst volume fill %",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+          "targets": [{"refId": "A", "expr": "max(longhorn_volume_actual_size_bytes / on (volume) longhorn_volume_capacity_bytes)", "instant": true}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.9}]}}, "overrides": []}
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Worst node fill %",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+          "targets": [{"refId": "A", "expr": "max(sum by (node) (longhorn_node_storage_usage_bytes) / sum by (node) (longhorn_node_storage_capacity_bytes))", "instant": true}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.85}]}}, "overrides": []}
+        },
+        {
+          "id": 5,
+          "type": "bargauge",
+          "title": "Volume fill %",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 9, "w": 12, "x": 0, "y": 5},
+          "targets": [{"refId": "A", "expr": "longhorn_volume_actual_size_bytes / on (volume) longhorn_volume_capacity_bytes", "legendFormat": "{{volume}}"}],
+          "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.9}]}}, "overrides": []}
+        },
+        {
+          "id": 6,
+          "type": "bargauge",
+          "title": "Node storage fill %",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 9, "w": 12, "x": 12, "y": 5},
+          "targets": [{"refId": "A", "expr": "sum by (node) (longhorn_node_storage_usage_bytes) / sum by (node) (longhorn_node_storage_capacity_bytes)", "legendFormat": "{{node}}"}],
+          "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.85}]}}, "overrides": []}
+        },
+        {
+          "id": 7,
+          "type": "bargauge",
+          "title": "Disk fill %",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+          "targets": [{"refId": "A", "expr": "longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes", "legendFormat": "{{node}}/{{disk}}"}],
+          "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.85}, {"color": "red", "value": 0.9}]}}, "overrides": []}
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Volume actual size",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+          "targets": [{"refId": "A", "expr": "longhorn_volume_actual_size_bytes", "legendFormat": "{{volume}}"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
+        }
+      ]
+    }

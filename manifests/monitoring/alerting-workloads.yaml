@@ -1,0 +1,107 @@
+# Workload-level alert rules: container CPU/memory (cAdvisor) and Longhorn.
+#
+# Separate ConfigMap from alerting.yaml on purpose: adding groups should be a
+# readable diff, not a rewrite of an 11KB file. monitoring.yaml projects both
+# into /etc/prometheus/rules, so the rule_files glob picks this up unchanged.
+#
+# Why these exist: metrics-server can answer `kubectl top` for *now* but keeps
+# no history, so a sentinel container burning a full core for hours was only
+# visible by accident. cAdvisor makes it a series that can alert.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules-workloads
+  namespace: monitoring
+data:
+  workloads.yml: |
+    groups:
+      - name: workloads
+        rules:
+          - alert: ContainerHighCPU
+            expr: sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m])) > 0.8
+            for: 20m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is using {{ printf \"%.2f\" $value }} cores"
+              description: "Sustained above 0.8 core for 20 minutes. Either genuine load or a spin loop — check the Containers dashboard."
+          - alert: ContainerCPUThrottled
+            expr: |
+              sum by (namespace, pod, container) (rate(container_cpu_cfs_throttled_periods_total[5m]))
+                / sum by (namespace, pod, container) (rate(container_cpu_cfs_periods_total[5m])) > 0.25
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ printf \"%.0f\" (mul $value 100) }}% of periods"
+              description: "The container is hitting its CPU limit. Raise the limit or find what is spinning."
+          - alert: ContainerMemoryNearLimit
+            expr: |
+              container_memory_working_set_bytes{container!="", container!="POD"}
+                / on (namespace, pod, container) kube_pod_container_resource_limits{resource="memory"} > 0.9
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] at {{ printf \"%.0f\" (mul $value 100) }}% of its memory limit"
+              description: "Above 90% of the container memory limit for 10 minutes — OOMKill is next."
+          - alert: PodRestartingOften
+            expr: increase(kube_pod_container_status_restarts_total[1h]) > 3
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] restarted {{ printf \"%.0f\" $value }} times in the last hour"
+              description: "Crash loop or a failing probe. Check `kubectl describe pod` and the previous container log."
+          - alert: CAdvisorScrapeFailing
+            expr: up{job="kubelet-cadvisor"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "cAdvisor scrape failing on {{ $labels.instance }}"
+              description: "No container CPU/memory data from this node. Container panels and the workload rules above are blind until this recovers."
+
+      - name: longhorn
+        rules:
+          - alert: LonghornVolumeDegraded
+            expr: longhorn_volume_robustness == 2
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn volume {{ $labels.volume }} is DEGRADED"
+              description: "A replica is gone or rebuilding. Tolerated, but do not lose a second one."
+          - alert: LonghornVolumeFaulted
+            expr: longhorn_volume_robustness == 3
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Longhorn volume {{ $labels.volume }} is FAULTED"
+              description: "Data unavailable to the workload using this PVC."
+          - alert: LonghornNodeStorageLow
+            expr: |
+              sum by (node) (longhorn_node_storage_usage_bytes)
+                / sum by (node) (longhorn_node_storage_capacity_bytes) > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn storage on {{ $labels.node }} is {{ printf \"%.0f\" (mul $value 100) }}% full"
+              description: "Once a Longhorn node fills, replicas cannot rebuild and new PVCs stay Pending."
+          - alert: LonghornDiskStorageLow
+            expr: longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes > 0.9
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ printf \"%.0f\" (mul $value 100) }}% full"
+          - alert: LonghornScrapeFailing
+            expr: up{job="longhorn"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn metrics scrape failing on {{ $labels.instance }}"
+              description: "Volume robustness rules are blind while this target is down."

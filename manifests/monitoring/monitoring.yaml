@@ -101,6 +101,40 @@ data:
             regex: '([^:]+)(?::\d+)?'
             replacement: '$1:9102'
             target_label: __address__
+      - job_name: 'kubelet-cadvisor'
+        # Per-container CPU / memory / throttling. This is the only source of
+        # container history in the stack: metrics-server answers `kubectl top`
+        # for the current instant and stores nothing, so a container spinning at
+        # a full core stayed invisible until someone ran top by hand.
+        # Scraped through the apiserver proxy, which the prometheus SA is
+        # already allowed to do (nodes/proxy, read-only) — the kubelet's
+        # self-signed cert and each node's firewall stay out of the path.
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+      - job_name: 'longhorn'
+        # Longhorn manager metrics: volume robustness, per-node storage and
+        # per-disk capacity. Volume health used to be CRD-only, i.e. readable by
+        # asking the API but invisible to graphs and alerts.
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+            action: keep
+            regex: longhorn-system;longhorn-backend
       - job_name: 'argocd'
         # Scrape each controller endpoint (not the Service) so the leader's
         # argocd_app_info metrics are always collected.
@@ -259,8 +293,15 @@ spec:
           configMap:
             name: prometheus-config
         - name: rules
-          configMap:
-            name: prometheus-rules
+          # Two ConfigMaps share one rules directory: the existing
+          # prometheus-rules (alerting.yaml) and prometheus-rules-workloads
+          # (workload/Longhorn groups). Adding groups no longer means rewriting
+          # an 11KB file, and the files land in the same /etc/prometheus/rules
+          # that rule_files already globs.
+          projected:
+            sources:
+              - configMap: { name: prometheus-rules }
+              - configMap: { name: prometheus-rules-workloads }
         - name: storage
           persistentVolumeClaim:
             claimName: prometheus-data
@@ -442,6 +483,8 @@ spec:
               - configMap: { name: grafana-dashboard-edge }
               - configMap: { name: grafana-dashboard-slo }
               - configMap: { name: grafana-dashboard-cilium }
+              - configMap: { name: grafana-dashboard-containers }
+              - configMap: { name: grafana-dashboard-longhorn }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
