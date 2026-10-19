@@ -253,10 +253,11 @@ spec:
             - |
               set -eu
               D=/opt/data
-              mkdir -p "$D/skills/homelab-media" "$D/skills/media-triage"
+              mkdir -p "$D/skills/homelab-media" "$D/skills/media-triage" "$D/skills/security-advisories"
               cp -f /skills/homelab-media.md "$D/skills/homelab-media/SKILL.md"
               cp -f /skills/media-triage.md "$D/skills/media-triage/SKILL.md"
-              chown -R 10000:10000 "$D/skills/homelab-media" "$D/skills/media-triage"
+              cp -f /skills/security-advisories.md "$D/skills/security-advisories/SKILL.md"
+              chown -R 10000:10000 "$D/skills/homelab-media" "$D/skills/media-triage" "$D/skills/security-advisories"
           volumeMounts:
             - { name: data, mountPath: /opt/data }
             - { name: skills, mountPath: /skills, readOnly: true }

@@ -91,3 +91,47 @@ data:
     - Do not expose API keys, cookies or download credentials.
     - Ask before changing indexers, download clients, root folders or quality
       profiles.
+  security-advisories.md: |
+    ---
+    name: security-advisories
+    description: "Check security advisories for internet-facing homelab apps and pinned images."
+    version: 1.0.0
+    metadata:
+      hermes:
+        tags: [security, advisories, kavita, jellyfin, immich, karakeep]
+    ---
+
+    # Security advisories
+
+    Review advisories for the public apps: Kavita, Jellyfin, Immich and Karakeep.
+    Also review Cilium, ingress-nginx, k3s and Longhorn after upgrades.
+
+    ## Sources
+
+    - Kavita releases: https://github.com/Kareadita/Kavita/releases
+    - Kavita advisories: https://github.com/Kareadita/Kavita/security/advisories
+    - GitHub Advisory Database: https://github.com/advisories
+    - OSV: https://osv.dev
+    - Jellyfin: https://github.com/jellyfin/jellyfin/security/advisories
+    - Immich: https://github.com/immich-app/immich/security/advisories
+    - Karakeep: https://github.com/karakeep-app/karakeep/security/advisories
+
+    ## Checks
+
+    ```bash
+    gh api /repos/Kareadita/Kavita/security-advisories
+    gh api /repos/jellyfin/jellyfin/security/advisories
+    gh api /repos/immich-app/immich/security/advisories
+    gh api /repos/karakeep-app/karakeep/security/advisories
+    ```
+
+    Report only advisories that affect the running version. Include the affected
+    package, fixed version, severity and the smallest safe action. Ask before
+    changing an image or restarting an app.
+
+    ## Rules
+
+    - Do not publish vulnerability details before a fix is available.
+    - Do not expose tokens, logs or user data.
+    - A public app without Cloudflare Access relies on its own auth; a high-severity
+      auth bypass or RCE is urgent.
