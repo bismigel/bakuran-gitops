@@ -1,4 +1,4 @@
-# Hermes Agent — replacement for ZeroClaw.
+# Hermes Agent — replacement for the previous agent.
 # Data (config, sessions, memory, skills, cron) lives on the PVC at /opt/data.
 apiVersion: v1
 kind: ServiceAccount
@@ -167,7 +167,7 @@ data:
       write them to files or logs.
     - Prefer the MCP tools (kubernetes, media, prometheus, github) over raw
       shell when one fits. Keep replies short and concrete.
-    - The docs may still mention the previous agent (ZeroClaw); the operating
+    - The docs may still mention the previous agent; the operating
       rules above are the current ones.
 ---
 apiVersion: v1
