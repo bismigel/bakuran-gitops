@@ -5,4 +5,4 @@ kind: Setting
 metadata:
   name: support-bundle-manager-image
   namespace: longhorn-system
-value: longhornio/support-bundle-kit:v0.0.98
+value: docker.io/longhornio/support-bundle-kit:v0.0.98
