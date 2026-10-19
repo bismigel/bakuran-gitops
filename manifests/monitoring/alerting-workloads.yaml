@@ -33,7 +33,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ printf \"%.0f\" (mul $value 100) }}% of periods"
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ humanizePercentage $value }}% of periods"
               description: "The container is hitting its CPU limit. Raise the limit or find what is spinning."
           - alert: ContainerMemoryNearLimit
             expr: |
@@ -43,7 +43,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] at {{ printf \"%.0f\" (mul $value 100) }}% of its memory limit"
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] at {{ humanizePercentage $value }}% of its memory limit"
               description: "Above 90% of the container memory limit for 10 minutes — OOMKill is next."
           - alert: PodRestartingOften
             expr: increase(kube_pod_container_status_restarts_total[1h]) > 3
@@ -88,7 +88,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "Longhorn storage on {{ $labels.node }} is {{ printf \"%.0f\" (mul $value 100) }}% full"
+              summary: "Longhorn storage on {{ $labels.node }} is {{ humanizePercentage $value }}% full"
               description: "Once a Longhorn node fills, replicas cannot rebuild and new PVCs stay Pending."
           - alert: LonghornDiskStorageLow
             expr: longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes > 0.9
@@ -96,7 +96,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ printf \"%.0f\" (mul $value 100) }}% full"
+              summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }}% full"
           - alert: LonghornScrapeFailing
             expr: up{job="longhorn"} == 0
             for: 10m
