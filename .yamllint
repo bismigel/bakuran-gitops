@@ -5,3 +5,12 @@ rules:
   truthy: disable
   comments-indentation: disable
   document-start: disable
+  trailing-spaces: disable
+  commas: disable
+  braces: disable
+  brackets: disable
+  colons: disable
+  comments: disable
+  empty-lines: disable
+  key-duplicates: enable
+  syntax: enable
