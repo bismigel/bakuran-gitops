@@ -7,10 +7,30 @@ configs:
     createSecret: false
   params:
     server.insecure: true
+
+# Resource sizing comes from the 6h cAdvisor peak of each workload on this
+# cluster, times roughly 2 for headroom. Before this, all 17 pods in the
+# namespace were QoS BestEffort: first to be evicted under memory pressure,
+# and first to be starved under CPU contention — on the component the whole
+# GitOps loop depends on.
 controller:
   replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 server:
   replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   ingress:
     enabled: true
     ingressClassName: nginx-admin
@@ -19,11 +39,80 @@ server:
     tls: false
 repoServer:
   replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 applicationSet:
   replicas: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+notifications:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+dex:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
 redis-ha:
   enabled: true
+  # The redis-ha chart reads tolerations at the top level, not under redis /
+  # haproxy. Three replicas with required host anti-affinity on a three-node
+  # cluster only fits if the tainted control-plane node is tolerated.
   tolerations:
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
       effect: NoSchedule
+  redis:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  sentinel:
+    # The 200m limit is deliberate: redis/redis#9956 spins a sentinel at a
+    # full core after a failover. The limit turns a silent core burn into a
+    # throttled loop, and ContainerCPUThrottled reports it.
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  splitBrainDetection:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+  haproxy:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 192Mi
