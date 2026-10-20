@@ -364,55 +364,103 @@ spec:
 apiVersion: v1
 data:
   jobs.json: |-
-    {
-      "jobs": [
-        {
-          "id": "6513dba5f40d",
-          "name": "Daily homelab report",
-          "prompt": "Daily homelab report. Check Kubernetes nodes, pods, restarts and ArgoCD sync/health with the kubernetes tools; query Prometheus for firing alerts and for filesystem and memory trends with the prometheus tools. Flag anything unhealthy, disks over 85 percent, and notable memory growth. Run the security-advisories skill for Kavita, Jellyfin, Immich, Karakeep and core components; report only advisories affecting the running versions. Reply in Telegram under 15 lines, no secrets. Start with All good if everything is healthy.",
-          "skills": ["security-advisories"],
-          "skill": null,
-          "model": null,
-          "provider": null,
-          "base_url": null,
-          "script": null,
-          "no_agent": false,
-          "monitor_script": null,
-          "monitor_url": null,
-          "monitor_state": null,
-          "context_from": null,
-          "schedule": {
-            "kind": "cron",
-            "expr": "0 8 * * *",
-            "display": "0 8 * * *"
+      {
+        "jobs": [
+          {
+            "id": "6513dba5f40d",
+            "name": "Daily homelab report",
+            "prompt": "Daily homelab report. Check Kubernetes nodes, pods, restarts and ArgoCD sync/health with the kubernetes tools; query Prometheus for firing alerts and for filesystem and memory trends with the prometheus tools. Flag anything unhealthy, disks over 85 percent, and notable memory growth. Run the security-advisories skill for Kavita, Jellyfin, Immich, Karakeep and core components; report only advisories affecting the running versions. Reply in Telegram under 15 lines, no secrets. Start with All good if everything is healthy.",
+            "skills": [
+              "security-advisories"
+            ],
+            "skill": "security-advisories",
+            "model": null,
+            "provider": null,
+            "base_url": null,
+            "script": null,
+            "no_agent": false,
+            "monitor_script": null,
+            "monitor_url": null,
+            "monitor_state": null,
+            "context_from": null,
+            "schedule": {
+              "kind": "cron",
+              "expr": "0 8 * * *",
+              "display": "0 8 * * *"
+            },
+            "schedule_display": "0 8 * * *",
+            "repeat": {
+              "times": null,
+              "completed": 3
+            },
+            "enabled": true,
+            "state": "scheduled",
+            "paused_at": null,
+            "paused_reason": null,
+            "created_at": "2026-10-17T20:54:09.373394-04:00",
+            "next_run_at": "2026-10-21T08:00:00-04:00",
+            "last_run_at": "2026-10-20T08:02:49.011490-04:00",
+            "last_status": "ok",
+            "last_error": null,
+            "last_delivery_error": null,
+            "last_delivery_unverified": null,
+            "last_failure": null,
+            "failure_streak": 0,
+            "deliver": "telegram:607008268",
+            "origin": null,
+            "enabled_toolsets": null,
+            "workdir": null,
+            "last_dispatch": {
+              "scheduled_at": "2026-10-20T08:00:00-04:00",
+              "dispatched_at": "2026-10-20T08:00:55.297347-04:00",
+              "lateness_seconds": 55.3,
+              "kind": "on_time"
+            },
+            "fire_claim": null
           },
-          "schedule_display": "0 8 * * *",
-          "repeat": {
-            "times": null,
-            "completed": 0
-          },
-          "enabled": true,
-          "state": "scheduled",
-          "paused_at": null,
-          "paused_reason": null,
-          "created_at": "2026-10-17T20:54:09.373394-04:00",
-          "next_run_at": "2026-10-18T08:00:00-04:00",
-          "last_run_at": null,
-          "last_status": null,
-          "last_error": null,
-          "last_delivery_error": null,
-          "last_delivery_unverified": null,
-          "last_failure": null,
-          "failure_streak": 0,
-          "deliver": "telegram:607008268",
-          "origin": null,
-          "enabled_toolsets": null,
-          "workdir": null
-        }
-      ],
-      "updated_at": "2026-10-17T20:54:09.386159-04:00"
-    }
-kind: ConfigMap
-metadata:
-  name: hermes-cron-seed
-  namespace: zeroclaw
+          {
+            "id": "a4eee2a3c5c9",
+            "name": "Renovate safety review",
+            "prompt": "Review open Renovate PRs for bismigel/bakuran-gitops and bismigel/bakuran-infra. Only consider PRs authored by renovate[bot] that do not already contain a comment with the marker <!-- hermes-renovate-review -->. For each one, inspect the PR body, changed files, diff, version/digest, release notes and security impact. Check the live cluster read-only where relevant (kubectl get/logs, ArgoCD status). Do not merge, push, edit or close anything. Post exactly one PR comment beginning with the marker, then give a score from 1 to 5: 5 = safe to merge now, 4 = safe with normal observation, 3 = needs staging or manual check, 2 = risky, request changes, 1 = do not merge. Include the evidence, the main risk, and a rollback note. If no unassessed Renovate PR exists, do nothing. Never print secrets.",
+            "skills": [],
+            "skill": null,
+            "model": null,
+            "provider": null,
+            "base_url": null,
+            "script": null,
+            "no_agent": false,
+            "monitor_script": null,
+            "monitor_url": null,
+            "monitor_state": null,
+            "context_from": null,
+            "schedule": {
+              "kind": "cron",
+              "expr": "*/15 * * * *",
+              "display": "*/15 * * * *"
+            },
+            "schedule_display": "*/15 * * * *",
+            "repeat": {
+              "times": null,
+              "completed": 0
+            },
+            "enabled": true,
+            "state": "scheduled",
+            "paused_at": null,
+            "paused_reason": null,
+            "created_at": "2026-10-20T10:56:47.907519-04:00",
+            "next_run_at": "2026-10-20T11:00:00-04:00",
+            "last_run_at": null,
+            "last_status": null,
+            "last_error": null,
+            "last_delivery_error": null,
+            "last_delivery_unverified": null,
+            "last_failure": null,
+            "failure_streak": 0,
+            "deliver": "telegram:607008268",
+            "origin": null,
+            "enabled_toolsets": null,
+            "workdir": null
+          }
+        ],
+        "updated_at": "2026-10-20T10:56:47.932446-04:00"
+      }
