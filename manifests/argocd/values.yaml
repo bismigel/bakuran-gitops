@@ -13,6 +13,10 @@ configs:
 # namespace were QoS BestEffort: first to be evicted under memory pressure,
 # and first to be starved under CPU contention — on the component the whole
 # GitOps loop depends on.
+#
+# One deliberate exception: no CPU limits on the redis-ha pods. See
+# "CPU limits and quorum members" in README.md — a CPU limit on a sentinel or
+# on the split-brain detector turns scheduling jitter into a failover.
 controller:
   replicas: 2
   resources:
@@ -82,31 +86,34 @@ redis-ha:
       operator: Exists
       effect: NoSchedule
   redis:
+    # requests only for CPU: a CFS quota here throttles the server while it is
+    # syncing or saving, and a throttled replica reads as a failed replica to
+    # sentinel. Memory limits stay, they are what eviction needs.
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
       limits:
-        cpu: 500m
         memory: 256Mi
   sentinel:
-    # The 200m limit is deliberate: redis/redis#9956 spins a sentinel at a
-    # full core after a failover. The limit turns a silent core burn into a
-    # throttled loop, and ContainerCPUThrottled reports it.
+    # Sentinel must answer within down-after-milliseconds. Wall-clock fairness
+    # from CFS throttling is indistinguishable from a dead master, so it gets
+    # requests and a memory limit, never a CPU limit.
     resources:
       requests:
         cpu: 25m
         memory: 32Mi
       limits:
-        cpu: 200m
         memory: 128Mi
   splitBrainDetection:
+    # This is the container that decides a node should rejoin, and it was at
+    # 45-82% throttled periods with a 100m limit while the Redis pods were
+    # restarting. Requests raised so the scheduler knows it is not free.
     resources:
       requests:
-        cpu: 10m
-        memory: 16Mi
+        cpu: 25m
+        memory: 32Mi
       limits:
-        cpu: 100m
         memory: 64Mi
   haproxy:
     # Three HAProxy pods have required anti-affinity on three nodes. A surge
@@ -119,8 +126,7 @@ redis-ha:
         maxUnavailable: 1
     resources:
       requests:
-        cpu: 25m
+        cpu: 50m
         memory: 64Mi
       limits:
-        cpu: 200m
         memory: 192Mi

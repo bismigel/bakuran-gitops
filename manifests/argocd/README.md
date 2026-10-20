@@ -24,7 +24,8 @@ adopted with `--take-ownership`.
 - Redis HA with three Redis/sentinel pods and three HAProxy pods;
 - headless per-pod announce Services via the post-renderer below;
 - control-plane tolerations for the tainted third node;
-- requests and limits on every ArgoCD and redis-ha container;
+- requests and memory limits on every container, CPU limits only where the
+  workload is request-serving rather than quorum-participating;
 - `configs.cm.create: false`;
 - `configs.secret.createSecret: false`;
 - `server.insecure: true`;
@@ -38,27 +39,52 @@ post-renderer that changes those Services to headless while keeping
 
 ## Resources
 
-Every container has a request and a limit. Sizing is the 6h cAdvisor peak from
-this cluster multiplied by roughly two, so it reflects what these workloads
-actually do rather than a copied template:
+Every container has a request. Memory limits are universal. CPU limits are on
+the ArgoCD components only. Sizing is the 6h cAdvisor peak from this cluster
+multiplied by roughly two, so it reflects what these workloads actually do
+rather than a copied template:
 
-| workload | peak seen | request | limit |
-|---|---|---|---|
-| application-controller | 379 MiB | 256 Mi | 1 Gi |
-| repo-server | 55 MiB | 128 Mi | 512 Mi |
-| server | 50 MiB | 128 Mi | 512 Mi |
-| applicationset-controller | 47 MiB | 64 Mi | 256 Mi |
-| notifications-controller | 25 MiB | 64 Mi | 128 Mi |
-| dex-server | 23 MiB | 64 Mi | 128 Mi |
-| redis | 13 MiB | 64 Mi | 256 Mi |
-| sentinel | — | 32 Mi | 128 Mi |
-| haproxy | 87 MiB | 64 Mi | 192 Mi |
+| workload | peak seen | CPU request | CPU limit | memory request | memory limit |
+|---|---|---|---|---|---|
+| application-controller | 379 MiB | 100m | 1 | 256 Mi | 1 Gi |
+| repo-server | 55 MiB | 100m | 500m | 128 Mi | 512 Mi |
+| server | 50 MiB | 100m | 500m | 128 Mi | 512 Mi |
+| applicationset-controller | 47 MiB | 50m | 200m | 64 Mi | 256 Mi |
+| notifications-controller | 25 MiB | 25m | 100m | 64 Mi | 128 Mi |
+| dex-server | 23 MiB | 25m | 100m | 64 Mi | 128 Mi |
+| redis | 13 MiB | 50m | none | 64 Mi | 256 Mi |
+| sentinel | — | 25m | none | 32 Mi | 128 Mi |
+| split-brain-fix | — | 25m | none | 32 Mi | 64 Mi |
+| haproxy | 87 MiB | 50m | none | 64 Mi | 192 Mi |
 
 Before this, all 17 pods in the namespace were **BestEffort** — no requests at
 all — which makes the whole GitOps control plane the first thing the kubelet
-evicts under memory pressure. A 200m CPU limit on the sentinel container is
-deliberate: it turns the redis/redis#9956 core burn into a throttled loop that
-`ContainerCPUThrottled` reports, instead of a silent core disappearing.
+evicts under memory pressure.
+
+## CPU limits and quorum members
+
+Do not put a CPU limit on a Redis, sentinel or split-brain container. The first
+attempt did, and the cluster paid for it within the hour:
+
+- redis containers restarted 5–6 times each in 36 minutes across all three
+  pods, while sentinel and split-brain-fix containers stayed up;
+- every termination was `exitCode: 0, reason: Completed` — a graceful stop, not
+  a crash, so the process was being asked to die rather than dying;
+- sentinel promoted a new master at 12:54, 12:58 and 13:04;
+- `ContainerCPUThrottled` fired on all three `split-brain-fix` containers at
+  45–82% of periods against a 100m limit.
+
+Those two facts together are the argument. A CFS quota does not slow a quorum
+member politely: it hands it wall-clock delays. Sentinel decides a master is
+down by measuring time, so throttling is indistinguishable from failure and
+triggers a failover; a restarted replica then looks unhealthy and is restarted
+again. Requests still tell the scheduler what the pod costs, and the memory
+limit still protects the node — the CPU limit only bought failovers.
+
+The one thing lost is `ContainerCPUThrottled` as a detector for
+redis/redis#9956 (sentinel burning a core after a failover). `ContainerHighCPU`
+still catches it at 0.8 core for 20 minutes, which is the right shape for that
+bug anyway: it is a spin loop, not a throttling problem.
 
 ## When a rollout gets stuck
 
