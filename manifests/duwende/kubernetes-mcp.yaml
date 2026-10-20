@@ -1,13 +1,13 @@
 # Kubernetes MCP server (containers/kubernetes-mcp-server): a Go MCP server that
 # talks directly to the API server. Runs in-cluster, exposes Streamable HTTP on
-# :8080/mcp. ZeroClaw connects to it at the /mcp endpoint.
+# :8080/mcp. Duwende connects to it at the /mcp endpoint.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: kubernetes-mcp
-  namespace: zeroclaw
+  namespace: duwende
 ---
-# Same least-privilege role as the agent (defined in zeroclaw.yaml).
+# Same least-privilege role as the agent (defined in duwende.yaml).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -19,13 +19,13 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: kubernetes-mcp
-    namespace: zeroclaw
+    namespace: duwende
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: kubernetes-mcp-config
-  namespace: zeroclaw
+  namespace: duwende
 data:
   config.toml: |
     port = "8080"
@@ -40,7 +40,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kubernetes-mcp
-  namespace: zeroclaw
+  namespace: duwende
   labels:
     app: kubernetes-mcp
 spec:
@@ -85,7 +85,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kubernetes-mcp
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   selector:
     app: kubernetes-mcp

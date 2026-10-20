@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: hermes
-  namespace: zeroclaw
+  namespace: duwende
 ---
 # Least privilege: the agent (and its MCP server) get read/observe only.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -56,13 +56,13 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: hermes
-    namespace: zeroclaw
+    namespace: duwende
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: hermes-data
-  namespace: zeroclaw
+  namespace: duwende
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
@@ -76,7 +76,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: github-token
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   refreshInterval: 1h
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
@@ -88,7 +88,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: telegram-bot-token
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   refreshInterval: 1h
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
@@ -100,7 +100,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: cloudflare-api-token
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   refreshInterval: 1h
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
@@ -112,7 +112,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: hermes-secrets
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   refreshInterval: 1h
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
@@ -126,7 +126,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: hermes-config
-  namespace: zeroclaw
+  namespace: duwende
 data:
   config.yaml: |
     model:
@@ -137,11 +137,11 @@ data:
 
     mcp_servers:
       kubernetes:
-        url: http://kubernetes-mcp.zeroclaw.svc.cluster.local:8080/mcp
+        url: http://kubernetes-mcp.duwende.svc.cluster.local:8080/mcp
       media:
         url: http://media-mcp.media.svc.cluster.local:8080/mcp
       prometheus:
-        url: http://prometheus-mcp.zeroclaw.svc.cluster.local:8080/mcp
+        url: http://prometheus-mcp.duwende.svc.cluster.local:8080/mcp
       github:
         url: https://api.githubcopilot.com/mcp/
         headers:
@@ -174,7 +174,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cf-proxy-config
-  namespace: zeroclaw
+  namespace: duwende
 data:
   default.conf.template: |
     server {
@@ -199,7 +199,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hermes
-  namespace: zeroclaw
+  namespace: duwende
   labels: { app: hermes }
 spec:
   replicas: 1
@@ -336,7 +336,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: hermes
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   selector: { app: hermes }
   ports:
@@ -347,7 +347,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: hermes
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   ingressClassName: nginx-admin
   rules:

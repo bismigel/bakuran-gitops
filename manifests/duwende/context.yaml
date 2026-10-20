@@ -1,11 +1,11 @@
 # Homelab context for the Hermes agent. GENERATED; do not edit by hand.
 # Source: ~/projects/homelab-context (CREDENTIALS.md excluded).
-# Regenerate: scripts/generate-zeroclaw-context.sh
+# Regenerate: scripts/generate-duwende-context.sh
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: homelab-context
-  namespace: zeroclaw
+  namespace: duwende
 data:
   AGENTS.md: |
     # Hermes homelab agent
@@ -102,13 +102,13 @@ data:
     
     **Historical metrics:** `prometheus__execute_query` / `execute_range_query`,
     `list_metrics`, `get_targets` (Prometheus MCP at
-    `http://prometheus-mcp.zeroclaw.svc:8080/mcp`, tools prefixed `prometheus__`).
+    `http://prometheus-mcp.duwende.svc:8080/mcp`, tools prefixed `prometheus__`).
     
     ArgoCD Applications (all **in-cluster** on the one 3-node cluster): `root,
     namespaces, ingress-nginx, ingress-headers, cert-manager, external-secrets,
     external-secrets-config, homepage, monitoring, observability,
     opentelemetry-operator, ciceley-site, bismigel-site, private-api, status-api,
-    zeroclaw, media, kepler, immich`, plus the `node-exporter` ApplicationSet generated
+    duwende, media, kepler, immich`, plus the `node-exporter` ApplicationSet generated
     `node-exporter-in-cluster`.
     
     ## `calamansi-intel` (.81): media
@@ -798,9 +798,9 @@ data:
     
     Ingress-only policies now cover:
     
-    - `apps`, `homepage`, `zeroclaw`: same namespace and ingress-nginx;
+    - `apps`, `homepage`, `duwende`: same namespace and ingress-nginx;
     - `books`: same namespace, ingress-nginx and media;
-    - `media`: same namespace, ingress-nginx and zeroclaw;
+    - `media`: same namespace, ingress-nginx and duwende;
     - `default`: same namespace, ingress-nginx, media and monitoring;
     - `downloads`: same namespace, ingress-nginx, media and books;
     - `immich`: same namespace, ingress-nginx and monitoring.
@@ -1103,14 +1103,14 @@ data:
     
     ## Hermes agent
     
-    Deployed by the `zeroclaw` ArgoCD app (`manifests/zeroclaw/hermes.yaml`; the
+    Deployed by the `duwende` ArgoCD app (`manifests/duwende/hermes.yaml`; the
     namespace/app name is historical).
     
     ```bash
-    POD=$(ssh ... .82 'k3s kubectl -n zeroclaw get pod -l app=hermes -o jsonpath="{.items[0].metadata.name}"')
-    ssh ... .82 "k3s kubectl -n zeroclaw exec $POD -c hermes -- hermes status"
-    ssh ... .82 "k3s kubectl -n zeroclaw exec $POD -c hermes -- hermes cron list"
-    ssh ... .82 'k3s kubectl -n zeroclaw rollout restart deployment/hermes'
+    POD=$(ssh ... .82 'k3s kubectl -n duwende get pod -l app=hermes -o jsonpath="{.items[0].metadata.name}"')
+    ssh ... .82 "k3s kubectl -n duwende exec $POD -c hermes -- hermes status"
+    ssh ... .82 "k3s kubectl -n duwende exec $POD -c hermes -- hermes cron list"
+    ssh ... .82 'k3s kubectl -n duwende rollout restart deployment/hermes'
     ```
     
     - Dashboard `agent.bismigel.dev` (Cloudflare Access + basic auth `admin`;
@@ -1229,12 +1229,12 @@ data:
     
     ### Hermes (agent)
     ```bash
-    H() { kubectl -n zeroclaw exec deploy/hermes -c hermes -- hermes "$@"; }
+    H() { kubectl -n duwende exec deploy/hermes -c hermes -- hermes "$@"; }
     H status
     H cron list
     H cron create '0 8 * * *' '<prompt>' --name 'Daily homelab report' --deliver telegram:607008268
     H tools list                 # MCP servers: kubernetes, media, prometheus, github
-    kubectl -n zeroclaw rollout restart deploy/hermes
+    kubectl -n duwende rollout restart deploy/hermes
     ```
     The daily job is seeded from `hermes-cron-seed` on a fresh PVC; edit it with
     `hermes cron edit` or the dashboard. If you change it, update
@@ -1340,7 +1340,7 @@ data:
     - `observability`: otel-collector; `opentelemetry-operator-system`
     - `cert-manager`, `external-secrets` (+ Bitwarden SDK server), `homepage`
     - `longhorn`, distributed storage (StorageClass `longhorn`, 2 replicas) on `.81`/`.82`
-    - `zeroclaw` app: Hermes AI agent/SRE (dashboard + Telegram; see below)
+    - `duwende` app: Hermes AI agent/SRE (dashboard + Telegram; see below)
     - `cloudflared` (NixOS service), the **primary** of two tunnel connectors
     
     ### `calamansi-intel` (.81): media node (part of the unified cluster)
@@ -1403,8 +1403,8 @@ data:
       SABnzbd `:8082`).
     - **NetworkPolicies** default to ingress-only deny in the app namespaces (`apps`,
       `books`, `default`, `downloads`, `homepage`, `immich`, `karakeep`, `media`,
-      `zeroclaw`). Same-namespace and `ingress-nginx` are allowed; media to
-      books/default/downloads, monitoring to default/immich, and zeroclaw to media
+      `duwende`). Same-namespace and `ingress-nginx` are allowed; media to
+      books/default/downloads, monitoring to default/immich, and duwende to media
       are explicit. Egress stays open. Jellyfin keeps a LAN-only `192.168.2.0/24:8096`
       exception for TV clients; the public path stays on the tunnel.
     - **Zero Trust Access** gates the admin/browser apps, `argocd`, `grafana`,
@@ -1420,7 +1420,7 @@ data:
     
     ## Hermes (homelab agent / SRE)
     
-    An AI agent with homelab access, deployed as a k3s workload in the `zeroclaw`
+    An AI agent with homelab access, deployed as a k3s workload in the `duwende`
     namespace (the namespace/app name is historical; the workload is `hermes`).
     It acts as the lab's SRE in the small sense: it watches, triages and reports,
     and it proposes changes through pull requests. It does not apply cluster

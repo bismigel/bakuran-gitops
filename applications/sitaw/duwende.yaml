@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: zeroclaw
+  name: duwende
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -12,10 +12,10 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/zeroclaw
+    path: manifests/duwende
   destination:
     server: https://kubernetes.default.svc
-    namespace: zeroclaw
+    namespace: duwende
   syncPolicy:
     automated:
       prune: true
