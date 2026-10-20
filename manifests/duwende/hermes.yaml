@@ -464,3 +464,7 @@ data:
         ],
         "updated_at": "2026-10-20T10:56:47.932446-04:00"
       }
+kind: ConfigMap
+metadata:
+  name: hermes-cron-seed
+  namespace: duwende
