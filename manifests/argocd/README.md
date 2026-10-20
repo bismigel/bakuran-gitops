@@ -1,94 +1,44 @@
 # ArgoCD runtime manifests
 
-`runtime.yaml` in this directory is reconciled by the `argocd-runtime` Application
-(`prune: false`, `selfHeal: true`, `ServerSideApply=true`, `CreateNamespace=false`).
+`runtime.yaml` is owned by the `argocd-runtime` Application.
 
-## Read this first: an empty file is a no-op, not "managed"
+The chosen ownership model is **raw bootstrap, intentionally**:
 
-`runtime.yaml` is currently **empty**. A directory-type Application with an empty
-manifest applies nothing and reports `Synced` + `Healthy`. That status means
-"nothing to do", not "ArgoCD owns its own runtime". The first time you fill this
-file, expect a real diff — the objects have been unmanaged until now.
+- ArgoCD itself is bootstrapped from the upstream manifests.
+- `argocd-runtime` manages the current Deployments, StatefulSets and Services.
+- `argocd-cm`, `argocd-rbac-cm`, `argocd-cmd-params-cm` and `argocd-secret` stay
+  bootstrap-owned.
+- Cluster RBAC and NetworkPolicies stay bootstrap-owned.
+- No Helm release exists and none is planned. Mixing Helm and raw ownership is how
+  the Redis HA service selectors and immutable Deployment selectors broke.
 
-## The label contract that broke ArgoCD
+## Guardrails
 
-Four Services in `argocd` select on the redis-ha chart's labels:
+- No `resources-finalizer` on `argocd-runtime`.
+- `prune: false`, so a manifest edit cannot delete a live control-plane object.
+- `selfHeal: true`, so drift on the owned objects is reverted.
+- Do not add ConfigMaps or Secrets here.
+- Do not add Redis HA here until the Helm/raw ownership question is settled.
 
-```
-app=redis-ha-haproxy,release=argocd
-app=redis-ha,release=argocd
-```
+## Redis
 
-but the pods running in this cluster carry only `app.kubernetes.io/name=...`.
-A Service whose selector matches no pod gets **zero endpoints**, and any client
-that dials it gets `connection refused`. In practice that meant:
+Redis HA was removed. ArgoCD uses the single `argocd-redis` service at
+`argocd-redis:6379`. `scripts/argocd-redis-ha.yaml` remains as a reference for a
+later project.
 
-```
-failed to list refs: dial tcp 10.43.104.86:6379: connect: connection refused
-```
+## Regenerating
 
-on every Application that needed a cold repo-server fetch — 9 of 30 stuck at
-`Sync=Unknown` while the other 21 were served from a warm cache. The same
-mismatch empties `argocd-redis-ha`, the three `announce-*` Services and
-`argocd-dex-server`.
+Use `scripts/snapshot-argocd-runtime.sh` only when intentionally adopting changed
+live objects. Review the diff before committing. The script exports Deployments,
+StatefulSets and Services only.
 
-**Rule:** the pod template labels must be a superset of the Service selector.
-When you import upstream manifests, check this before applying them.
+## Lesson from the failed adoption
 
-## Fixing it once (before the snapshot)
+The chart-owned Services selected `app=redis-ha-haproxy,release=argocd`, while the
+hand-applied Deployments carried only `app.kubernetes.io/name`. Zero endpoints led
+to `connection refused` on cold repo-server fetches and nine Applications stuck in
+`Sync=Unknown`.
 
-```bash
-# haproxy: add the labels the Service actually selects on
-kubectl -n argocd patch deploy argocd-redis-ha-haproxy --type=strategic -p '
-  spec:
-    template:
-      metadata:
-        labels:
-          app: redis-ha-haproxy
-          release: argocd'
-
-# redis-ha servers: same idea, per statefulset template
-kubectl -n argocd patch sts argocd-redis-ha-server --type=strategic -p '
-  spec:
-    template:
-      metadata:
-        labels:
-          app: redis-ha
-          release: argocd'
-```
-
-Verify before moving on — all four should list addresses, not `<none>`:
-
-```bash
-kubectl -n argocd get endpoints argocd-redis-ha-haproxy \
-  argocd-redis-ha argocd-redis-ha-announce-0 argocd-redis-ha-announce-1 \
-  argocd-redis-ha-announce-2
-```
-
-Then confirm the stuck Applications resolve (`count by (sync_status) (argocd_app_info)`
-should show `Unknown` → 0).
-
-## Taking ownership
-
-Once the workloads are correct, snapshot them — do not hand-write this file:
-
-```bash
-./scripts/snapshot-argocd-runtime.sh
-kubectl -n argocd annotate application argocd-runtime \
-  argocd.argoproj.io/refresh=hard --overwrite
-git add manifests/argocd/runtime.yaml && git commit -m "argocd: adopt runtime objects"
-```
-
-The generated file lands in this directory, so the next sync reconciles the same
-objects that are already running. First sync after adoption should therefore be
-a no-op; if it is not, read the diff before letting it proceed.
-
-## Guardrails (do not "fix" these)
-
-- **No `resources-finalizer` on `argocd-runtime`.** The root app prunes, and the
-  finalizer cascades that delete onto everything the Application owns — that is
-  how the Services disappeared on 19 Oct.
-- **`prune: false`.** A chart or file edit must never delete a live control-plane
-  object. Drift shows as `OutOfSync`; you delete by hand, deliberately.
-- **`configs.cm` / `configs.secret` stay out of this directory.** Admin password,
-  SSO and repo credentials are bootstrap-owned; a sync must never rewrite them.
+The same attempt also hit immutable Deployment selectors. A chart cannot adopt a
+raw install that uses different selectors. That is why this repository now keeps
+the raw model deliberately.
