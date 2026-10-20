@@ -95,7 +95,7 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: zeroclaw
+  name: duwende
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
   labels:

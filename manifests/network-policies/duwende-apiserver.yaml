@@ -1,8 +1,8 @@
-# CiliumNetworkPolicy: let the zeroclaw namespace reach the Kubernetes API.
+# CiliumNetworkPolicy: let the duwende namespace reach the Kubernetes API.
 #
 # Why this is not a plain NetworkPolicy: the k8s NetworkPolicy in
 # policies.yaml already allows ipBlock 10.43.0.1/32:443 and
-# 192.168.2.0/24:6443, yet pods in zeroclaw still time out against
+# 192.168.2.0/24:6443, yet pods in duwende still time out against
 # kubernetes.default.svc. With Cilium, the API connection is redirected to the
 # kube-apiserver host endpoint and the destination IP seen by the policy engine
 # is not the ClusterIP, so an ipBlock rule does not match and the request is
@@ -14,8 +14,8 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: zeroclaw-egress-kube-apiserver
-  namespace: zeroclaw
+  name: duwende-egress-kube-apiserver
+  namespace: duwende
 spec:
   endpointSelector: {}
   egress:

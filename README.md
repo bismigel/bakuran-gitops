@@ -22,12 +22,12 @@ applications/               # one ArgoCD Application per workload (recursed)
 ├── calamansi-intel/media.yaml  # the media app (still in-cluster, pinned to .81)
 └── node-exporter-appset.yaml   # ApplicationSet -> every node
 manifests/<app>/            # raw Kubernetes manifests
-scripts/                    # generators (e.g. generate-zeroclaw-context.sh)
+scripts/                    # generators (e.g. generate-duwende-context.sh)
 ```
 
 `manifests/` currently holds: `media`, `monitoring` (incl. the **login watchers**
 and the power dashboard), `observability`, `external-secrets`, `ingress-headers`,
-`namespaces`, `homepage`, `zeroclaw` (config + **generated** context), `kepler`,
+`namespaces`, `homepage`, `duwende` (config + **generated** context), `kepler`,
 `immich`, `longhorn-config`, `node-exporter`. Some apps point at their **own** repo's
 `deploy/k8s/` (`ciceley-site`, `bismigel-site`, `private-api`, `status-api`) or a
 Helm chart (`ingress-nginx`, `cert-manager`, `external-secrets`,
@@ -89,6 +89,6 @@ kubectl -n argocd get applications
 kubectl -n argocd get application <name> -o jsonpath='{.status.sync.status}'
 kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite
 
-# regenerate the ZeroClaw knowledge base after editing ~/projects/homelab-context
-./scripts/generate-zeroclaw-context.sh
+# regenerate the Duwende knowledge base after editing ~/projects/homelab-context
+./scripts/generate-duwende-context.sh
 ```

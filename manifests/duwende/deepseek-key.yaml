@@ -4,7 +4,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: deepseek-api-key
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   refreshInterval: 1h
   secretStoreRef:

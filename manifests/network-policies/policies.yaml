@@ -168,13 +168,13 @@ spec:
               kubernetes.io/metadata.name: ingress-nginx-admin
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: zeroclaw
+              kubernetes.io/metadata.name: duwende
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-ingress
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   podSelector: {}
   policyTypes:
@@ -384,7 +384,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-egress
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   podSelector: {}
   policyTypes:
@@ -394,7 +394,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-egress
-  namespace: zeroclaw
+  namespace: duwende
 spec:
   podSelector: {}
   policyTypes:

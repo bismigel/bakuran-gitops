@@ -36,7 +36,7 @@ applications/
   calamansi-intel/media.yaml     # the media app (in-cluster, pinned to .81)
   node-exporter-appset.yaml      # ApplicationSet -> every node
 manifests/<app>/*.yaml           # raw Kubernetes manifests referenced by apps
-scripts/                         # generators (generate-zeroclaw-context.sh)
+scripts/                         # generators (generate-duwende-context.sh)
 ```
 
 ## Add a new application
@@ -73,7 +73,7 @@ scripts/                         # generators (generate-zeroclaw-context.sh)
 
 > If the manifests live **in this repo** instead of the app repo, set
 > `repoURL: git@github.com:bismigel/bakuran-gitops.git` and `path: manifests/<app>`
-> (this is how `media`, `monitoring`, `zeroclaw`, etc. are wired).
+> (this is how `media`, `monitoring`, `duwende`, etc. are wired).
 
 ## Cluster targeting
 
