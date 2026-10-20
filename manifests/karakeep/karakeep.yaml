@@ -8,10 +8,13 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: karakeep
-  labels:
-    app.kubernetes.io/part-of: homelab
----
-apiVersion: external-secrets.io/v1
+    labels:
+      app.kubernetes.io/part-of: homelab
+      pod-security.kubernetes.io/enforce: baseline
+      pod-security.kubernetes.io/audit: restricted
+      pod-security.kubernetes.io/warn: restricted
+  ---
+  apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: karakeep-secrets
