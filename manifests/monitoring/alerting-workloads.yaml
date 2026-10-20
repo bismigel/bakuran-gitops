@@ -119,29 +119,29 @@ data:
               summary: "Longhorn metrics scrape failing on {{ $labels.instance }}"
               description: "Volume robustness rules are blind while this target is down."
 
-        - name: argocd-redis
-          rules:
-            - alert: ArgoCDRedisHAPodNotReady
-              expr: max by (pod) (kube_pod_status_ready{namespace="argocd",condition="true",pod=~"argocd-redis-ha-server-[0-9]+"}) == 0
-              for: 5m
-              labels:
-                severity: critical
-              annotations:
-                summary: "ArgoCD Redis HA pod {{ $labels.pod }} is not ready"
-                description: "A Redis/sentinel pod has been NotReady for 5 minutes. Sentinel quorum and ArgoCD cache availability may be degraded."
-            - alert: ArgoCDRedisHAEndpointsLow
-              expr: kube_endpoint_address_available{namespace="argocd",endpoint=~"argocd-redis-ha(-haproxy)?"} < 3
-              for: 5m
-              labels:
-                severity: warning
-              annotations:
-                summary: "ArgoCD Redis HA service {{ $labels.endpoint }} has {{ $value }}/3 endpoints"
-                description: "Redis or HAProxy discovery is degraded. Check pod readiness, announce Services and sentinel logs."
-            - alert: ArgoCDRedisHARestartingOften
-              expr: increase(kube_pod_container_status_restarts_total{namespace="argocd",pod=~"argocd-redis-ha-server-[0-9]+"}[1h]) > 2
-              for: 5m
-              labels:
-                severity: warning
-              annotations:
-                summary: "ArgoCD Redis HA pod {{ $labels.pod }} is restarting"
-                description: "More than two restarts in an hour. Check sentinel CPU, quorum and the pod logs."
+      - name: argocd-redis
+        rules:
+          - alert: ArgoCDRedisHAPodNotReady
+            expr: max by (pod) (kube_pod_status_ready{namespace="argocd",condition="true",pod=~"argocd-redis-ha-server-[0-9]+"}) == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "ArgoCD Redis HA pod {{ $labels.pod }} is not ready"
+              description: "A Redis/sentinel pod has been NotReady for 5 minutes. Sentinel quorum and ArgoCD cache availability may be degraded."
+          - alert: ArgoCDRedisHAEndpointsLow
+            expr: kube_endpoint_address_available{namespace="argocd",endpoint=~"argocd-redis-ha(-haproxy)?"} < 3
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "ArgoCD Redis HA service {{ $labels.endpoint }} has {{ $value }}/3 endpoints"
+              description: "Redis or HAProxy discovery is degraded. Check pod readiness, announce Services and sentinel logs."
+          - alert: ArgoCDRedisHARestartingOften
+            expr: increase(kube_pod_container_status_restarts_total{namespace="argocd",pod=~"argocd-redis-ha-server-[0-9]+"}[1h]) > 2
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "ArgoCD Redis HA pod {{ $labels.pod }} is restarting"
+              description: "More than two restarts in an hour. Check sentinel CPU, quorum and the pod logs."
