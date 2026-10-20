@@ -37,7 +37,7 @@ data:
               description: "The container is hitting its CPU limit. Raise the limit or find what is spinning."
           - alert: ContainerMemoryNearLimit
             expr: |
-                container_memory_working_set_bytes{container!="", container!="POD"}
+                max by (namespace, pod, container) (container_memory_working_set_bytes{container!="", container!="POD"})
                   / on (namespace, pod, container) max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="memory"}) > 0.9
             for: 10m
             labels:
