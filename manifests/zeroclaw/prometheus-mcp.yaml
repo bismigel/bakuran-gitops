@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: prometheus-mcp
-          image: ghcr.io/pab1it0/prometheus-mcp-server:latest@sha256:3c3921301229618d0b00a46a06e3b0c25745b31855f16919cf7b4fa040d47ec6
+          image: ghcr.io/pab1it0/prometheus-mcp-server@sha256:3c3921301229618d0b00a46a06e3b0c25745b31855f16919cf7b4fa040d47ec6
           ports:
             - { name: http, containerPort: 8080 }
           env:
