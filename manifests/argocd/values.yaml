@@ -109,6 +109,14 @@ redis-ha:
         cpu: 100m
         memory: 64Mi
   haproxy:
+    # Three HAProxy pods have required anti-affinity on three nodes. A surge
+    # pod cannot schedule until an old pod leaves, so the default 25% surge
+    # deadlocks the rollout. Replace one pod at a time instead.
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
     resources:
       requests:
         cpu: 25m
