@@ -125,6 +125,15 @@ kubectl -n argocd rollout undo deploy/argocd-server
 A values change that alters the pod template supersedes the stuck ReplicaSet on
 its own, which is why the resource PR cleared this one.
 
+## Redis auth rotation
+
+The Redis auth Secret (`argocd-redis`) is bootstrap-owned, not rendered by the
+chart. A Helm upgrade can leave existing Redis pods with the old password while
+new clients use the new Secret. The post-renderer reads the Secret resource
+version and adds `checksum/redis-auth` to the StatefulSet pod template, so the
+Redis pods roll when the Secret changes. If the Secret is rotated outside Helm,
+run the Helm upgrade or restart the StatefulSet manually.
+
 ## Upgrade
 
 Helm 4 does not accept executable post-renderers. Use Helm 3.17.3.
