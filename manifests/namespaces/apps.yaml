@@ -5,3 +5,7 @@ metadata:
   annotations:
     # Never let an app's prune remove the shared namespace
     argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
