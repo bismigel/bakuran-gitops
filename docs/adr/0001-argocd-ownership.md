@@ -34,3 +34,6 @@ Helm owns ArgoCD.
   - Redis HA rollout requires the post-renderer on every Helm upgrade. A plain
     `helm upgrade` would revert the announce Services to ClusterIP and break
     sentinel discovery.
+  - The Redis server ConfigMap change does not roll the ArgoCD workloads. Restart
+    repo-server, server, applicationset and application-controller after the
+    upgrade so they pick up the HAProxy Redis endpoint.

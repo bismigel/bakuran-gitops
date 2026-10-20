@@ -37,12 +37,20 @@ post-renderer that changes those Services to headless while keeping
 
 ## Upgrade
 
+Helm 4 does not accept executable post-renderers. Use Helm 3.17.3.
+
 ```bash
 helm -n argocd upgrade --install argocd argo/argo-cd \
   --version 10.10.5 -f manifests/argocd/values.yaml \
   --post-renderer ./scripts/argocd-redis-ha-post-renderer.sh \
-  --take-ownership --force-conflicts --wait --timeout 10m
+  --take-ownership --wait --timeout 12m
+
+kubectl -n argocd rollout restart \
+  deploy/argocd-repo-server deploy/argocd-server \
+  deploy/argocd-applicationset-controller \
+  statefulset/argocd-application-controller
 ```
+
 
 Rollback path:
 
