@@ -119,6 +119,31 @@ data:
               summary: "Longhorn metrics scrape failing on {{ $labels.instance }}"
               description: "Volume robustness rules are blind while this target is down."
 
+      - name: deployments
+        rules:
+          # Restart-count alerts alone are not enough. A Deployment can be
+          # stuck for a long time while only the crashing pod makes noise and
+          # the previous ReplicaSet keeps serving traffic: argocd-server sat
+          # in exactly that state — 181 restarts, one unavailable replica,
+          # rollout never completing — with nothing but PodRestartingOften to
+          # show for it. These two rules describe the *rollout*, not the pod.
+          - alert: DeploymentRolloutStalled
+            expr: kube_deployment_status_condition{condition="Progressing",status="false"} == 1
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout is stalled"
+              description: "Progressing=False for 15 minutes: the new ReplicaSet is not becoming Ready and the previous one is still serving. Check `kubectl -n <ns> rollout status deploy/<name>` and the new pod's events — a bad template, an unschedulable pod, or a pod that cannot reach the API."
+          - alert: DeploymentReplicasUnavailable
+            expr: kube_deployment_status_replicas_unavailable > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ printf \"%.0f\" $value }} unavailable replicas"
+              description: "Desired replicas that are not available for 15 minutes. Overlaps DeploymentRolloutStalled when the cause is a ReplicaSet that never becomes Ready; fires alone when pods cannot be scheduled at all."
+
       - name: argocd-redis
         rules:
           - alert: ArgoCDRedisHAPodNotReady
