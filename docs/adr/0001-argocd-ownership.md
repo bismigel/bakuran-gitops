@@ -2,47 +2,29 @@
 
 ## Status
 
-Accepted, 2026-10-20.
+Superseded, 2026-10-20. ArgoCD is now a Helm release.
 
 ## Context
 
-ArgoCD was installed from the upstream raw manifests. The platform later tried to
-adopt it with the `argo-cd` Helm chart. Two failures followed:
-
-- the Helm chart changed Service selectors to its own label contract, while the
-  raw Deployments had different labels, leaving Redis HA services with zero
-  endpoints;
-- the Helm chart's Deployment selectors were immutable and could not adopt the
-  raw Deployments in place.
-
-A self-managed Application with a resource finalizer also cascaded a delete onto
-ArgoCD's own Services during a revert.
+ArgoCD was installed from raw manifests. In-place Helm adoption first failed on
+immutable Deployment selectors and on Service labels. The final adoption used
+`helm upgrade --take-ownership --force-conflicts` after deleting the raw
+Deployments and StatefulSet. Helm recreated them with the chart's labels and
+selectors.
 
 ## Decision
 
-Keep **raw bootstrap ownership, intentionally**.
+Helm owns ArgoCD.
 
-- Upstream manifests bootstrap ArgoCD.
-- `argocd-runtime` manages the existing Deployments, StatefulSets and Services
-  from `manifests/argocd/runtime.yaml`.
-- ConfigMaps, Secrets, cluster RBAC and NetworkPolicies remain outside that
-  Application.
-- Redis HA is deferred. ArgoCD uses the single Redis service.
+- Release `argocd`, chart `argo-cd` 10.10.5.
+- Values live in `manifests/argocd/values.yaml`.
+- `configs.cm` and `configs.secret` remain bootstrap-owned.
+- Redis HA is deferred. Use single Redis until the label and sentinel issues are
+  proven in a disposable environment.
+- No raw ArgoCD manifests and no hand patches of Helm-owned workloads.
 
 ## Consequences
 
-- No Helm release exists for ArgoCD. This is intentional, not missing state.
-- A future Helm migration requires a disposable-cluster rehearsal or a complete
-  replacement, not an in-place adoption.
-- The raw runtime is allowed to be versioned and adopted without immutable-field
-  conflicts.
-- ArgoCD self-management is limited to the workload layer. Credentials and
-  bootstrap behavior stay under explicit human control.
-
-## Rejected alternatives
-
-- Helm `--take-ownership` on the live install: cannot change immutable Deployment
-  selectors and would still leave dual ownership during migration.
-- Self-managed Helm Application with a finalizer: cascaded deletion risk.
-- Redis HA inside ArgoCD: deferred until the label and sentinel failure modes are
-  proven in a disposable environment.
+- `helm -n argocd history argocd` is the rollback path.
+- A chart upgrade rolls the control plane; expect a brief sync pause.
+- Redis HA is not part of the current release.
