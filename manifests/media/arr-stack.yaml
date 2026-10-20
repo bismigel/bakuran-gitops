@@ -85,7 +85,7 @@ spec:
     spec:
       initContainers:
         - name: disable-auth
-          image: busybox:latest
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command: ["sh", "-c"]
           args:
             - |
@@ -105,7 +105,7 @@ spec:
               mountPath: /config
       containers:
         - name: prowlarr
-          image: linuxserver/prowlarr:develop
+          image: linuxserver/prowlarr:develop@sha256:e7a05286500b6e51084b0ba263dbbaf825db1ec7b731bf18aea30df84714e5f6
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9696
@@ -163,7 +163,7 @@ spec:
     spec:
       initContainers:
         - name: disable-auth
-          image: busybox:latest
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command: ["sh", "-c"]
           args:
             - |
@@ -183,7 +183,7 @@ spec:
               mountPath: /config
       containers:
         - name: sonarr
-          image: linuxserver/sonarr:latest
+          image: linuxserver/sonarr:latest@sha256:0deb8db6c839ac475e9cd86277712772c40ba7f929a003d7e1de36c4b666bc13
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8989
@@ -253,7 +253,7 @@ spec:
     spec:
       initContainers:
         - name: disable-auth
-          image: busybox:latest
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command: ["sh", "-c"]
           args:
             - |
@@ -273,7 +273,7 @@ spec:
               mountPath: /config
       containers:
         - name: radarr
-          image: linuxserver/radarr:latest
+          image: linuxserver/radarr:latest@sha256:cfbc4fa09dc9d78f7cedc898f4ec48c6277cacedc523c4e159db6ff1c741959c
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 7878
@@ -343,7 +343,7 @@ spec:
     spec:
       initContainers:
         - name: disable-auth
-          image: busybox:latest
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command: ["sh", "-c"]
           args:
             - |
@@ -356,7 +356,7 @@ spec:
               mountPath: /config
       containers:
         - name: bazarr
-          image: linuxserver/bazarr:latest
+          image: linuxserver/bazarr:latest@sha256:fb0437897eaa7f96cf6ac42f795f8dcc208d34ec969eac5d366454e767304eb9
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6767

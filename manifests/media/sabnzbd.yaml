@@ -38,7 +38,7 @@ spec:
     spec:
       initContainers:
         - name: seed-config
-          image: busybox:latest
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           env:
             - name: USENET_USER
               valueFrom:
@@ -86,7 +86,7 @@ spec:
               mountPath: /config
       containers:
         - name: sabnzbd
-          image: linuxserver/sabnzbd:latest
+          image: linuxserver/sabnzbd:latest@sha256:382f9bd4e3f6df2abf7bcc92edada0c5bd4d4ff26eb5416f257ac54989464fa1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
