@@ -163,17 +163,29 @@ data:
             annotations:
               summary: "public probe {{ $labels.instance }} is down"
           - alert: PublicSLOFastBurn
-            expr: avg_over_time(probe_success[1h]) < 0.99 and avg_over_time(probe_success[5m]) < 0.99
+            # Two windows, deliberately. The 1h window proves the burn is not a
+            # single scrape hiccup; the 5m window proves it is still happening
+            # right now, so the alert stops once the service recovers instead of
+            # running until the long window forgets. Uses the recording rules so
+            # the alert and the dashboard cannot disagree about the number.
+            expr: slo:probe_success:ratio1h < 0.99 and slo:probe_success:ratio5m < 0.99
             for: 5m
             labels: { severity: warning }
             annotations:
-              summary: "public SLO fast burn: {{ $labels.instance }} at {{ $value | humanizePercentage }}"
+              summary: "public SLO fast burn: {{ $labels.instance }} 1h availability {{ $value | humanizePercentage }}"
+              description: "Below 99% over the last hour and still failing at the last scrape. Error budget is going fast."
           - alert: PublicSLOSlowBurn
-            expr: avg_over_time(probe_success[6h]) < 0.995
+            # The 6h window is the trend, the 1h window is the confirmation.
+            # With only the 6h window this fired for six hours after a
+            # three-minute outage during a node reboot — a resolved incident
+            # masquerading as an active one. Both windows must be under the
+            # 99.5% objective for this to be worth waking up for.
+            expr: slo:probe_success:ratio6h < 0.995 and slo:probe_success:ratio1h < 0.995
             for: 15m
             labels: { severity: warning }
             annotations:
-              summary: "public SLO slow burn: {{ $labels.instance }} below 99.5%"
+              summary: "public SLO slow burn: {{ $labels.instance }} 6h availability {{ $value | humanizePercentage }}"
+              description: "Under the 99.5% objective across 6h AND the last hour has not recovered. A historic blip alone no longer fires this."
 ---
 # Alertmanager
 apiVersion: v1
