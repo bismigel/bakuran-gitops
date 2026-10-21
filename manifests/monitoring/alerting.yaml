@@ -174,18 +174,17 @@ data:
             annotations:
               summary: "public SLO fast burn: {{ $labels.instance }} 1h availability {{ $value | humanizePercentage }}"
               description: "Below 99% over the last hour and still failing at the last scrape. Error budget is going fast."
-          - alert: PublicSLOSlowBurn
-            # The 6h window is the trend, the 1h window is the confirmation.
-            # With only the 6h window this fired for six hours after a
-            # three-minute outage during a node reboot — a resolved incident
-            # masquerading as an active one. Both windows must be under the
-            # 99.5% objective for this to be worth waking up for.
-            expr: slo:probe_success:ratio6h < 0.995 and slo:probe_success:ratio1h < 0.995
-            for: 15m
-            labels: { severity: warning }
-            annotations:
-              summary: "public SLO slow burn: {{ $labels.instance }} 6h availability {{ $value | humanizePercentage }}"
-              description: "Under the 99.5% objective across 6h AND the last hour has not recovered. A historic blip alone no longer fires this."
+            - alert: PublicSLOSlowBurn
+              # The 6h window is the trend, the 1h window is the history, and
+              # the 5m window proves it is still happening. A resolved
+              # three-minute blip keeps the 1h ratio low, so the 1h window
+              # alone can still page after recovery.
+              expr: slo:probe_success:ratio6h < 0.995 and slo:probe_success:ratio1h < 0.995 and slo:probe_success:ratio5m < 0.995
+              for: 15m
+              labels: { severity: warning }
+              annotations:
+                summary: "public SLO slow burn: {{ $labels.instance }} 6h availability {{ $value | humanizePercentage }}"
+                description: "Under the 99.5% objective across 6h and 1h, and still failing in the last 5m. A historic blip alone no longer fires this."
 ---
 # Alertmanager
 apiVersion: v1
