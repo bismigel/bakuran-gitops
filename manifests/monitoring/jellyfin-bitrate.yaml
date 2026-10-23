@@ -1,0 +1,113 @@
+# Jellyfin's server-wide "Internet streaming bitrate limit" is not a Kubernetes
+# field. It lives in config/system.xml on the jellyfin-config PVC, next to the
+# library database, so it cannot be declared like a Deployment can.
+#
+# This one-shot Job changes it through the API instead, using the admin API key
+# that already exists for the login watcher (jellyfin-watch-key in this
+# namespace). It reads the current PlaybackConfiguration, sets
+# RemoteClientBitrateLimit to 0, posts the whole object back, and reads it again
+# to prove the change landed.
+#
+# Why 0: the server should not be the thing that decides a stream is too big.
+# With the server cap in place at 12 Mbps, a 4K HDR file was being tone-mapped
+# and re-encoded at 11.6 Mbps for every remote client, at 0.6 cores of CPU,
+# whether or not the client and the link could handle more. Per-user profiles
+# and the client's own Playback setting can still cap an individual stream; the
+# server stops forcing the transcode.
+#
+# A plain Job on purpose, not a PostSync hook: a hook would spawn a pod on every
+# sync. This runs once. To run it again after changing the value by hand:
+#   kubectl -n monitoring delete job jellyfin-unlimited-bitrate
+# and let ArgoCD recreate it.
+#
+# Deliberately no ttlSecondsAfterFinished: the monitoring Application has
+# selfHeal enabled, so once the TTL controller deleted the finished Job ArgoCD
+# would see it missing and recreate it, re-running the pod every ~15 minutes
+# forever (and flipping the app Degraded whenever Jellyfin was briefly down).
+# Keeping the completed Job means ArgoCD leaves it alone.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jellyfin-unlimited-bitrate
+  namespace: monitoring
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: jellyfin-unlimited-bitrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: set-limit
+          # Same pinned image as the login watcher: python3 from alpine, no
+          # package install needed, so it works with a read-only root filesystem.
+          image: python:3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              python - <<'PY'
+              import json, os, sys, urllib.request
+
+              base = os.environ["JELLYFIN_URL"].rstrip("/")
+              url = base + "/System/Configuration/Playback"
+              key = os.environ["JELLYFIN_API_KEY"]
+
+              def call(method="GET", body=None):
+                  data = json.dumps(body).encode() if body is not None else None
+                  req = urllib.request.Request(
+                      url, data=data, method=method,
+                      headers={"Authorization": 'MediaBrowser Token="%s"' % key,
+                               "Content-Type": "application/json"})
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      raw = r.read()
+                      return r.status, (json.loads(raw) if raw.strip() else None)
+
+              try:
+                  _, cfg = call()
+              except Exception as e:
+                  print("GET failed:", e)
+                  sys.exit(1)
+
+              before = cfg.get("RemoteClientBitrateLimit")
+              print("before: RemoteClientBitrateLimit=%r" % before)
+              if before == 0:
+                  print("already unlimited, nothing to do")
+                  sys.exit(0)
+
+              cfg["RemoteClientBitrateLimit"] = 0
+              try:
+                  status, _ = call("POST", cfg)
+              except Exception as e:
+                  print("POST failed:", e)
+                  sys.exit(1)
+              print("POST /System/Configuration/Playback -> HTTP %s" % status)
+
+              _, after = call()
+              value = after.get("RemoteClientBitrateLimit")
+              print("after: RemoteClientBitrateLimit=%r" % value)
+              if value != 0:
+                  print("verification failed: the server did not persist the change")
+                  sys.exit(1)
+              print("ok: server-wide bitrate limit removed")
+              PY
+          env:
+            - { name: JELLYFIN_URL, value: "http://jellyfin.default.svc.cluster.local:8096" }
+            - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+            - { name: PYTHONUNBUFFERED, value: "1" }
+            - name: JELLYFIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jellyfin-watch-key
+                  key: api-key
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
