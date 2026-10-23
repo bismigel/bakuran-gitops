@@ -4,9 +4,13 @@
 #
 # This one-shot Job changes it through the API instead, using the admin API key
 # that already exists for the login watcher (jellyfin-watch-key in this
-# namespace). It reads the current PlaybackConfiguration, sets
+# namespace). It reads the current ServerConfiguration, sets
 # RemoteClientBitrateLimit to 0, posts the whole object back, and reads it again
 # to prove the change landed.
+#
+# The endpoint is /System/Configuration: RemoteClientBitrateLimit is a field of
+# ServerConfiguration, and Jellyfin 12.x has no /System/Configuration/Playback
+# route (it 404s).
 #
 # Why 0: the server should not be the thing that decides a stream is too big.
 # With the server cap in place at 12 Mbps, a 4K HDR file was being tone-mapped
@@ -17,7 +21,7 @@
 #
 # A plain Job on purpose, not a PostSync hook: a hook would spawn a pod on every
 # sync. This runs once. To run it again after changing the value by hand:
-#   kubectl -n monitoring delete job jellyfin-unlimited-bitrate
+#   kubectl -n monitoring delete job jellyfin-unlimited-bitrate-v2
 # and let ArgoCD recreate it.
 #
 # Deliberately no ttlSecondsAfterFinished: the monitoring Application has
@@ -25,18 +29,22 @@
 # would see it missing and recreate it, re-running the pod every ~15 minutes
 # forever (and flipping the app Degraded whenever Jellyfin was briefly down).
 # Keeping the completed Job means ArgoCD leaves it alone.
+#
+# Named -v2 because Job pod templates are immutable: the first version pointed at
+# the non-existent /System/Configuration/Playback and could not be fixed in
+# place. ArgoCD creates v2 and prunes the failed Job.
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: jellyfin-unlimited-bitrate
+  name: jellyfin-unlimited-bitrate-v2
   namespace: monitoring
 spec:
   backoffLimit: 2
   template:
     metadata:
       labels:
-        app: jellyfin-unlimited-bitrate
+        app: jellyfin-unlimited-bitrate-v2
     spec:
       restartPolicy: Never
       containers:
@@ -51,7 +59,7 @@ spec:
               import json, os, sys, urllib.request
 
               base = os.environ["JELLYFIN_URL"].rstrip("/")
-              url = base + "/System/Configuration/Playback"
+              url = base + "/System/Configuration"
               key = os.environ["JELLYFIN_API_KEY"]
 
               def call(method="GET", body=None):
@@ -82,7 +90,7 @@ spec:
               except Exception as e:
                   print("POST failed:", e)
                   sys.exit(1)
-              print("POST /System/Configuration/Playback -> HTTP %s" % status)
+              print("POST /System/Configuration -> HTTP %s" % status)
 
               _, after = call()
               value = after.get("RemoteClientBitrateLimit")
