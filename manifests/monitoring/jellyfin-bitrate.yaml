@@ -19,6 +19,12 @@
 # sync. This runs once. To run it again after changing the value by hand:
 #   kubectl -n monitoring delete job jellyfin-unlimited-bitrate
 # and let ArgoCD recreate it.
+#
+# Deliberately no ttlSecondsAfterFinished: the monitoring Application has
+# selfHeal enabled, so once the TTL controller deleted the finished Job ArgoCD
+# would see it missing and recreate it, re-running the pod every ~15 minutes
+# forever (and flipping the app Degraded whenever Jellyfin was briefly down).
+# Keeping the completed Job means ArgoCD leaves it alone.
 ---
 apiVersion: batch/v1
 kind: Job
@@ -26,7 +32,6 @@ metadata:
   name: jellyfin-unlimited-bitrate
   namespace: monitoring
 spec:
-  ttlSecondsAfterFinished: 900
   backoffLimit: 2
   template:
     metadata:
