@@ -35,9 +35,12 @@ spec:
       # No prometheus.io/* annotations: Jellyfin exposes no /metrics endpoint
       # (needs a plugin), so scraping it only produced a false TargetDown.
     spec:
+      # Run the app as a normal user, not root. The config/cache volumes are
+      # handed over by the fix-ownership init below; the render node
+      # (/dev/dri/renderD128) is mode 0666, so QSV still works.
       securityContext:
-        runAsUser: 0
-        runAsGroup: 0
+        runAsUser: 1000
+        runAsGroup: 1000
         supplementalGroups:
           - 303
       initContainers:
@@ -53,6 +56,11 @@ spec:
         # /System/Info/Public), so 12.0/12.1 plugins are compatible.
         - name: install-plugins
           image: alpine:3.20
+          # Must be root: `apk add unzip` installs into /, and the plugin tree
+          # it creates is chowned to 1000 by fix-ownership afterwards.
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
           command: ["/bin/sh", "-ec"]
           args:
             - |
@@ -114,6 +122,26 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+        # The config PVC and the transcode cache were created by root. Hand
+        # them to UID 1000 once (idempotent) so the non-root main container can
+        # write. /cache is only chowned while its transcodes dir is still root's.
+        - name: fix-ownership
+          image: alpine:3.20
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              chown -R 1000:1000 /config
+              if [ "$(stat -c %u /cache/transcodes 2>/dev/null || echo 0)" != "1000" ]; then
+                chown -R 1000:1000 /cache
+              fi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: cache
+              mountPath: /cache
       containers:
         - name: jellyfin
           image: jellyfin/jellyfin:12.2
