@@ -145,8 +145,11 @@ spec:
       containers:
         - name: jellyfin
           image: jellyfin/jellyfin:12.2
+          # The iGPU is provided by the Intel device plugin as the
+          # gpu.intel.com/i915 resource (manifests/intel-gpu-plugin): no
+          # privileged mode and no hostPath /dev/dri.
           securityContext:
-            privileged: true
+            allowPrivilegeEscalation: false
           ports:
             # hostPort: LAN access for TV clients (they can't do Cloudflare
             # Access). Jellyfin is pinned to .81, so this binds there.
@@ -163,8 +166,10 @@ spec:
           resources:
             requests:
               memory: 512Mi
+              gpu.intel.com/i915: 1
             limits:
               memory: 4Gi
+              gpu.intel.com/i915: 1
           volumeMounts:
             - name: config
               mountPath: /config
@@ -172,8 +177,6 @@ spec:
               mountPath: /cache
             - name: media
               mountPath: /media
-            - name: dri
-              mountPath: /dev/dri
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -188,10 +191,6 @@ spec:
         - name: media
           hostPath:
             path: /mnt/media
-            type: Directory
-        - name: dri
-          hostPath:
-            path: /dev/dri
             type: Directory
 ---
 apiVersion: v1
