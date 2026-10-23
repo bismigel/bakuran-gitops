@@ -1,0 +1,81 @@
+# Per-app egress for the downloads namespace (SABnzbd + qBittorrent).
+#
+# CiliumNetworkPolicy is used for the per-app selectors and toCIDRSet. policies.yaml
+# still carries the namespace's default-deny-egress base, and these policies are
+# additive with it (Cilium unions all selecting rules).
+#
+# Why CIDRs and not toFQDNs: Cilium's transparent DNS proxy is not returning
+# responses in this cluster (a DNS-only L7 rule also times out, and the FQDN
+# cache stays empty), so toFQDNs would silently deny everything. Allowlisting the
+# provider's networks is DNS-proxy-independent and works. DNS stays a plain L4
+# allow to kube-dns. If the provider adds ranges, update the list below.
+#
+# SABnzbd -> Frugal Usenet. news.frugalusenet.com resolves into two networks
+# owned by the provider (RDAP: Usenet Solutions LLC / Paradise Networks LLC):
+#   62.164.182.0/24, 209.160.112.0/20   on the NNTP ports 563/443/119.
+#
+# qBittorrent cannot be CIDR-narrowed: BitTorrent peers/DHT are arbitrary public
+# IPs on arbitrary ports, so it keeps a broad public rule with private ranges
+# excluded. The privacy boundary for torrent traffic is the host VPN kill switch
+# (ProtonVPN) on .81, not this policy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sabnzbd-egress
+  namespace: downloads
+spec:
+  endpointSelector:
+    matchLabels:
+      app: sabnzbd
+  egress:
+    # DNS to kube-dns (plain L4; no L7 rule needed because we do not use toFQDNs).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # NNTP to Frugal Usenet's networks (news.frugalusenet.com).
+    - toCIDRSet:
+        - cidr: 62.164.182.0/24      # Usenet Solutions LLC
+        - cidr: 209.160.112.0/20     # Paradise Networks LLC
+      toPorts:
+        - ports:
+            - port: "563"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+            - port: "119"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: qbittorrent-egress
+  namespace: downloads
+spec:
+  endpointSelector:
+    matchLabels:
+      app: qbittorrent
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Trackers, peers and DHT: any public host, any port, but never RFC1918.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
