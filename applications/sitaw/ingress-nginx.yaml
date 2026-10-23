@@ -35,6 +35,28 @@ spec:
             # loopback-only, so only cloudflared reaches it). Lets Jellyfin see
             # remote clients as remote instead of as the ingress pod IP.
             use-forwarded-headers: "true"
+            # Per-client-IP request limiting for the PUBLIC hostnames only
+            # (this is the nginx controller; admin hostnames use
+            # ingress-nginx-admin behind Access).
+            #
+            # Jellyfin is explicitly exempted: its map key is the empty string,
+            # and nginx does not account for or delay requests with an empty
+            # limit_req key — so streaming is completely untouched. The key is
+            # "host:client-ip" so one site's traffic cannot exhaust another's
+            # bucket.
+            #
+            # Generous on purpose: burst=200 admits a page/thumbnail flurry in
+            # one go, and 40r/s sustained only trips on a real flood/scrape.
+            # nodelay => reject fast (429), never queue (no added latency).
+            http-snippet: |
+              map $host $ratelimit_key {
+                default               "$host:$binary_remote_addr";
+                jellyfin.bismigel.dev "";
+              }
+              limit_req_zone $ratelimit_key zone=perip:20m rate=40r/s;
+              limit_req_status 429;
+            server-snippet: |
+              limit_req zone=perip burst=200 nodelay;
           service:
             type: NodePort
             # TLS terminates at Cloudflare; the origin leg is HTTP and no Ingress
