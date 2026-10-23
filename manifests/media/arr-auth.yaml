@@ -88,10 +88,14 @@ spec:
                     secretKeyRef:
                       name: media-setup
                       key: prowlarr-api-key
+              # The job runs every five minutes and its only real CPU work is
+              # `apk add curl jq` plus light JSON handling. At 100m that install
+              # throttled hard enough to page ContainerCPUThrottled; a batch job
+              # that is throttled spends the same wall-clock time for nothing.
               resources:
                 requests:
-                  cpu: 10m
+                  cpu: 25m
                   memory: 32Mi
                 limits:
-                  cpu: 100m
+                  cpu: 300m
                   memory: 128Mi

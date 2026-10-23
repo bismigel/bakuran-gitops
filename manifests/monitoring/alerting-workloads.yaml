@@ -26,9 +26,15 @@ data:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is using {{ printf \"%.2f\" $value }} cores"
               description: "Sustained above 0.8 core for 20 minutes. Either genuine load or a spin loop — check the Containers dashboard."
           - alert: ContainerCPUThrottled
+            # Only evaluate containers that are running right now. Without this
+            # join, a batch pod that throttled for its 90 seconds of life keeps
+            # contributing a stale ratio after it exits, which is how a
+            # five-minute CronJob produced a ContainerCPUThrottled page for
+            # arr-auth-sync long after the job had completed successfully.
             expr: |
               sum by (namespace, pod, container) (rate(container_cpu_cfs_throttled_periods_total[5m]))
                 / sum by (namespace, pod, container) (rate(container_cpu_cfs_periods_total[5m])) > 0.25
+                and on (namespace, pod, container) (kube_pod_container_status_running == 1)
             for: 15m
             labels:
               severity: warning
