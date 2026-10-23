@@ -35,6 +35,10 @@ spec:
             # loopback-only, so only cloudflared reaches it). Lets Jellyfin see
             # remote clients as remote instead of as the ingress pod IP.
             use-forwarded-headers: "true"
+            # ingress-nginx emits its own `limit_req_status`; set the code here
+            # rather than duplicating the directive in the snippet (a duplicate
+            # makes `nginx -t` fail and the reload is skipped).
+            limit-req-status-code: "429"
             # Per-client-IP request limiting for the PUBLIC hostnames only
             # (this is the nginx controller; admin hostnames use
             # ingress-nginx-admin behind Access).
@@ -54,7 +58,6 @@ spec:
                 jellyfin.bismigel.dev "";
               }
               limit_req_zone $ratelimit_key zone=perip:20m rate=40r/s;
-              limit_req_status 429;
             server-snippet: |
               limit_req zone=perip burst=200 nodelay;
           service:
