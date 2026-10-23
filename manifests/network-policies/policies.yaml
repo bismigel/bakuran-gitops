@@ -1,15 +1,12 @@
-# Network policies for the application namespaces.
+# Ingress-only network policies for the application namespaces.
 #
-# Ingress: a pod selected by any NetworkPolicy only accepts the listed ingress.
-# Egress: default-deny plus explicit allow rules (DNS, internal, and either
-# specific FQDNs or public HTTP/S). Infrastructure namespaces (kube-system,
-# argocd, longhorn-system, monitoring, cert-manager, external-secrets,
-# observability, kepler) are intentionally not managed here.
+# A pod selected by any NetworkPolicy only accepts the listed ingress. Egress is
+# left open for this phase. Infrastructure namespaces (kube-system, argocd,
+# longhorn-system, monitoring, cert-manager, external-secrets, observability,
+# kepler) are intentionally not managed here.
 #
 # Each rule starts with same-namespace traffic and ingress-nginx. Cross-namespace
-# rules are added only where a real dependency exists. The downloads per-app
-# egress allowlists live in downloads-egress.yaml (CiliumNetworkPolicy with
-# toFQDNs).
+# rules are added only where a real dependency exists.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -627,9 +624,7 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Downloaders: default-deny egress. The per-app allowlists (SABnzbd -> its
-# Usenet provider via toFQDNs; qBittorrent -> public internet for peers/trackers)
-# live in downloads-egress.yaml as CiliumNetworkPolicies.
+# Downloaders need public internet for trackers/Usenet, and nothing else.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -639,3 +634,35 @@ spec:
   podSelector: {}
   policyTypes:
     - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress
+  namespace: downloads
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
