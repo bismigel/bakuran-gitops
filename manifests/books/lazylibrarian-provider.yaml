@@ -5,16 +5,14 @@
 # config.ini, not lazylibrarian.ini — the first version of this job looked for
 # the latter, logged "no lazylibrarian.ini yet, nothing to do", and applied
 # nothing while the pod came up healthy. Silent no-ops are the failure mode this
-# whole change is trying to remove, so the file is now discovered rather than
+# whole change is trying to remove, so the file is discovered rather than
 # assumed, and the name it picked is logged.
 #
-# Why the categories matter: the failing search does not return nothing, it
-# returns unrelated ebooks that then fail the similarity threshold.
+# Why the categories matter: the failing search did not return nothing, it
+# returned unrelated ebooks that then failed the similarity threshold.
 #
-#   provider: "Danielle Steel The Ring" -> nearest match 44%,
-#             "The Legacy Series", no result
-#   Prowlarr /2/api + cat 7000,7020 ->
-#             "Danielle Steel - The Ring (retail) (epub)" x3
+#   before: "Danielle Steel The Ring" -> nearest match 44%
+#   after:  "Danielle Steel - Friends Forever" -> best match 100.0%, sent to SAB
 #
 # The script lives in a ConfigMap so changing it is a small diff in a small
 # file, not a rewrite of an 8 KB Deployment.
@@ -34,10 +32,17 @@ data:
   AUDIOCAT: "3030"
   GENERALSEARCH: "search"
   BOOKSEARCH: "search"
+  AUDIOSEARCH: "search"
   EXTENDED: "1"
   # Every Kubernetes/platform author in the library was 'Paused', so none of
   # them had ever been searched. Set to "false" to leave them alone.
   ACTIVATE_PAUSED_AUTHORS: "true"
+  # Audiobooks: LazyLibrarian tracks eBook and audio status separately per book.
+  # Everything except the excluded authors moves from 'Skipped' to 'Wanted',
+  # which is the state the backlog search looks for
+  # (books.Status="Wanted" OR AudioStatus="Wanted").
+  AUDIO_WANTED: "true"
+  AUDIO_EXCLUDE_AUTHORS: "Danielle Steel"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -46,7 +51,7 @@ metadata:
   namespace: books
 data:
   provider-config.py: |
-    """Apply LazyLibrarian's indexer settings on every pod start.
+    """Apply LazyLibrarian's indexer and library settings on every pod start.
 
     Idempotent: writes only when a value differs, keeps a one-time backup,
     never prints the API key, and never raises — a wrong setting is a bug,
@@ -114,6 +119,7 @@ data:
             "enabled": "1",
             "generalsearch": os.environ.get("GENERALSEARCH", "search"),
             "booksearch": os.environ.get("BOOKSEARCH", "search"),
+            "audiosearch": os.environ.get("AUDIOSEARCH", "search"),
             "bookcat": os.environ.get("BOOKCAT", "7000,7020"),
             "magcat": os.environ.get("MAGCAT", "7010"),
             "audiocat": os.environ.get("AUDIOCAT", "3030"),
@@ -147,19 +153,19 @@ data:
         chown(backup)
         log("[%s] updated in %s:" % (target, ini), ", ".join(changed))
 
-        for extra in sections[1:]:
-            log("additional provider [%s] enabled=%s host=%s" % (
-                extra,
-                parser.get(extra, "enabled", fallback="?"),
-                parser.get(extra, "host", fallback="?"),
-            ))
+
+    def open_db():
+        db = CONFIG_DIR / "lazylibrarian.db"
+        if not db.exists():
+            return None
+        return db
 
 
     def activate_authors():
         if os.environ.get("ACTIVATE_PAUSED_AUTHORS", "false").lower() != "true":
             return
-        db = CONFIG_DIR / "lazylibrarian.db"
-        if not db.exists():
+        db = open_db()
+        if db is None:
             log("no database yet, skipping author activation")
             return
         con = sqlite3.connect(str(db))
@@ -167,6 +173,39 @@ data:
             cur = con.execute("UPDATE authors SET Status='Active' WHERE Status='Paused'")
             con.commit()
             log("authors set Active:", cur.rowcount)
+        finally:
+            con.close()
+        chown(db)
+
+
+    def want_audiobooks():
+        """Mark every book audio-Wanted except the excluded authors.
+
+        LazyLibrarian keeps two statuses per book. The backlog search looks for
+        books.Status="Wanted" OR AudioStatus="Wanted", so flipping AudioStatus
+        is all it takes to ask for the audiobook as well as the eBook.
+        """
+        if os.environ.get("AUDIO_WANTED", "false").lower() != "true":
+            return
+        db = open_db()
+        if db is None:
+            log("no database yet, skipping audiobook flags")
+            return
+        excluded = [a.strip() for a in
+                    os.environ.get("AUDIO_EXCLUDE_AUTHORS", "").split(",") if a.strip()]
+        sql = "UPDATE books SET AudioStatus='Wanted' WHERE AudioStatus='Skipped'"
+        params = ()
+        if excluded:
+            placeholders = ",".join("?" for _ in excluded)
+            sql += (" AND AuthorID NOT IN "
+                    "(SELECT AuthorID FROM authors WHERE AuthorName IN (%s))" % placeholders)
+            params = tuple(excluded)
+        con = sqlite3.connect(str(db))
+        try:
+            cur = con.execute(sql, params)
+            con.commit()
+            log("audiobooks marked Wanted:", cur.rowcount,
+                "excluding:", ", ".join(excluded) or "none")
         finally:
             con.close()
         chown(db)
@@ -182,10 +221,11 @@ data:
         except Exception as exc:  # never block the app
             log("ini step failed, config left untouched:", repr(exc))
 
-        try:
-            activate_authors()
-        except Exception as exc:
-            log("author activation skipped:", repr(exc))
+        for step in (activate_authors, want_audiobooks):
+            try:
+                step()
+            except Exception as exc:
+                log("%s skipped:" % step.__name__, repr(exc))
 
 
     main()

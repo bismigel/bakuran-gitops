@@ -6,10 +6,9 @@ resources:
   - lazylibrarian.yaml
 patches:
   # A pod-template annotation, not a setting: any change to it makes Kubernetes
-  # build a new ReplicaSet. This workload has now needed a forced rollout twice:
-  # once because a ReplicaSet sat in FailedCreate backoff, once because the init
-  # container had to be re-pointed at the right config file. Bumping this value
-  # is the declarative equivalent of `kubectl rollout restart`.
+  # build a new ReplicaSet. Bumping this value is the declarative equivalent of
+  # `kubectl rollout restart`, and it is how this workload picks up changes to
+  # the provider ConfigMap.
   - target:
       kind: Deployment
       name: lazylibrarian
@@ -17,4 +16,4 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations
         value:
-          bakuran.dev/rollout: "2026-10-24T18:32:00Z"
+          bakuran.dev/rollout: "2026-10-24T20:15:00Z"
