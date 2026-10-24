@@ -463,6 +463,21 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    # Books stack for SRE triage: Audiobookshelf /ping, Kavita /api/health,
+    # LazyLibrarian /api?cmd=help. Ingress into books allows this namespace
+    # (see books' allow-ingress); egress is an allowlist, so it needs its own
+    # rule. Ports are the three app ports, nothing else.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: books
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 5000
+        - protocol: TCP
+          port: 5299
     - to:
         - ipBlock:
             cidr: 10.43.0.1/32
