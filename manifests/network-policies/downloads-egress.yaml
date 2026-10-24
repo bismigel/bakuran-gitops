@@ -64,6 +64,33 @@ spec:
         - ports:
             - port: "9696"
               protocol: TCP
+    # ...and then Prowlarr 301-redirects that URL to the indexer's own NZB
+    # endpoint (api.nzbgeek.info/api?t=get&id=...), which SAB has to fetch
+    # itself over the public internet. NZBGeek sits on Cloudflare, so allow the
+    # Cloudflare edge on 443 only. Source: https://www.cloudflare.com/ips-v4
+    # (checked 2026-10-24; api.nzbgeek.info resolved to 104.20.33.250 /
+    #  172.66.169.148). If NZBGeek moves to another CDN, the symptom is SAB
+    # "Grabbing 0%" + `[Errno 101] Network unreachable` in its log.
+    - toCIDRSet:
+        - cidr: 173.245.48.0/20
+        - cidr: 103.21.244.0/22
+        - cidr: 103.22.200.0/22
+        - cidr: 103.31.4.0/22
+        - cidr: 141.101.64.0/18
+        - cidr: 108.162.192.0/18
+        - cidr: 190.93.240.0/20
+        - cidr: 188.114.96.0/20
+        - cidr: 197.234.240.0/22
+        - cidr: 198.41.128.0/17
+        - cidr: 162.158.0.0/15
+        - cidr: 104.16.0.0/13
+        - cidr: 104.24.0.0/14
+        - cidr: 172.64.0.0/13
+        - cidr: 131.0.72.0/22
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
