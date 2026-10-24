@@ -37,6 +37,40 @@ data:
               summary: "memory on {{ $labels.instance }} >90%"
           # Media pool (/mnt/media on calamansi-intel): the whole media stack and
           # every *arr import dies when this fills, so warn early and loud.
+          #
+          # WARNING: the *union* is the wrong fault domain on its own. mergerfs
+          # (category.create=epmfs) only writes into branches that already hold
+          # the library directory, and each branch has its own 4G minfreespace.
+          # 2026-10-24: /mnt/media read 71% while media-sda was at 99% and every
+          # create under /books,/tv,/movies failed with ENOSPC. So the pool
+          # alerts below stay, but the per-branch ones are the real signal.
+          - alert: MediaBranchFillingUp
+            expr: (1 - node_filesystem_avail_bytes{mountpoint=~"/mnt/media-(sda|nvme)"} / node_filesystem_size_bytes{mountpoint=~"/mnt/media-(sda|nvme)"}) * 100 > 85
+            for: 30m
+            labels: { severity: warning }
+            annotations:
+              summary: "media branch {{ $labels.mountpoint }} on {{ $labels.instance }} >85% full"
+              description: "{{ $value | printf \"%.0f\" }}% used on one mergerfs branch. The pool union hides this; run a rebalance (RUNBOOK: 'LazyLibrarian is not downloading' step 7) before it hits 4G free."
+              runbook_url: "https://runbook.bismigel.dev"
+          - alert: MediaBranchCritical
+            # 4G minfreespace on a 234G branch is ~98%, so 93% leaves ~16G of
+            # headroom for an import to finish rather than fail midway.
+            expr: (1 - node_filesystem_avail_bytes{mountpoint=~"/mnt/media-(sda|nvme)"} / node_filesystem_size_bytes{mountpoint=~"/mnt/media-(sda|nvme)"}) * 100 > 93
+            for: 15m
+            labels: { severity: critical }
+            annotations:
+              summary: "media branch {{ $labels.mountpoint }} on {{ $labels.instance }} >93% — imports will start failing"
+              description: "mergerfs refuses creates on a branch under minfreespace (4G) even when the pool reports free space. Rebalance or free space now."
+              runbook_url: "https://runbook.bismigel.dev"
+          - alert: MediaPoolDaysToFull
+            # % full cannot tell "stable at 90%" from "dead in two days".
+            expr: predict_linear(node_filesystem_avail_bytes{mountpoint=~"/mnt/media.*"}[6h], 7 * 86400) < 0
+            for: 1h
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} projected to fill within 7 days"
+              description: "At the current 6h trend this filesystem runs out inside a week. Rebalance, tighten acquisition sizes, or add capacity."
+              runbook_url: "https://runbook.bismigel.dev"
           - alert: MediaPoolFillingUp
             expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 85
             for: 30m
@@ -44,6 +78,7 @@ data:
             annotations:
               summary: "media pool (/mnt/media) >85% full"
               description: "{{ $value }}% used — reclaim space (arr cleanup) or add a disk before imports start failing."
+              runbook_url: "https://runbook.bismigel.dev"
           - alert: MediaPoolCritical
             expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 92
             for: 15m
