@@ -92,8 +92,8 @@ data:
     
     NodePorts: grafana `30300`, prometheus `30909`, alertmanager `30903`, homepage `30080`,
     ingress-nginx `32080`, **loopback-only** (edge lock); the tunnel is the sole path in.
-    Media hostPorts on `.81` are the LAN path (see below). Edge is reconciled daily by
-    `cloudflare-sync.timer` on `.82`.
+    Media hostPorts on `.81` are the LAN path (see below). Edge (DNS, tunnel, Access)
+    is managed by **OpenTofu** in `bakuran-infra/opentofu/cloudflare/`.
     
     **Live metrics for the agent:** `kubernetes__nodes_top` and
     `kubernetes__pods_top` (metrics-server / `metrics.k8s.io`). Read-only RBAC
@@ -344,8 +344,11 @@ data:
         `cluster-calamansi-intel`); 30 remain. Secrets Manager has **no trash/restore**
         (bws only does create/edit/delete). See `CREDENTIALS.md` for how to regenerate
         each if ever needed (the NZBGeek username `bloopbloop` is still documented there).
-      - **Cloudflare edge is now self-healing**, `modules/cloudflare-sync.nix` runs
-        `cloudflare/sync.sh` daily on `.82` (CF token from SOPS). Admin-only Access apps
+      - **Cloudflare edge is OpenTofu-managed**: `bakuran-infra/opentofu/cloudflare/`
+        (DNS, tunnel ingress, Access apps, zone settings, R2 lifecycle; state in the R2
+        S3 backend). The old `cloudflare-sync.timer` is **retired** — `cloudflare/sync.sh`
+        is now only a manual rollback path (`systemctl start cloudflare-sync.service` on
+        `.82`). Admin-only Access apps
         use a 24h session; media stays 730h. Minimum TLS is 1.2 and Bot Fight Mode is
         on. HSTS and rate limiting for the public `jellyfin`/`immich` hostnames are
         still manual dashboard changes.
@@ -1492,13 +1495,26 @@ data:
     
     ## 2026-10-17 additions
     
-    ### Cloudflare edge (now self-healing)
+    ### Cloudflare edge (OpenTofu-managed)
     ```bash
-    CF_API_TOKEN=<cfat_…> ./cloudflare/sync.sh      # manual run (bakuran-infra)
-    ssh root@192.168.2.82 systemctl list-timers cloudflare-sync.timer
-    ssh root@192.168.2.82 systemctl start cloudflare-sync.service   # run now
+    # source of truth: bakuran-infra/opentofu/cloudflare/ (records_all.tf, tunnel.tf,
+    # access_apps.tf, zone_settings.tf, r2.tf). State lives in the R2 S3 backend.
+    cd bakuran-infra/opentofu/cloudflare
+    export TF_VAR_cloudflare_api_token="$(… BWS cloudflare-api-token …)"   # never to disk
+    export AWS_ACCESS_KEY_ID=…  AWS_SECRET_ACCESS_KEY=…                  # BWS r2-access-key-id / r2-secret-access-key
+    tofu init && tofu plan && tofu apply       # expect a small diff, and 0 to destroy
     ```
-    The script is **baked at Nix deploy time**, redeploy `.82` after editing it.
+    Adding a hostname = a `cloudflare_dns_record` in `records_all.tf` **and** an
+    ingress row in `tunnel.tf`. Then `dig @1.1.1.1 <host>` (answers in seconds) and
+    check a neighbouring hostname to prove nothing else moved. A local cache can keep
+    an NXDOMAIN for a few minutes — query the resolver directly, not `getent`.
+    
+    `cloudflare-sync.timer` is **retired** (it would fight the OpenTofu state).
+    `cloudflare/sync.sh` is a manual **rollback** path only:
+    ```bash
+    ssh root@192.168.2.82 systemctl start cloudflare-sync.service   # rollback only
+    ssh root@192.168.2.82 systemctl list-timers | grep cloudflare    # expect nothing
+    ```
     
     ### Immich
     ```bash
@@ -1731,10 +1747,13 @@ data:
     
     ## Edge (Cloudflare)
     
-    - **Declared + enforced:** `bakuran-infra/cloudflare/sync.sh` is the source of
-      truth (hostnames → tunnel ingress, DNS, Access apps). It runs **daily** via
-      `cloudflare-sync.timer` on `.82` (`modules/cloudflare-sync.nix`, CF token from
-      SOPS), no more manual edge edits. It prunes apps/hostnames removed from the list.
+    - **Declared + enforced:** `bakuran-infra/opentofu/cloudflare/` is the source of
+      truth (DNS records, tunnel ingress, Access apps, zone settings, R2 lifecycle;
+      state in the R2 S3 backend, `tofu plan|apply` with the CF + R2 tokens from BWS).
+      A new hostname = a record in `records_all.tf` **and** an ingress entry in
+      `tunnel.tf`. The old `cloudflare-sync.timer` is **retired** so it cannot fight
+      the OpenTofu state; `cloudflare/sync.sh` survives only as a manual rollback
+      path (`systemctl start cloudflare-sync.service` on `.82`).
     - **Tunnel** (remote-managed) on **both** boxes; public hostnames → that box's
       local `ingress-nginx` (`127.0.0.1:32080`). ingress-nginx has **2 replicas** and
       `use-forwarded-headers=true` (real client IP reaches apps).
@@ -1759,10 +1778,14 @@ data:
     - **\*arrs** have no app-level auth (behind Access); `homepage`/`prometheus` are in
       the "Homelab Media" Access app. `status.bismigel.dev` is public.
     
-    ## Hermes (homelab agent / SRE)
+    ## Duwende (homelab agent / SRE)
     
-    An AI agent with homelab access, deployed as a k3s workload in the `duwende`
-    namespace (the namespace/app name is historical; the workload is `hermes`).
+    A duwende is a small household spirit in Philippine folklore, a caretaker of the
+    home and yard. The lab already has a bakuran, so its resident helper is named
+    Duwende. The namespace and ArgoCD app are being renamed to `duwende`; the
+    upstream workload and dashboard still use the Hermes name.
+    
+    An AI agent with homelab access, deployed as a k3s workload.
     It acts as the lab's SRE in the small sense: it watches, triages and reports,
     and it proposes changes through pull requests. It does not apply cluster
     changes or merge its own work.
