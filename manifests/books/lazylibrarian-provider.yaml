@@ -1,20 +1,23 @@
 # LazyLibrarian's indexer settings are not Kubernetes fields. They live in
-# /config/lazylibrarian.ini on the lazylibrarian-config PVC, which is why the
-# broken provider survived every audit of this repo: nothing here described it.
+# /config/config.ini on the lazylibrarian-config PVC, which is why the broken
+# provider survived every audit of this repo: nothing here described it.
 #
-# The init container in lazylibrarian.yaml applies these on every pod start.
+# config.ini, not lazylibrarian.ini — the first version of this job looked for
+# the latter, logged "no lazylibrarian.ini yet, nothing to do", and applied
+# nothing while the pod came up healthy. Silent no-ops are the failure mode this
+# whole change is trying to remove, so the file is now discovered rather than
+# assumed, and the name it picked is logged.
 #
-# Why the categories matter: the search that fails returns unrelated ebooks and
-# rejects them on similarity rather than returning nothing.
+# Why the categories matter: the failing search does not return nothing, it
+# returns unrelated ebooks that then fail the similarity threshold.
 #
 #   provider: "Danielle Steel The Ring" -> nearest match 44%,
 #             "The Legacy Series", no result
 #   Prowlarr /2/api + cat 7000,7020 ->
 #             "Danielle Steel - The Ring (retail) (epub)" x3
 #
-# The books exist at the indexer and are reachable. Spelling the ebook
-# categories out instead of leaving them to the provider default is the part
-# that can be fixed without touching a credential.
+# The script lives in a ConfigMap so changing it is a small diff in a small
+# file, not a rewrite of an 8 KB Deployment.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -32,17 +35,157 @@ data:
   GENERALSEARCH: "search"
   BOOKSEARCH: "search"
   EXTENDED: "1"
-  # Every Kubernetes/platform author in the library is 'Paused', so none of them
-  # has ever been searched. Set to "false" to leave them alone.
+  # Every Kubernetes/platform author in the library was 'Paused', so none of
+  # them had ever been searched. Set to "false" to leave them alone.
   ACTIVATE_PAUSED_AUTHORS: "true"
-# The host/api switch to Prowlarr needs its API key in this namespace. Secrets
-# do not cross namespaces and the key that media/ uses lives in a Secret called
-# media-setup which nothing in Git describes, so its Bitwarden item name is not
-# recorded anywhere I can read. The init container takes it from an OPTIONAL
-# Secret named lazylibrarian-secrets:
-#
-#   kubectl -n books create secret generic lazylibrarian-secrets \
-#     --from-literal=prowlarr-api-key=<key>
-#
-# Until that exists the init container keeps the existing host/api and applies
-# the categories and search type only.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lazylibrarian-provider-script
+  namespace: books
+data:
+  provider-config.py: |
+    """Apply LazyLibrarian's indexer settings on every pod start.
+
+    Idempotent: writes only when a value differs, keeps a one-time backup,
+    never prints the API key, and never raises — a wrong setting is a bug,
+    a pod that will not start is an outage.
+    """
+    import configparser
+    import os
+    import pathlib
+    import shutil
+    import sqlite3
+
+    CONFIG_DIR = pathlib.Path("/config")
+    OWNER = 1000
+
+
+    def log(*args):
+        print("provider-config:", *args)
+
+
+    def chown(path):
+        for candidate in (path, path.with_name(path.name + "-wal"),
+                          path.with_name(path.name + "-shm")):
+            if not candidate.exists():
+                continue
+            try:
+                os.chown(candidate, OWNER, OWNER)
+            except OSError:
+                pass
+
+
+    def find_ini():
+        """Return the config file LazyLibrarian actually uses."""
+        direct = CONFIG_DIR / "config.ini"
+        if direct.exists():
+            return direct
+        for candidate in sorted(CONFIG_DIR.glob("*.ini")):
+            try:
+                text = candidate.read_text(errors="ignore").lower()
+            except OSError:
+                continue
+            if "[newznab" in text or "[general]" in text:
+                return candidate
+        return None
+
+
+    def apply_provider(ini):
+        parser = configparser.RawConfigParser()
+        parser.optionxform = str  # keep case: CONFIG keys are UPPERCASE
+        parser.read(ini, encoding="utf-8")
+
+        sections = sorted(
+            (s for s in parser.sections() if s.lower().startswith("newznab")),
+            key=lambda s: (len(s), s),
+        )
+        if sections:
+            target = sections[0]
+        else:
+            target = "Newznab0"
+            parser.add_section(target)
+
+        host = os.environ.get("PROWLARR_NEWZNAB", "").strip()
+        key = os.environ.get("PROWLARR_API_KEY", "").strip()
+
+        wanted = {
+            "enabled": "1",
+            "generalsearch": os.environ.get("GENERALSEARCH", "search"),
+            "booksearch": os.environ.get("BOOKSEARCH", "search"),
+            "bookcat": os.environ.get("BOOKCAT", "7000,7020"),
+            "magcat": os.environ.get("MAGCAT", "7010"),
+            "audiocat": os.environ.get("AUDIOCAT", "3030"),
+            "extended": os.environ.get("EXTENDED", "1"),
+        }
+        if host and key:
+            wanted["host"] = host
+            wanted["api"] = key
+        else:
+            log("PROWLARR_API_KEY absent, leaving host/api as they are")
+
+        changed = []
+        for name, value in wanted.items():
+            current = parser.get(target, name, fallback=None)
+            if current == value:
+                continue
+            parser.set(target, name, value)
+            changed.append(name if name == "api"
+                           else "%s: %r -> %r" % (name, current, value))
+
+        if not changed:
+            log("[%s] already correct in %s" % (target, ini))
+            return
+
+        backup = ini.with_name(ini.name + ".init.bak")
+        if not backup.exists():
+            shutil.copy2(ini, backup)
+        with ini.open("w", encoding="utf-8") as handle:
+            parser.write(handle)
+        chown(ini)
+        chown(backup)
+        log("[%s] updated in %s:" % (target, ini), ", ".join(changed))
+
+        for extra in sections[1:]:
+            log("additional provider [%s] enabled=%s host=%s" % (
+                extra,
+                parser.get(extra, "enabled", fallback="?"),
+                parser.get(extra, "host", fallback="?"),
+            ))
+
+
+    def activate_authors():
+        if os.environ.get("ACTIVATE_PAUSED_AUTHORS", "false").lower() != "true":
+            return
+        db = CONFIG_DIR / "lazylibrarian.db"
+        if not db.exists():
+            log("no database yet, skipping author activation")
+            return
+        con = sqlite3.connect(str(db))
+        try:
+            cur = con.execute("UPDATE authors SET Status='Active' WHERE Status='Paused'")
+            con.commit()
+            log("authors set Active:", cur.rowcount)
+        finally:
+            con.close()
+        chown(db)
+
+
+    def main():
+        try:
+            ini = find_ini()
+            if ini is None:
+                log("no config.ini found in /config, nothing to do")
+            else:
+                apply_provider(ini)
+        except Exception as exc:  # never block the app
+            log("ini step failed, config left untouched:", repr(exc))
+
+        try:
+            activate_authors()
+        except Exception as exc:
+            log("author activation skipped:", repr(exc))
+
+
+    main()
