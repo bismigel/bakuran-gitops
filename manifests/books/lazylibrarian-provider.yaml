@@ -1,5 +1,5 @@
 # LazyLibrarian's indexer settings are not Kubernetes fields. They live in
-# /config/lazylibrarian.ini on the lazylibrarian-config PVC, which is why the
+# /config/config.ini on the lazylibrarian-config PVC, which is why the
 # broken provider survived every audit of this repo: nothing here described it.
 #
 # The init container in lazylibrarian.yaml applies these on every pod start.
