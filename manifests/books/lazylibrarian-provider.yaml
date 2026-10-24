@@ -2,22 +2,19 @@
 # /config/lazylibrarian.ini on the lazylibrarian-config PVC, which is why the
 # broken provider survived every audit of this repo: nothing here described it.
 #
-# Two things are declared in this file so the provider stops being invisible:
-#   - the settings the init container applies on every pod start,
-#   - the Prowlarr API key it needs to reach the indexer path that works.
+# The init container in lazylibrarian.yaml applies these on every pod start.
 #
-# Why Prowlarr and not the provider LazyLibrarian had: the same query, run two
-# ways against the same indexer, gives different answers.
+# Why the categories matter: the search that fails returns unrelated ebooks and
+# rejects them on similarity rather than returning nothing.
 #
-#   LazyLibrarian provider  -> "Danielle Steel The Ring" -> nearest match 44%,
-#                              "The Legacy Series", no result
-#   Prowlarr /2/api + cats  -> "Danielle Steel The Ring" ->
-#                              "Danielle Steel - The Ring (retail) (epub)" x3
+#   provider: "Danielle Steel The Ring" -> nearest match 44%,
+#             "The Legacy Series", no result
+#   Prowlarr /2/api + cat 7000,7020 ->
+#             "Danielle Steel - The Ring (retail) (epub)" x3
 #
-# So the books exist at NZBgeek and are reachable; the query path LazyLibrarian
-# used returned unrelated ebook releases and rejected them on similarity. This
-# points it at the endpoint that resolves the title, with the ebook categories
-# spelled out instead of left to the provider default.
+# The books exist at the indexer and are reachable. Spelling the ebook
+# categories out instead of leaving them to the provider default is the part
+# that can be fixed without touching a credential.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -26,34 +23,26 @@ metadata:
   namespace: books
 data:
   # Prowlarr exposes each indexer as its own Newznab endpoint: /2/api is NZBgeek.
+  # Only applied when the Prowlarr key is present as a Secret; see below.
   PROWLARR_NEWZNAB: "http://prowlarr.media.svc.cluster.local:9696/2"
-  # 7000/7020 = Books/Ebooks at both newznab and nZEDb sites. The default was
-  # letting book searches run against whatever the indexer returned instead.
+  # 7000/7020 = Books/Ebooks at both newznab and nZEDb sites.
   BOOKCAT: "7000,7020"
   MAGCAT: "7010"
   AUDIOCAT: "3030"
   GENERALSEARCH: "search"
   BOOKSEARCH: "search"
   EXTENDED: "1"
-  # Every Kubernetes/platform author in the library is currently 'Paused', so
-  # none of them has ever been searched. Set to "false" to leave them alone.
+  # Every Kubernetes/platform author in the library is 'Paused', so none of them
+  # has ever been searched. Set to "false" to leave them alone.
   ACTIVATE_PAUSED_AUTHORS: "true"
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: lazylibrarian-secrets
-  namespace: books
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    # Secrets are namespace-scoped, so the Prowlarr key that media/ uses cannot
-    # be referenced from here; it is pulled into this namespace instead.
-    name: bitwarden
-    kind: ClusterSecretStore
-  target:
-    name: lazylibrarian-secrets
-  data:
-    - secretKey: prowlarr-api-key
-      remoteRef:
-        key: prowlarr-api-key
+# The host/api switch to Prowlarr needs its API key in this namespace. Secrets
+# do not cross namespaces and the key that media/ uses lives in a Secret called
+# media-setup which nothing in Git describes, so its Bitwarden item name is not
+# recorded anywhere I can read. The init container takes it from an OPTIONAL
+# Secret named lazylibrarian-secrets:
+#
+#   kubectl -n books create secret generic lazylibrarian-secrets \
+#     --from-literal=prowlarr-api-key=<key>
+#
+# Until that exists the init container keeps the existing host/api and applies
+# the categories and search type only.
