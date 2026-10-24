@@ -1,0 +1,132 @@
+# Audiobookshelf — self-hosted audiobook + podcast server (web + native apps).
+# Lives in the books namespace next to Kavita/LazyLibrarian: same media host
+# (.81), same hostPath pool, and books is the namespace that already carries the
+# ingress/egress policies for this stack.
+#
+# Library lives at /mnt/media/audiobooks (created by media-dirs on .81 on both
+# local branches). LazyLibrarian's audiobook support stays Skipped for now; drop
+# files, `ll` audiobooks, or any other tool into that directory and ABS picks
+# them up on its next scan.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: audiobookshelf-config
+  namespace: books
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audiobookshelf
+  namespace: books
+  labels:
+    app: audiobookshelf
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: audiobookshelf
+  template:
+    metadata:
+      labels:
+        app: audiobookshelf
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: calamansi-intel
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: audiobookshelf
+          image: ghcr.io/advplyr/audiobookshelf:2.19.0@sha256:46f36b2f533e30347ae6d1e35ede6dc805a8d82211e26c4eee1f8f99cc245d48
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+          env:
+            - { name: TZ, value: America/Toronto }
+            # Unprivileged port: the image defaults to 80, which needs
+            # NET_BIND_SERVICE, and we drop all capabilities.
+            - { name: PORT, value: "8080" }
+            # Covers/book images/metadata stay on the PVC with /config so the
+            # library hostPath only ever holds audio files.
+            - { name: METADATA_PATH, value: /config/metadata }
+            # ABS backs up its own sqlite DB + settings here on a schedule.
+            - { name: BACKUP_PATH, value: /config/backups }
+          ports:
+            - { name: http, containerPort: 8080 }
+          startupProbe:
+            httpGet: { path: /ping, port: http }
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 20
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 60
+            failureThreshold: 3
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: audiobooks, mountPath: /audiobooks }
+          resources:
+            requests: { cpu: 20m, memory: 192Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: audiobookshelf-config
+        - name: audiobooks
+          hostPath:
+            path: /mnt/media/audiobooks
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audiobookshelf
+  namespace: books
+  labels:
+    app: audiobookshelf
+spec:
+  selector:
+    app: audiobookshelf
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: audiobookshelf
+  namespace: books
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+    # The player holds a socket.io connection open for the whole session; the
+    # 60s default read timeout would cut long listens.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: audiobookshelf.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: audiobookshelf
+                port:
+                  number: 8080
