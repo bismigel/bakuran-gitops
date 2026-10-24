@@ -248,6 +248,20 @@ data:
        Removed; `root` now syncs.
     3. **`miguelarbis.dev` is a 301 redirect** to `bismigel.dev` (Bulk Redirect), not
        its own site, intentional. `www.miguelarbis.dev` also routed.
+    4. **`/mnt/media-sda` is 99% full (3.9G free, 2026-10-24)** — tv 180G + movies
+       38G on a 234G disk. The library dirs are pinned to that branch
+       (`media-dirs` in `bakuran-infra/hosts/calamansi-intel/default.nix`) and
+       mergerfs `category.create=epmfs` writes into the branch holding the path, so
+       once it drops under the 4G `minfreespace` every create fails with
+       `No space left on device` **even though the pool shows 789G free**.
+       `mergerfs` reports it; `df /mnt/media` hides it.
+       - Symptom seen: LazyLibrarian fell back to `/config` for a book import
+         (`eBook dir ['/books'] not writeable, using /config`).
+       - Other branches: `media-nvme` 128G free, `remote82-sda` 335G free.
+       - Fix needs a decision (**moves data**): relocate a large show to another
+         branch (mergerfs merges reads, so it keeps working), or lower
+         `minfreespace` (masks the growth). Not done — needs a human.
+       - Triage: `RUNBOOK.md` → *LazyLibrarian is not downloading* → step 7.
     
     ## Housekeeping / follow-ups
     
@@ -341,7 +355,7 @@ data:
     
     ## 2026-10-24 — LazyLibrarian never downloaded (**FIXED**)
     
-    Three stacked bugs, all invisible from the UI (LazyLibrarian shows "Wanted" and
+    Five stacked bugs, all invisible from the UI (LazyLibrarian shows "Wanted" and
     does nothing):
     
     1. **Wrong config path.** The `provider-config` init container rewrote
@@ -358,6 +372,18 @@ data:
        `downloads:8080` and public 80/443, and `media`'s ingress policy did not list
        `books`, so even the Prowlarr route would have timed out. Added a narrow
        books→prowlarr tcp/9696 hole (both directions) in the same PR.
+    4. **SAB couldn't reach Prowlarr.** LL hands SAB a *URL*, so SAB fetches it
+       itself — `sabnzbd-egress` allowed only DNS + Frugal, and `media`'s ingress
+       didn't list `downloads`. Queue showed `Grabbing 0%`, retry every 120s.
+       bismigel/bakuran-gitops#167.
+    5. **SAB couldn't reach the indexer either.** Prowlarr answers `/2/download`
+       with **301** to `api.nzbgeek.info/api?t=get&id=...` and SAB follows it, so it
+       needs the Cloudflare edge on 443 (`[Errno 101] Network unreachable`
+       otherwise). bismigel/bakuran-gitops#168 (Cloudflare `ips-v4`, tcp/443).
+    
+    No UA trick was needed for SAB: Prowlarr forwards the *client's* User-Agent, and
+    `SABnzbd/4.x` / `curl` / browser are all accepted — only empty and
+    `Python-urllib`/`python-requests` signatures get `1010`.
     
     The Prowlarr key hookup had been dropped earlier because the key was not
     recorded anywhere (`#161`: *"its Bitwarden item name is not recorded anywhere I
@@ -366,8 +392,14 @@ data:
     
     Verified: `[Newznab_0] updated: host, api, bookcat` in the init log, `t=caps`
     200 through Prowlarr, a forced `cmd=searchbook` found a 100% match, sent it to
-    SABnzbd, and the book flipped `Wanted` → `Snatched`. Triage runbook:
-    `RUNBOOK.md` → *LazyLibrarian is not downloading*.
+    SABnzbd, SAB **completed the download** (1.5 MB) and LL flipped
+    the book `Wanted` → `Snatched` → `Open`.
+    
+    Remaining (separate, open — item 4 under *Active*): the import landed in
+    `/config` instead of the library because `/mnt/media-sda` is 99% full and
+    mergerfs refuses creates below its 4G `minfreespace`.
+    
+    Triage runbook: `RUNBOOK.md` → *LazyLibrarian is not downloading*.
     
     ## 2026-10-23 — hardening / ops learnings
     
@@ -637,6 +669,20 @@ data:
     `news.frugalusenet.com` resolves into. If Frugal adds ranges, downloads stall
     until the list is updated. qBittorrent keeps a broad public egress (RFC1918
     excluded); its privacy boundary is the host ProtonVPN kill switch.
+    
+    SABnzbd also needs three in-cluster/public holes the "usenet only" rule does not
+    cover (added 2026-10-24, all narrow):
+    
+    | Destination | Port | Why |
+    | --- | --- | --- |
+    | `media`/`app=prowlarr` | 9696 | LazyLibrarian hands SAB a Prowlarr `/2/download` URL |
+    | Cloudflare edge (`ips-v4`) | 443 | Prowlarr **301**s that URL to `api.nzbgeek.info`, which SAB fetches itself |
+    | Frugal networks | 563/443/119 | article download (unchanged) |
+    
+    Sonarr/Radarr don't need either hole: they fetch the NZB in `media` and POST the
+    body to SAB. Symptoms of a missing hole: `Grabbing 0%` + retry loop, with
+    `Network unreachable` in SAB's log. Full tree in `RUNBOOK.md` → *LazyLibrarian is
+    not downloading*.
   NEXT-STEPS.md: |
     # Next Steps / Roadmap
     
@@ -1309,9 +1355,46 @@ data:
     ```
     
     **6. SAB / import.** Category `books`, `DOWNLOAD_DIR=/downloads/complete/books`
-    (host `/mnt/media/books`). Check the queue, then that LL flips the book `Wanted`
-    -> `Snatched` -> `Open`. Only EPUB/PDF are scanned by Kavita; a MOBI-only release
-    downloads but never imports.
+    (host `/mnt/media/complete/books`). Check the queue, then that LL flips the book
+    `Wanted` -> `Snatched` -> `Open`. Only EPUB/PDF are scanned by Kavita; a MOBI-only
+    release downloads but never imports.
+    
+    SAB has to fetch the NZB **twice removed** and both hops need egress, which is
+    the most common way this looks "stuck at Grabbing 0%":
+    
+    1. LL gives SAB a URL on Prowlarr → needs `downloads -> media/prowlarr:9696`
+       (`sabnzbd-egress` + `allow-ingress-prowlarr-indexer-clients`).
+    2. Prowlarr answers **301** to `api.nzbgeek.info/api?t=get&id=...` and SAB
+       follows it itself → needs the Cloudflare edge on 443. Symptom of a miss:
+       `[Errno 101] Network unreachable` in SAB's log, retry every 120s.
+    
+    Sonarr/Radarr never hit this: they fetch the NZB in `media` (public egress) and
+    POST the file to SAB. Only LazyLibrarian hands over a bare URL.
+    
+    **7. Imported to `/config`, not to the library.** Two tells in the LL log:
+    
+    ```
+    WARNING: eBook dir ['/books'] not writeable, using /config: [Errno 28] No space left on device: '/books/ll_temp'
+    ERROR: No ebook-convert found
+    ```
+    
+    `No space left on device` on `/books` while `df` shows hundreds of GB free means
+    **mergerfs**, not the disk: the library dirs are pinned to the local branch
+    (`media-sda`, see `bakuran-infra/hosts/calamansi-intel/default.nix`
+    `media-dirs`) and `category.create=epmfs` writes into the branch that already
+    holds the path. When that branch drops below mergerfs' 4G `minfreespace`,
+    creates fail with ENOSPC.
+    
+    ```bash
+    ssh ... .81 'df -h /mnt/media-sda; du -sh /mnt/media-sda/*'   # 99% = the problem
+    ssh ... .81 'df -h /mnt/media-nvme /mnt/remote82-sda'          # space elsewhere
+    ```
+    
+    Options, in order of preference: move a large show off `media-sda` to a branch
+    with room (mergerfs merges reads, so `tv/<show>` keeps working), then re-run
+    `hermes`-free steps above; or lower `minfreespace` on the pool (buys a little,
+    masks the real growth). The `[Errno 28]` failure is safe — the book stays on the
+    `/config` PVC and can be moved by hand later.
     
     ## Hermes agent
     
