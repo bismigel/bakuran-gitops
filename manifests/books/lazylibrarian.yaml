@@ -34,7 +34,7 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: calamansi-intel
       initContainers:
-        # The provider lives in lazylibrarian.ini on the config PVC, so this is
+        # The provider lives in config.ini on the config PVC, so this is
         # the only place it can be declared. Runs before the app starts, only
         # writes when something differs, keeps a one-time .init.bak, and never
         # fails the pod: a wrong setting is a bug, a pod that will not start is
@@ -47,14 +47,20 @@ spec:
               python - <<'PY'
               import configparser, os, pathlib, shutil, sqlite3
 
-              INI = pathlib.Path("/config/lazylibrarian.ini")
+              INI = pathlib.Path("/config/config.ini")
+              # LazyLibrarian writes /config/config.ini. This used to point at
+              # lazylibrarian.ini, which never exists, so the whole provider step
+              # was a silent no-op -- categories and the Prowlarr switch never
+              # applied. Keep a fallback for older PVCs.
+              if not INI.exists() and pathlib.Path("/config/lazylibrarian.ini").exists():
+                  INI = pathlib.Path("/config/lazylibrarian.ini")
 
               def log(*a):
                   print("provider-config:", *a)
 
               try:
                   if not INI.exists():
-                      log("no lazylibrarian.ini yet, nothing to do")
+                      log("no config.ini yet, nothing to do")
                   else:
                       cp = configparser.RawConfigParser()
                       cp.optionxform = str  # keep case: top-level CONFIG keys are UPPERCASE
@@ -125,7 +131,7 @@ spec:
               except Exception as e:
                   log("author activation skipped:", repr(e))
               PY
-              chown 1000:1000 /config/lazylibrarian.ini /config/lazylibrarian.db 2>/dev/null || true
+              chown 1000:1000 /config/config.ini /config/lazylibrarian.db 2>/dev/null || true
           envFrom:
             - configMapRef:
                 name: lazylibrarian-provider

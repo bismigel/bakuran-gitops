@@ -173,6 +173,28 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: duwende
 ---
+# Narrow hole for the Books stack: LazyLibrarian uses Prowlarr as its Newznab
+# front-end (see the books egress policy). Only Prowlarr, only Newznab's port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-books-prowlarr
+  namespace: media
+spec:
+  podSelector:
+    matchLabels:
+      app: prowlarr
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: books
+      ports:
+        - protocol: TCP
+          port: 9696
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -566,6 +588,20 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Prowlarr as LazyLibrarian's Newznab front-end. NZBGeek sits behind
+    # Cloudflare, which rejects the `python-requests` signature with HTTP 403
+    # `error code: 1010` from this namespace, so LL searches through Prowlarr
+    # (which speaks Cloudflare's dialect and reaches the same indexer).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: media
+          podSelector:
+            matchLabels:
+              app: prowlarr
+      ports:
+        - protocol: TCP
+          port: 9696
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
