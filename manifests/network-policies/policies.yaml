@@ -173,12 +173,13 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: duwende
 ---
-# Narrow hole for the Books stack: LazyLibrarian uses Prowlarr as its Newznab
-# front-end (see the books egress policy). Only Prowlarr, only Newznab's port.
+# Narrow hole for the stacks that take NZBs from Prowlarr: the Books stack
+# (LazyLibrarian searches through Prowlarr) and SABnzbd (Prowlarr hands out a
+# /download URL that SAB must fetch itself). Only Prowlarr, only Newznab's port.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-from-books-prowlarr
+  name: allow-ingress-prowlarr-indexer-clients
   namespace: media
 spec:
   podSelector:
@@ -191,6 +192,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: books
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: downloads
       ports:
         - protocol: TCP
           port: 9696
