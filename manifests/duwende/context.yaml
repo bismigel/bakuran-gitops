@@ -539,10 +539,16 @@ data:
       state on the `audiobookshelf-config` PVC (`/config`, with `METADATA_PATH` and
       `BACKUP_PATH` subdirs); `/config` is in the R2 appdata backup. Runs on **8080**
       with `PORT` set, because the image default 80 needs `NET_BIND_SERVICE` and the pod
-      drops all capabilities. First-run admin account is created in the UI; ABS's own
-      scheduled backups are **off** by default. LazyLibrarian audiobooks stay `Skipped`,
+      drops all capabilities. ABS's own
+      scheduled backups are **off** by default (turn them on in the UI if `/config`
+      matters more than the R2 dump). LazyLibrarian audiobooks stay `Skipped`,
       so drop audio into `/mnt/media/audiobooks` (or let another tool fetch it) and ABS
-      picks it up on its next scan.
+      picks it up on its next scan. Library **Audiobooks** → `/audiobooks`, created via
+      the API.
+      - Accounts: **`gio`** (root/admin) and **`ciceley`** (normal user). Passwords are
+        random 28-char, stored in BWS as `audiobookshelf-gio` / `audiobookshelf-ciceley`
+        (and mirrored to the Bitwarden vault as items with the same names). Procedure and
+        API gotchas: `RUNBOOK.md` → *Audiobookshelf accounts*.
     - **Kavita**, library server. Accounts: `gio` (admin) and `ciceley`
       (Pleb+Login, the **Login role is required**, otherwise login reports "account
       is disabled"). The **Books** library (Book type, Epub+Pdf, Hardcover metadata)
@@ -1107,6 +1113,13 @@ data:
   README.md: |
     # Homelab Context
     
+    ## Why "Bakuran"
+    
+    Bakuran is Tagalog for the yard or enclosure behind a house, from *bakod*, a
+    fence. It is the space where things get built, repaired, and occasionally taken
+    apart to see how they work. This context describes that backyard lab: small,
+    personal, and safe to break on purpose.
+    
     > Operating context for the Bakuran homelab, kept in the **private**
     > `bismigel/homelab-context` repo so a future LLM/human has full context.
     >
@@ -1115,7 +1128,7 @@ data:
     > backup in R2, see `RUNBOOK.md`). Everything else here is non-secret.
     >
     > Path: `~/projects/homelab-context/`
-    > Last updated: 2026-10-17
+    > Last updated: 2026-10-24
     
     ## Read order for an LLM/agent
     
@@ -1125,22 +1138,26 @@ data:
     4. **`RUNBOOK.md`**, common tasks (deploy app, rebuild host, rotate secrets).
     5. **`KNOWN-ISSUES.md`**, what's broken / pending.
     6. **`NEXT-STEPS.md`**, prioritized roadmap of outstanding work.
+    7. **`HARDENING.md`**, current security posture, what is applied/deferred, and ops commands.
+    8. **Ops runbook (web):** <https://runbook.bismigel.dev/> — the sanitized, Access-gated
+       procedures page (source: `bismigel-site/org/projects/runbook.org`; the public
+       `bismigel.dev` host 404s it).
     
     ## One-paragraph summary
     
     Three NixOS hosts form **one k3s cluster** (embedded etcd, **3 members**):
     **`sitaw-amd`** (.82, AMD Ryzen) is the platform/control plane; **`calamansi-intel`**
     (.81, Intel i5 + QuickSync) runs the **media stack** (pinned there by `nodeSelector`
-    for QSV + local `/mnt/media`); **`kamatis-mbp`** (.83, MacBook Pro 2012) is a
-    control-plane-only etcd member (tainted, runs nothing else). A **single ArgoCD**
-    runs in-cluster on `.82` (no external cluster anymore), plus ingress-nginx and
+    for QSV + local `/mnt/media`); **`kamatis-mbp`** (.83, MacBook Pro 2012) is a control-plane/etcd member
+    (tainted) that runs Immich and one Redis HA replica with explicit tolerations. A **single ArgoCD** Helm release runs in-cluster on `.82` (no external cluster anymore), plus ingress-nginx and
     cloudflared connectors on both `.81`/`.82` (edge HA). Infrastructure is split across
     repos: `bakuran-infra` (NixOS machines + DR), `bakuran-gitops` (ArgoCD desired
     state for the cluster), `homelab-app-template` (new apps), and per-app repos.
     Apps build images via GitHub Actions → GHCR → ArgoCD pulls and deploys. Secrets
     are **Bitwarden Secrets Manager + External Secrets Operator** (machine) and
-    **SOPS/age** (host). The public edge is a Cloudflare Tunnel; Zero Trust Access
-    gates the sensitive endpoints.
+    **SOPS/age** (host). The public edge is a Cloudflare Tunnel; Zero Trust Access gates the sensitive
+    endpoints. Redis HA runs three Redis/sentinel pods and three HAProxy pods; the
+    chart announce Services are made headless by a Helm post-renderer.
     
     ## Ground rules for agents
     
@@ -1294,6 +1311,62 @@ data:
     pod, reads keys from the `media-setup` Secret, deletes itself, restarts the app).
     LazyLibrarian has no config API and drops externally-seeded `config.ini` sections,
     so the UI is the only durable path, do not hand-edit the file.
+    
+    ## Audiobookshelf accounts (books ns, `.81`)
+    
+    Two accounts exist: **`gio`** (root/admin) and **`ciceley`** (user, no admin role).
+    Passwords are random 28-char and live in BWS `audiobookshelf-gio` /
+    `audiobookshelf-ciceley` (same item names in the Bitwarden vault). Both can log in
+    at <https://audiobookshelf.bismigel.dev> (public hostname, ABS does its own auth).
+    
+    Four API facts that cost time to discover:
+    
+    1. **Bootstrap is `POST /init`**, not `/api/users`: `{"newRoot":{"username":"gio","password":"…"}}`.
+       It only works while no root user exists (`/status` → `"isInit": false`).
+    2. **Login is `POST /login`** (not `/api/login` — that path 401s with the same body,
+       which looks like a wrong password). Response: `{"user":{…,"token":"…"}}`.
+    3. **Users created through `POST /api/users` land `isActive: false`** — PATCH the
+       user with `{"isActive":true}` or the login silently fails.
+    4. **ABS caches users in memory.** Editing `pash` directly in
+       `/config/absdatabase.sqlite` has no effect until the pod restarts. (Password
+       resets go through the API or the UI; the DB is the last resort.)
+    
+    ```bash
+    POD=$(ssh ... .81 'k3s kubectl -n books get pod -l app=audiobookshelf -o jsonpath="{.items[0].metadata.name}"')
+    U=http://127.0.0.1:32080; H='Host: audiobookshelf.bismigel.dev'
+    
+    # first-run only
+    ssh ... .81 "curl -s $H -X POST $U/init -H 'Content-Type: application/json' \
+      --data '{\"newRoot\":{\"username\":\"gio\",\"password\":\"<pw>\"}}'"
+    
+    # admin token, then create users / library
+    TOK=$(ssh ... .81 "curl -s $H -X POST $U/login -H 'Content-Type: application/json' \
+      --data '{\"username\":\"gio\",\"password\":\"<pw>\"}'" | jq -r .user.token)
+    ssh ... .81 "curl -s $H -X POST $U/api/users -H 'Authorization: Bearer $TOK' \
+      -H 'Content-Type: application/json' --data '{\"username\":\"ciceley\",\"password\":\"<pw>\",\"type\":\"user\"}'"
+    ssh ... .81 "curl -s $H -X PATCH $U/api/users/<id> -H 'Authorization: Bearer $TOK' \
+      -H 'Content-Type: application/json' --data '{\"isActive\":true}'"
+    ```
+    
+    Library: **Audiobooks**, media type *book*, folder `/audiobooks`
+    (→ `/mnt/media/audiobooks`). Empty is normal — files appear after the next scan.
+    
+    Adding an account to the personal vault (needs an unlocked `bw`; the agent cannot
+    unlock, and never writes a session to disk):
+    
+    ```bash
+    export BW_SESSION=$(bw unlock --raw)
+    for u in gio ciceley; do
+      p=$(bws secret list -o json | jq -r --arg k "audiobookshelf-$u" '.[]|select(.key==$k).value')
+      bw get template item | jq --arg u "audiobookshelf-$u" --arg p "$p" \
+        '.type=1|.name=$u|.login.username=$u|.login.password=$p|.login.uris=[{"uri":"https://audiobookshelf.bismigel.dev"}]|del(.id,.organizationId,.folderId,.collectionIds)' \
+        | bw encode | bw create item
+     done
+    bw lock
+    ```
+    
+    Agents: Hermes has **reachability** to `books` (8080/5000/5299) for `/status` and
+    `/ping`, but no app login — account changes are human-only.
     
     ## LazyLibrarian is not downloading (books never get snatched)
     
