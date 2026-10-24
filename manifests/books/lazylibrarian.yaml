@@ -33,6 +33,115 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: calamansi-intel
+      initContainers:
+        # The provider lives in lazylibrarian.ini on the config PVC, so this is
+        # the only place it can be declared. Runs before the app starts, only
+        # writes when something differs, keeps a one-time .init.bak, and never
+        # fails the pod: a wrong setting is a bug, a pod that will not start is
+        # an outage.
+        - name: provider-config
+          image: python:3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              python - <<'PY'
+              import configparser, os, pathlib, shutil, sqlite3
+
+              INI = pathlib.Path("/config/lazylibrarian.ini")
+
+              def log(*a):
+                  print("provider-config:", *a)
+
+              try:
+                  if not INI.exists():
+                      log("no lazylibrarian.ini yet, nothing to do")
+                  else:
+                      cp = configparser.RawConfigParser()
+                      cp.optionxform = str  # keep case: top-level CONFIG keys are UPPERCASE
+                      cp.read(INI, encoding="utf-8")
+
+                      secs = sorted((s for s in cp.sections() if s.lower().startswith("newznab")),
+                                    key=lambda s: (len(s), s))
+                      if secs:
+                          target = secs[0]
+                      else:
+                          target = "Newznab0"
+                          cp.add_section(target)
+
+                      host = os.environ.get("PROWLARR_NEWZNAB", "").strip()
+                      key = os.environ.get("PROWLARR_API_KEY", "").strip()
+                      wanted = {
+                          "enabled": "1",
+                          "generalsearch": os.environ.get("GENERALSEARCH", "search"),
+                          "booksearch": os.environ.get("BOOKSEARCH", "search"),
+                          "bookcat": os.environ.get("BOOKCAT", "7000,7020"),
+                          "magcat": os.environ.get("MAGCAT", "7010"),
+                          "audiocat": os.environ.get("AUDIOCAT", "3030"),
+                          "extended": os.environ.get("EXTENDED", "1"),
+                      }
+                      if host and key:
+                          wanted["host"] = host
+                          wanted["api"] = key
+                      else:
+                          log("PROWLARR_API_KEY absent, leaving host/api as they are")
+
+                      changed = []
+                      for k, v in wanted.items():
+                          cur = cp.get(target, k, fallback=None)
+                          if cur != v:
+                              cp.set(target, k, v)
+                              changed.append(k if k == "api" else "%s: %r -> %r" % (k, cur, v))
+
+                      if changed:
+                          bak = pathlib.Path(str(INI) + ".init.bak")
+                          if not bak.exists():
+                              shutil.copy2(INI, bak)
+                          with INI.open("w", encoding="utf-8") as fh:
+                              cp.write(fh)
+                          log("[%s] updated:" % target, ", ".join(changed))
+                      else:
+                          log("[%s] already correct" % target)
+
+                      for extra in secs[1:]:
+                          log("additional provider [%s] enabled=%s host=%s" % (
+                              extra, cp.get(extra, "enabled", fallback="?"),
+                              cp.get(extra, "host", fallback="?")))
+              except Exception as e:
+                  log("ini step failed, config left untouched:", repr(e))
+
+              try:
+                  if os.environ.get("ACTIVATE_PAUSED_AUTHORS", "false").lower() == "true":
+                      db = pathlib.Path("/config/lazylibrarian.db")
+                      if db.exists():
+                          con = sqlite3.connect(str(db))
+                          cur = con.cursor()
+                          cur.execute("UPDATE authors SET Status='Active' WHERE Status='Paused'")
+                          n = cur.rowcount
+                          con.commit()
+                          con.close()
+                          log("authors set Active:", n)
+                      else:
+                          log("no database yet, skipping author activation")
+              except Exception as e:
+                  log("author activation skipped:", repr(e))
+              PY
+              chown 1000:1000 /config/lazylibrarian.ini /config/lazylibrarian.db 2>/dev/null || true
+          envFrom:
+            - configMapRef:
+                name: lazylibrarian-provider
+          env:
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: prowlarr-api-key
+                  optional: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
       containers:
         - name: lazylibrarian
           image: linuxserver/lazylibrarian:version-754d0eb6
