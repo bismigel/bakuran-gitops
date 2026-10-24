@@ -250,19 +250,28 @@ data:
        Removed; `root` now syncs.
     3. **`miguelarbis.dev` is a 301 redirect** to `bismigel.dev` (Bulk Redirect), not
        its own site, intentional. `www.miguelarbis.dev` also routed.
-    4. **`/mnt/media-sda` is 99% full (3.9G free, 2026-10-24)** — tv 180G + movies
-       38G on a 234G disk. The library dirs are pinned to that branch
-       (`media-dirs` in `bakuran-infra/hosts/calamansi-intel/default.nix`) and
-       mergerfs `category.create=epmfs` writes into the branch holding the path, so
-       once it drops under the 4G `minfreespace` every create fails with
-       `No space left on device` **even though the pool shows 789G free**.
-       `mergerfs` reports it; `df /mnt/media` hides it.
-       - Symptom seen: LazyLibrarian fell back to `/config` for a book import
+    4. **Media pool branch imbalance** (`/mnt/media`, 2026-10-24) — mergerfs runs
+       `category.create=epmfs`: a new file goes to the branch that already holds its
+       directory, so **only branches that carry the library dirs can ever receive
+       writes**. Two consequences, both seen today:
+       - When the dirs existed only on `media-sda`, everything piled there; it hit
+         **99% (3.9G free)**, below mergerfs' 4G `minfreespace`, and creates failed
+         with `ENOSPC` **while `df /mnt/media` reported 789G free**. Symptom:
+         LazyLibrarian imported a book to `/config`
          (`eBook dir ['/books'] not writeable, using /config`).
-       - Other branches: `media-nvme` 128G free, `remote82-sda` 335G free.
-       - Fix needs a decision (**moves data**): relocate a large show to another
-         branch (mergerfs merges reads, so it keeps working), or lower
-         `minfreespace` (masks the growth). Not done — needs a human.
+       - After `media-dirs` also created the dirs on `media-nvme`, new content went
+         there instead and filled it: **12G free (91%)** within hours, while
+         `remote82-sda` sat at 4%.
+       - **Done (2026-10-24):** rebalanced by moving folders between branches —
+         `9-1-1` (46G), `INVINCIBLE` (23G), `The Sopranos` (19G) → `remote82-sda`,
+         and the two big nvme movies → `media-sda`. Every move was byte-verified
+         before deleting the source; the pool serves the content throughout
+         (mergerfs merges reads). Result: sda 54%, nvme 43%, remote82-sda 24%.
+       - **Still open (needs a human):** the local branches are 369G against 300G+
+         of media, so the trend is inevitable. Either create the library dirs on
+         `remote82-sda` too (writes then depend on the NFS export from `.82`, which
+         `media-dirs` deliberately avoided), or add local capacity, or stop growing.
+       - Rebalance recipe: `RUNBOOK.md` → *LazyLibrarian is not downloading* → step 7.
        - Triage: `RUNBOOK.md` → *LazyLibrarian is not downloading* → step 7.
     
     ## Housekeeping / follow-ups
@@ -1459,7 +1468,6 @@ data:
     POST the file to SAB. Only LazyLibrarian hands over a bare URL.
     
     **7. Imported to `/config`, not to the library.** Two tells in the LL log:
-    
     ```
     WARNING: eBook dir ['/books'] not writeable, using /config: [Errno 28] No space left on device: '/books/ll_temp'
     ERROR: No ebook-convert found
@@ -1477,11 +1485,37 @@ data:
     ssh ... .81 'df -h /mnt/media-nvme /mnt/remote82-sda'          # space elsewhere
     ```
     
-    Options, in order of preference: move a large show off `media-sda` to a branch
-    with room (mergerfs merges reads, so `tv/<show>` keeps working), then re-run
-    `hermes`-free steps above; or lower `minfreespace` on the pool (buys a little,
-    masks the real growth). The `[Errno 28]` failure is safe — the book stays on the
-    `/config` PVC and can be moved by hand later.
+    **Rebalancing a full branch** (safe, verified, no downtime — mergerfs merges
+    reads, so the folder keeps serving while it moves):
+    
+    ```bash
+    # 1. how full is each branch, and what is big
+    for b in /mnt/media-sda /mnt/media-nvme /mnt/remote82-sda; do printf '%-20s ' $b; df -h $b | tail -1 | awk '{print $4" free"}'; done
+    du -sh /mnt/media-sda/tv/* | sort -h | tail -5
+    
+    # 2. copy a folder to a branch with room (mkdir -p the parent first)
+    mkdir -p /mnt/remote82-sda/tv
+    nohup sh -c 'cp -a "/mnt/media-sda/tv/<show>" /mnt/remote82-sda/tv/ && echo COPIED' > /tmp/rebalance.log 2>&1 &
+    
+    # 3. verify EVERY file before deleting anything (spaces in names -> tab separator)
+    S=/mnt/media-sda/tv/<show>; D=/mnt/remote82-sda/tv/<show>; bad=0
+    while IFS=$'\t' read -r p s; do
+      [ -f "$D/$p" ] && [ "$(stat -c%s "$D/$p")" = "$s" ] || { echo "MISMATCH $p"; bad=1; }
+    done < <(cd "$S" && find . -type f -printf '%p\t%s\n')
+    [ $bad -eq 0 ] && rm -rf "$S" && echo "moved"
+    
+    # 4. the pool still serves it, now from the other branch
+    find /mnt/media/tv/<show> -name '*.mkv' | wc -l
+    ```
+    
+    Rules that matter: never `rm` before the verify loop passes; moves to
+    `remote82-*` are over NFS (slow, ~100 MB/s) while folders between local branches is
+    fast; a *new* file can appear in the destination mid-copy (Sonarr importing) —
+    that is fine, the verify loop only checks the source's file list.
+    
+    Last resort: lower `minfreespace` on the pool (buys a little, masks the real
+    growth). The `[Errno 28]` failure is safe — the book stays on the `/config` PVC
+    and can be moved by hand later.
     
     ## Hermes agent
     
