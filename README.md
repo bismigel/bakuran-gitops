@@ -25,10 +25,12 @@ manifests/<app>/            # raw Kubernetes manifests
 scripts/                    # generators (e.g. generate-duwende-context.sh)
 ```
 
-`manifests/` currently holds: `media`, `monitoring` (incl. the **login watchers**
+`manifests/` currently holds: `media` (the *arr stack + **media-mcp**), `books`
+(Kavita, LazyLibrarian, **Audiobookshelf**), `monitoring` (incl. the **login watchers**
 and the power dashboard), `observability`, `external-secrets`, `ingress-headers`,
 `namespaces`, `homepage`, `duwende` (config + **generated** context), `kepler`,
-`immich`, `longhorn-config`, `node-exporter`. Some apps point at their **own** repo's
+`immich`, `karakeep`, `cilium`, `edge`, `network-policies`, `intel-gpu-plugin`,
+`longhorn-config`, `argocd`, `node-exporter`. Some apps point at their **own** repo's
 `deploy/k8s/` (`ciceley-site`, `bismigel-site`, `private-api`, `status-api`) or a
 Helm chart (`ingress-nginx`, `cert-manager`, `external-secrets`,
 `opentelemetry-operator`).
