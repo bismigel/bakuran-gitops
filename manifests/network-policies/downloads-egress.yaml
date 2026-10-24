@@ -51,6 +51,19 @@ spec:
               protocol: TCP
             - port: "119"
               protocol: TCP
+    # NZB fetch from Prowlarr. LazyLibrarian hands SAB a URL
+    # (http://prowlarr...:9696/2/download?...) instead of the NZB body, so the
+    # grab itself needs in-cluster access to the indexer front-end. Without
+    # this the job sits at "Grabbing 0%" and retries the URL forever
+    # (2026-10-24).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: media
+            app: prowlarr
+      toPorts:
+        - ports:
+            - port: "9696"
+              protocol: TCP
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
