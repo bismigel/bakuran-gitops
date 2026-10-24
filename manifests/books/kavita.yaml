@@ -6,7 +6,13 @@ metadata:
   name: books
   labels:
     app.kubernetes.io/part-of: homelab
-    pod-security.kubernetes.io/enforce: baseline
+    # audit/warn only, no enforce. Both workloads in this namespace mount
+    # /mnt/media/books with hostPath, which baseline rejects outright:
+    #   pods "lazylibrarian-..." is forbidden: violates PodSecurity
+    #   "baseline:latest": hostPath volumes (volumes "books", "downloads")
+    # The running pods were created before the enforce label was applied, so the
+    # trap only showed up when a pod had to be recreated. Same reasoning as
+    # monitoring and media, which are audit/warn for hostNetwork/hostPath.
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
 ---
