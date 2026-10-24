@@ -64,8 +64,14 @@ data:
               runbook_url: "https://runbook.bismigel.dev"
           - alert: MediaPoolDaysToFull
             # % full cannot tell "stable at 90%" from "dead in two days".
-            expr: predict_linear(node_filesystem_avail_bytes{mountpoint=~"/mnt/media.*"}[6h], 7 * 86400) < 0
-            for: 1h
+            # Two guards, both learned the hard way: the 6h window fired on the
+            # 155G one-off rebalance right after it ran (avail dropped sharply on
+            # remote82-sda, so the slope said "full within a week" while the disk
+            # was 58% free). So: 24h window to smooth one-off moves, and only fire
+            # when headroom is genuinely low (<15%) *and* still trending down.
+            expr: predict_linear(node_filesystem_avail_bytes{mountpoint=~"/mnt/media.*"}[24h], 7 * 86400) < 0
+              and (node_filesystem_avail_bytes{mountpoint=~"/mnt/media.*"} / node_filesystem_size_bytes{mountpoint=~"/mnt/media.*"}) < 0.15
+            for: 2h
             labels: { severity: warning }
             annotations:
               summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} projected to fill within 7 days"
