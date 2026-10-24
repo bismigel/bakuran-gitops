@@ -1,0 +1,68 @@
+# One-shot: give the movies directory a second branch with room to grow.
+#
+# mergerfs only redirects writes at path creation. /mnt/media/movies exists on
+# /mnt/media-sda — a 234 GB disk with 36.7 GB free — so every import into it is
+# pinned to that branch no matter what the union reports. The union says 763 GB
+# free because it sums branches that have nothing to do with this path.
+#
+# The visible failure: a 76.7 GB 4K remux completed in SAB and Radarr has been
+# sitting in trackedState=importing ever since, because 76.7 GB cannot land in
+# 36.7 GB. Nothing in Radarr's log says "disk" loudly; the download just never
+# finishes importing.
+#
+# Creating the same directory on the branch with space (/mnt/remote82-sda, the
+# 457 GB disk on .82, ~400 GB free) makes epmfs pick that branch for new files.
+# Nothing is moved: existing films stay exactly where they are, the union still
+# presents one /movies, and only new imports follow the room.
+#
+# This is the same mechanism as books and downloads: create the path on the
+# branch you want, and mergerfs follows it.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: media-movies-branch-dir
+  namespace: media
+spec:
+  ttlSecondsAfterFinished: 900
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: calamansi-intel
+      containers:
+        - name: mkdir
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              d=/branch/movies
+              if [ -d "$d" ]; then
+                echo "$d already exists, nothing to do"
+              else
+                mkdir -p "$d"
+                echo "created $d"
+              fi
+              # Radarr runs as root but the arr stack and Jellyfin read as 1000.
+              # If the NFS export squashes root, chown fails and the write still
+              # succeeds as root — log it rather than fail the job.
+              chown 1000:1000 "$d" 2>/dev/null || echo "chown skipped (root squash?)"
+              chmod 775 "$d" 2>/dev/null || true
+              echo "--- result ---"
+              ls -ld "$d"
+              df -h /branch | tail -1
+          volumeMounts:
+            - name: branch
+              mountPath: /branch
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+      volumes:
+        - name: branch
+          # The .82 SATA branch as mounted on .81. Paths in the mergerfs pool are
+          # media-nvme:media-sda:remote82-nvme:remote82-sda, so this is the
+          # directory the union calls movies for that branch.
+          hostPath:
+            path: /mnt/remote82-sda
+            type: Directory

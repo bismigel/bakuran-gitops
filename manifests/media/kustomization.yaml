@@ -8,6 +8,9 @@ resources:
   - sabnzbd.yaml
   - media-mcp.yaml
   - ghcr-secret.yaml
+  # One-shot: creates /mnt/remote82-sda/movies so the union has a second branch
+  # for that path. Runs once and stays Completed.
+  - movies-branch-dir.yaml
 # The media stack uses hostPath /mnt/media and /dev/dri (QuickSync), which exist
 # only on calamansi-intel (.81). Pin every media pod to that node.
 patches:
