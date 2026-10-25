@@ -1,0 +1,70 @@
+# FlareSolverr — a Chromium proxy that renders JavaScript behind Cloudflare.
+#
+# Why: AudioBookBay's search page is plain HTML (parsed fine), but its *download*
+# link is built by JavaScript from the info hash, so there is no magnet/.torrent
+# anchor in the HTML at all (verified: grep -c magnet on a detail page -> 0).
+# Cardigann cannot synthesise a magnet, so Prowlarr cannot grab from that site
+# without a renderer. That is very likely why ABB has no upstream definition.
+#
+# Prowlarr talks to it over its HTTP API (POST /v1 with cmd=request.get); the
+# indexer then gets fully rendered HTML to select from.
+#
+# Not public: no ingress, no hostPort. Only in-cluster consumers (Prowlarr).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flaresolverr
+  namespace: media
+  labels: { app: flaresolverr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: flaresolverr }
+  template:
+    metadata:
+      labels: { app: flaresolverr }
+    spec:
+      # Port 8191, no state, no volume: if it wedges, deleting the pod is enough.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: flaresolverr
+          image: ghcr.io/flaresolverr/flaresolverr:v3.5.2@sha256:sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767
+          env:
+            - { name: TZ, value: America/Toronto }
+            - { name: LOG_LEVEL, value: info }
+            # Long enough for a Cloudflare challenge to settle, short enough that
+            # a broken site fails instead of hanging Prowlarr's search.
+            - { name: CAPTCHA_SOLVER, value: none }
+          ports:
+            - { name: http, containerPort: 8191 }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flaresolverr
+  namespace: media
+  labels: { app: flaresolverr }
+spec:
+  selector: { app: flaresolverr }
+  ports:
+    - { name: http, port: 8191, targetPort: 8191 }
