@@ -65,6 +65,23 @@ data:
               - name: WEBRip-1080p
               - name: Bluray-1080p
               - name: HDTV-1080p
+
+          # Opt-in 4K: assigned per item, never the default. Deliberately
+          # excludes Bluray-2160p and Remux-2160p - a 2160p WEB-DL is ~15GB
+          # where the remux was 68GB, and Jellyfin's remote cap is 12 Mbps, so
+          # the extra 50GB bought nothing that can actually be streamed.
+          - name: Movies-2160p
+            reset_unmatched_scores:
+              enabled: false
+            upgrade:
+              allowed: true
+              until_quality: WEBDL-2160p
+              until_score: 10000
+            min_format_score: 0
+            quality_sort: top
+            qualities:
+              - name: WEBDL-2160p
+              - name: WEBRip-2160p
 ---
 # Nightly sync. Starts in --dry-run: it logs the exact profile/CF diff and writes
 # nothing. Flip the arg to `sync` in a follow-up once the dry-run output has been
