@@ -634,17 +634,38 @@ data:
     deliberate per-item choice: `Movies-2160p` exists so 4K is possible without the
     remux class.
     
-    **Size caps (added 2026-10-24):** `bakuran-infra/opentofu/media/` owns
-    `quality_definition` and nothing else. Stock Radarr/Sonarr ship `maxSize: null`
+    **What `bakuran-infra/opentofu/media/` owns** (declarative, state in R2
+    `opentofu/media/terraform.tfstate`):
+    
+    | Object | Notes |
+    | --- | --- |
+    | `quality_definition` sizes (27) | the size caps — see below |
+    | root folders | `/movies`, `/tv` — **imported**, not created |
+    | Telegram notifications | one per app, failure signals only |
+    
+    still imperative: download clients and Prowlarr indexers/applications
+    (`scripts/media-stack-setup.sh`).
+    
+    **Size caps (added 2026-10-24):** stock Radarr/Sonarr ship `maxSize: null`
     for **every** 2160p class — that is how a 68G remux got in. Caps in MB/min:
     720p 22 · 1080p **35** (2.1 GB/h) · 1080p remux 60 · 2160p **250** (15 GB/h) ·
     2160p remux 400. Evidence: 60-min 1080p episode ≈ 30 MB/min, the 34GB 2160p
     WEB-DL ≈ 309, the 68G remux ≈ 620 — so 250 blocks remuxes and the fattest
     WEB-DLs while admitting normal 4K. (A first draft used 20/55 MB/min, which would
-    have rejected every real 4K WEB-DL; do not go back to it.) Changes go through
-    `tofu plan/apply` there; the *arr hostPorts are not reachable from
-    `nix-station`, so apply over `kubectl -n media port-forward svc/radarr 17878:7878`
-    (and 18989 for sonarr) with `TF_VAR_*_url=http://127.0.0.1:<port>`.
+    have rejected every real 4K WEB-DL; do not go back to it.)
+    
+    **Notifications** post to the same Telegram bot/chat Alertmanager uses
+    (`implementation Telegram`, `config_contract TelegramSettings`; token from BWS
+    `telegram-bot-token`). Failure signals only — health issue/restored, app update,
+    manual interaction. Grab/import/upgrade are **off** so a TV library does not
+    produce a message per episode.
+    
+    Operating notes: the *arr hostPorts are unreachable from `nix-station`, so apply
+    over `kubectl -n media port-forward svc/radarr 17878:7878` (and 18989 for sonarr)
+    with `TF_VAR_*_url=http://127.0.0.1:<port>`. Acceptance test for every change is
+    that a follow-up `plan` reports **no changes** — otherwise the declaration is
+    decoration. Testing a notification needs the *full object* POSTed to
+    `/notification/test` (`/{id}` is 405; a bare `{"id":…}` fails validation).
     
     Toleration notes that cost time:
     
