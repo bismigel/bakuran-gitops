@@ -16,7 +16,7 @@ data:
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 2,
+      "version": 3,
       "refresh": "30s",
       "time": {
         "from": "now-24h",
@@ -48,10 +48,10 @@ data:
           "type": "stat",
           "title": "etcd members reporting",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 0,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -109,10 +109,10 @@ data:
           "type": "stat",
           "title": "Leader changes (24h)",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 6,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -170,10 +170,10 @@ data:
           "type": "stat",
           "title": "etcd DB of quota",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 12,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -231,10 +231,10 @@ data:
           "type": "stat",
           "title": "Scrape targets down",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 18,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -292,10 +292,10 @@ data:
           "type": "timeseries",
           "title": "etcd DB size vs quota",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 0,
-            "y": 5
+            "y": 5,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -349,10 +349,10 @@ data:
           "type": "timeseries",
           "title": "WAL fsync p99",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 12,
-            "y": 5
+            "y": 5,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -416,10 +416,10 @@ data:
           "type": "timeseries",
           "title": "Backend commit p99",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 0,
-            "y": 13
+            "y": 13,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -483,10 +483,10 @@ data:
           "type": "timeseries",
           "title": "Peer round-trip p99",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 12,
-            "y": 13
+            "y": 13,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -530,10 +530,10 @@ data:
           "type": "timeseries",
           "title": "Proposals",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 0,
-            "y": 21
+            "y": 21,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -582,10 +582,10 @@ data:
           "type": "table",
           "title": "Node conditions",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 12,
-            "y": 21
+            "y": 21,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -618,10 +618,10 @@ data:
           "type": "timeseries",
           "title": "API server storage size",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 0,
-            "y": 29
+            "y": 29,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -654,42 +654,6 @@ data:
               "mode": "multi",
               "sort": "desc"
             }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
-          "id": 12,
-          "type": "table",
-          "title": "Targets that are down",
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 29
-          },
-          "targets": [
-            {
-              "expr": "up == 0",
-              "refId": "A",
-              "format": "table",
-              "instant": true
-            }
-          ],
-          "description": "job/instance pairs Prometheus cannot scrape.",
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "filterable": true
-              }
-            }
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm"
           },
           "datasource": {
             "type": "prometheus",
