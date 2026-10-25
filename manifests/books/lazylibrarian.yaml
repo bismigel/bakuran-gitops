@@ -112,6 +112,19 @@ spec:
                           "TORRENT": {
                               "TOR_DOWNLOADER_QBITTORRENT": "1",
                           },
+                          # LL's own AudioBookBay scraper. It is what makes the
+                          # audiobook results *downloadable*: results from the
+                          # Newznab/Prowlarr provider are routed to the Usenet
+                          # client ('No NZB download method is enabled'), so a
+                          # Prowlarr magnet can be found and never grabbed. ABB's
+                          # results are torrents and go to qBittorrent above.
+                          "ABB": {
+                              "ABB": "1",
+                              "ABB_HOST": os.environ.get("ABB_HOST", "audiobookbay.lu").strip(),
+                              "ABB_DLTYPES": "A",
+                              "ABB_DLPRIORITY": "0",
+                              "ABB_SEEDERS": "0",
+                          },
                           "QBITTORRENT": {
                               "QBITTORRENT_HOST": os.environ.get("QBT_HOST", "").strip(),
                               "QBITTORRENT_PORT": os.environ.get("QBT_PORT", "8080").strip(),
