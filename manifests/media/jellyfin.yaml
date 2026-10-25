@@ -55,7 +55,7 @@ spec:
         # Target ABI: the server is 12.2.0 (confirmed at
         # /System/Info/Public), so 12.0/12.1 plugins are compatible.
         - name: install-plugins
-          image: alpine:3.20
+          image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
           # Must be root: `apk add unzip` installs into /, and the plugin tree
           # it creates is chowned to 1000 by fix-ownership afterwards.
           securityContext:
@@ -126,7 +126,7 @@ spec:
         # them to UID 1000 once (idempotent) so the non-root main container can
         # write. /cache is only chowned while its transcodes dir is still root's.
         - name: fix-ownership
-          image: alpine:3.20
+          image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
           securityContext:
             runAsUser: 0
             runAsGroup: 0
@@ -144,7 +144,9 @@ spec:
               mountPath: /cache
       containers:
         - name: jellyfin
-          image: jellyfin/jellyfin:12.2
+          # Digest-pinned (was the floating tag `12.2`): a re-tag upstream
+          # would silently change what runs here. Bump deliberately.
+          image: jellyfin/jellyfin:12.2@sha256:357724bf0ae27a672c7cbaa899db2d9abeb13dbd8657ccce750258a4c059d037
           # The iGPU is provided by the Intel device plugin as the
           # gpu.intel.com/i915 resource (manifests/intel-gpu-plugin): no
           # privileged mode and no hostPath /dev/dri.
