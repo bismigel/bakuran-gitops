@@ -1,0 +1,75 @@
+# Kavita scan, on a timer.
+#
+# Why this exists: Kavita has a "daily" scan task (`taskScan: daily`) but it does
+# not reliably pick up books that LazyLibrarian imports. On 2026-10-24 the
+# library held 147 EPUBs and Kavita served 51 series; a forced scan found
+# "146 files and 145 series" in 16 seconds. Nothing was broken in the files, the
+# scan simply had not run.
+#
+# So: force a scan every night and log the outcome. Idempotent — Kavita skips
+# unchanged files — and it costs ~16s of CPU on the media node.
+#
+# Auth: the admin password comes from `books/kavita-secrets`
+# (seeded by bakuran-infra/scripts/lazylibrarian-secrets.sh from BWS
+# `kavita-admin-password`). Login returns a JWT; the scan endpoint wants it as a
+# bearer token. There is no service account, so this uses the admin login.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kavita-scan
+  namespace: books
+spec:
+  schedule: "30 5 * * *"
+  timeZone: America/Toronto
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: kavita-scan
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: calamansi-intel
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: scan
+              image: docker.io/curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              env:
+                - name: KAVITA_URL
+                  value: http://kavita.books.svc.cluster.local:5000
+                - name: KAVITA_USER
+                  value: gio
+                - name: KAVITA_PASSWORD
+                  valueFrom:
+                    secretKeyRef: { name: kavita-secrets, key: kavita-admin-password }
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  body=$(printf '{"username":"%s","password":"%s"}' "$KAVITA_USER" "$KAVITA_PASSWORD")
+                  token=$(curl -sS --max-time 30 -X POST "$KAVITA_URL/api/Account/login" \
+                            -H 'Content-Type: application/json' -d "$body" \
+                          | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+                  if [ -z "$token" ]; then echo "ERROR: Kavita login failed"; exit 1; fi
+                  curl -sS --max-time 600 -o /dev/null -w 'scan HTTP %{http_code}\n' \
+                    -X POST -H "Authorization: Bearer $token" \
+                    "$KAVITA_URL/api/Library/scan?libraryId=1&force=true"
+              resources:
+                requests: { cpu: 10m, memory: 16Mi }
+                limits: { memory: 64Mi }
