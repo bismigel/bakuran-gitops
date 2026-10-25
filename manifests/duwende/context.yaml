@@ -621,11 +621,24 @@ data:
     | **OpenTofu** (`bakuran-infra/opentofu/`, *not yet built*) | indexers (Prowlarr), download clients, root folders, notifications, **and per-quality MB/min size caps** (`devopsarr_*_quality_definition`) |
     | nothing | download history, seeds, cookies | R2 `appdata/` backups |
     
-    Profiles it maintains (both **1080p-only**, upgrade enabled, cutoff `WEBDL-1080p`):
-    `Radarr: Movies-1080p`, `Sonarr: TV-1080p`. Allowed set: `WEBDL-1080p`,
-    `WEBRip-1080p`, `Bluray-1080p`, `HDTV-1080p`. No 2160p, no Remux — the 68G
-    `Remux-2160p` that nearly filled a pool branch (2026-10-24) cannot come back
-    through these.
+    Profiles it maintains (all upgrade-enabled):
+    
+    | Profile | Allowed qualities | Cutoff |
+    | --- | --- | --- |
+    | `TV-1080p` (Sonarr) | WEBDL/WEBRip/Bluray/HDTV-1080p | WEBDL-1080p |
+    | `Movies-1080p` (Radarr) | WEBDL/WEBRip/Bluray/HDTV-1080p | WEBDL-1080p |
+    | `Movies-2160p` (Radarr, **opt-in per movie**) | WEBDL-2160p, WEBRip-2160p | WEBDL-2160p |
+    
+    No profile allows `Remux` or `Bluray-2160p`, so the 68G `Remux-2160p` that
+    nearly filled a pool branch (2026-10-24) cannot come back through them. 4K is a
+    deliberate per-item choice: `Movies-2160p` exists so 4K is possible without the
+    remux class.
+    
+    **Still not capped:** per-quality MB/min size limits. A 2160p WEB-DL landed at
+    **33.9GB** when `Marty Supreme` was moved off its remux — better than 68G, far
+    from the ~15GB the resolution alone implies, and the stock Radarr definition for
+    2160p is `maxSize: null`. The real cap is `devopsarr_*_quality_definition` in the
+    Tofu layer (step 2, not built yet).
     
     Toleration notes that cost time:
     
