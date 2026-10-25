@@ -115,18 +115,19 @@ spec:
                           "TORRENT": {
                               "TOR_DOWNLOADER_QBITTORRENT": "1",
                           },
-                          # LL's own AudioBookBay scraper. It is what makes the
-                          # audiobook results *downloadable*: results from the
-                          # Newznab/Prowlarr provider are routed to the Usenet
-                          # client ('No NZB download method is enabled'), so a
-                          # Prowlarr magnet can be found and never grabbed. ABB's
-                          # results are torrents and go to qBittorrent above.
+                          # LL's own ABB scraper stays OFF: it builds
+                          # f"{host}/{href}" while ABB's hrefs already start with
+                          # "/", so every details page is requested as
+                          # //abss/<slug>/ and Cloudflare answers HTTP 425 with an
+                          # empty body. Verified: 0 results for any query, while
+                          # the same URL with a single slash returns the info
+                          # hash. Audiobooks come from Prowlarr's Torznab feed
+                          # instead (block below), which is the same index and is
+                          # fetched correctly.
                           "ABB": {
-                              "ABB": "1",
+                              "ABB": "0",
                               "ABB_HOST": os.environ.get("ABB_HOST", "audiobookbay.lu").strip(),
                               "ABB_DLTYPES": "A",
-                              "ABB_DLPRIORITY": "0",
-                              "ABB_SEEDERS": "0",
                           },
                           "QBITTORRENT": {
                               "QBITTORRENT_HOST": os.environ.get("QBT_HOST", "").strip(),
@@ -145,6 +146,39 @@ spec:
                       # never set (it went missing with the rest of config.ini).
                       # LL rejects a key that is not exactly 32 chars, so a bad
                       # secret leaves the API off instead of half-configured.
+                      # -- audiobooks via Prowlarr's Torznab feed ---------------
+                      # A Newznab result always goes to the Usenet client, so a
+                      # torrent found through [Newznab_0] can be seen and never
+                      # downloaded ("No NZB download method is enabled"). Prowlarr
+                      # also exposes a Torznab feed per indexer; configured as a
+                      # torznab provider, LL marks those results as torrents and
+                      # sends the magnet to qBittorrent. Restricted to audio
+                      # (dlttypes=A, no book/mag/general search) so ebooks keep
+                      # flowing Newznab -> SABnzbd.
+                      _tzh = os.environ.get("PROWLARR_TORZNAB", "").strip()
+                      _pkey = os.environ.get("PROWLARR_API_KEY", "").strip()
+                      if _tzh and _pkey:
+                          _tz = next((x for x in cp.sections() if x.lower().startswith("torznab")), "Torznab_0")
+                          if not cp.has_section(_tz):
+                              cp.add_section(_tz)
+                          for k, v in {
+                              "enabled": "1",
+                              "host": _tzh,
+                              "api": _pkey,
+                              "audiosearch": os.environ.get("AUDIOSEARCH", "search"),
+                              "audiocat": os.environ.get("AUDIOCAT", "3030"),
+                              "dlttypes": "A",
+                              "generalsearch": "",
+                              "booksearch": "",
+                              "magsearch": "",
+                              "extended": "1",
+                          }.items():
+                              cur = cp.get(_tz, k, fallback=None)
+                              if cur != v:
+                                  cp.set(_tz, k, v)
+                                  shown = "(changed)" if "api" in k else repr(v)
+                                  changed.append("[%s] %s=%s" % (_tz, k, shown))
+
                       _api = os.environ.get("LL_API_KEY", "").strip()
                       extra_cfg["API"] = {
                           "API_ENABLED": "1" if len(_api) == 32 else "",
