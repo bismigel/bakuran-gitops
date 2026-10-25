@@ -9,6 +9,7 @@ resources:
   - media-mcp.yaml
   - flaresolverr.yaml
   - recyclarr.yaml
+  - prowlarr-definitions.yaml
   - ghcr-secret.yaml
 # The media stack uses hostPath /mnt/media and /dev/dri (QuickSync), which exist
 # only on calamansi-intel (.81). Pin every media pod to that node.
