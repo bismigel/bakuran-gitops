@@ -646,6 +646,20 @@ data:
     still imperative: download clients and Prowlarr indexers/applications
     (`scripts/media-stack-setup.sh`).
     
+    **Adding an indexer** has its own runbook page (site: *Adding an indexer to
+    Prowlarr*, `org/runbook/10-adding-an-indexer.org`). The two facts that decide
+    whether it is even possible: Prowlarr needs a **Cardigann definition** (no
+    definition = no indexer, and AudioBookBay is absent from both the 586 on disk and
+    the upstream repo), and the site must be reachable from the media node
+    (`EBookBay` adds cleanly then answers *all selected indexers unavailable* — it
+    blocks our egress). Also: **Prowlarr's definition updater is broken here**
+    (`Error while getting indexer definitions, fallback to reading from disk` on every
+    attempt), so the instance is pinned to the definitions baked into the image — fix
+    that before concluding something "does not exist". LazyLibrarian only consumes
+    *Usenet* indexers (via Prowlarr's `/2` Newznab front-end); a torrent indexer needs
+    a torrent client in LL, which it does not have. For ebooks no indexer is needed at
+    all — `bakuran-infra/scripts/books-fetch.sh`.
+    
     **Size caps (added 2026-10-24):** stock Radarr/Sonarr ship `maxSize: null`
     for **every** 2160p class — that is how a 68G remux got in. Caps in MB/min:
     720p 22 · 1080p **35** (2.1 GB/h) · 1080p remux 60 · 2160p **250** (15 GB/h) ·
