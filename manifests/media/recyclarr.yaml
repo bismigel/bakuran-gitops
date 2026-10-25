@@ -102,7 +102,7 @@ spec:
           containers:
             - name: recyclarr
               image: ghcr.io/recyclarr/recyclarr:7.4.0@sha256:619c3b8920a179f2c578acd0f54e9a068f57c049aff840469eed66e93a4be2cf
-              args: ["sync", "--dry-run", "--log-level", "info"]
+              args: ["sync", "--preview", "--debug"]
               env:
                 - name: SONARR_API_KEY
                   valueFrom:
