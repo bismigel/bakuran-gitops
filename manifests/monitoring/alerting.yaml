@@ -99,6 +99,24 @@ data:
             annotations:
               summary: "WireGuard {{ $labels.iface }} handshake older than 3m on {{ $labels.instance }}"
               description: "Keepalive is 25s, so a healthy tunnel handshakes well inside this window."
+          # A handshake is not proof of a working tunnel. This is the alert that
+          # was missing on 2026-10-25: a stale private key handshook happily and
+          # blackholed everything, and only handshake-based alerts existed.
+          - alert: WireGuardNoEgress
+            expr: wireguard_egress_ok == 0
+            for: 5m
+            labels: { severity: critical }
+            annotations:
+              summary: "{{ $labels.instance }}: WireGuard up but no data path"
+              description: "Handshake may be fine; traffic is not leaving. Compare the key on the interface with SOPS before touching it (NETWORK.md 8.2)."
+          # Restarting wg-quick is the operation that strands .81. A restart that
+          # "succeeds" leaves no other trace, so surface it even when nothing broke.
+          - alert: WireGuardRestarted
+            expr: increase(wireguard_unit_restarts[15m]) > 0
+            labels: { severity: warning }
+            annotations:
+              summary: "wg-quick-{{ $labels.iface }} restarted on {{ $labels.instance }}"
+              description: "A wg-quick restart has taken this node off the network before (NETWORK.md 7.1). Confirm egress and LAN reachability."
           - alert: WireGuardMetricsMissing
             expr: absent(wireguard_latest_handshake_seconds)
             for: 20m
@@ -200,6 +218,14 @@ data:
               summary: "cloudflare edge exporter has not refreshed in 10m: token expired or API unreachable"
       - name: argocd
         rules:
+          # Jellyfin uses strategy Recreate (RWO config PVC), so any roll kills
+          # active streams. This catches real downtime regardless of pod churn.
+          - alert: JellyfinNotRunning
+            expr: sum(kube_pod_container_status_running{namespace="default",pod=~"jellyfin-.*"}) < 1
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "Jellyfin has no running container"
           - alert: ArgoCDAppOutOfSync
             expr: argocd_app_info{sync_status!="Synced"} == 1
             for: 15m
