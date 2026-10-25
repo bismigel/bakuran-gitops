@@ -124,6 +124,16 @@ spec:
                               "QBITTORRENT_PASS": os.environ.get("QBT_PASS", "").strip(),
                           },
                       }
+                      # LL's own API: media/media-mcp already carries a key for it
+                      # and every call was returning 501 because API_ENABLED was
+                      # never set (it went missing with the rest of config.ini).
+                      # LL rejects a key that is not exactly 32 chars, so a bad
+                      # secret leaves the API off instead of half-configured.
+                      _api = os.environ.get("LL_API_KEY", "").strip()
+                      extra_cfg["API"] = {
+                          "API_ENABLED": "1" if len(_api) == 32 else "",
+                          "API_KEY": _api if len(_api) == 32 else "",
+                      }
                       for sec, keys in extra_cfg.items():
                           if not cp.has_section(sec) and not any(keys.values()):
                               continue
@@ -135,8 +145,8 @@ spec:
                               cur = cp.get(sec, k, fallback=None)
                               if cur != v:
                                   cp.set(sec, k, v)
-                                  # never log the password itself
-                                  shown = "(changed)" if "PASS" in k else repr(v)
+                                  # never log secrets (password, api key)
+                                  shown = "(changed)" if any(x in k for x in ("PASS", "KEY")) else repr(v)
                                   changed.append("[%s] %s=%s" % (sec, k, shown))
 
                       if changed:
@@ -190,6 +200,14 @@ spec:
                 secretKeyRef:
                   name: lazylibrarian-secrets
                   key: qbt-password
+                  optional: true
+            # LazyLibrarian's own API key (32 chars). Same value media-mcp uses
+            # as LAZYLIBRARIAN_API_KEY.
+            - name: LL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: lazylibrarian-api-key
                   optional: true
           volumeMounts:
             - name: config
