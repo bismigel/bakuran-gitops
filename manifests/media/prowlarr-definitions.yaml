@@ -50,7 +50,7 @@ data:
 
     caps:
       categorymappings:
-        - {id: 3030, cat: Audio/AudioBook, desc: Audiobooks}
+        - {id: 3030, cat: Audio/Audiobook, desc: Audiobooks}
       modes:
         search: [q]
 
@@ -88,17 +88,18 @@ data:
           filters:
             - name: prepend
               args: https://audiobookbay.lu
+        # "File Size: 205.01 MBs" -> regexp group strips the plural "s",
+        # leaving "205.01 MB", which Cardigann parses to bytes. Same idiom
+        # bundled ebookbay.yml uses against identical markup.
         size:
-          selector: div.postContent p:contains("File Size")
+          selector: p:contains("File Size")
+          optional: true
+          default: 0
           filters:
             - name: regexp
-              args: [".*File Size:\\s*([0-9.]+)\\s*(\\w+).*", "$1 $2"]
-            - name: replace
-              args: ["MBs", "MB"]
-            - name: replace
-              args: ["GBs", "GB"]
-            - name: replace
-              args: ["KBs", "KB"]
+              args: "File Size: (.+?)s?$"
+        date:
+          text: now
         downloadvolumefactor:
           text: 0
         uploadvolumefactor:
