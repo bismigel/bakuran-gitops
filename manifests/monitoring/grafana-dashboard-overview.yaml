@@ -15,7 +15,7 @@ data:
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 2,
+      "version": 3,
       "refresh": "30s",
       "time": {
         "from": "now-6h",
@@ -847,7 +847,7 @@ data:
               "instant": true
             }
           ],
-          "description": "Sync and health status per Application — the single best green/red signal.",
+          "description": "Sync and health status per Application \u2014 the single best green/red signal.",
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -915,7 +915,7 @@ data:
         {
           "id": 18,
           "type": "table",
-          "title": "Firing alerts",
+          "title": "Firing alerts (detail)",
           "gridPos": {
             "h": 6,
             "w": 24,

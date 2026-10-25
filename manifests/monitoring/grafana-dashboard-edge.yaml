@@ -16,7 +16,7 @@ data:
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "1m",
       "time": {
         "from": "now-24h",
@@ -48,10 +48,10 @@ data:
           "type": "stat",
           "title": "Tunnel",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 0,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -105,10 +105,10 @@ data:
           "type": "stat",
           "title": "Connectors",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 4,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -166,10 +166,10 @@ data:
           "type": "stat",
           "title": "Edge connections",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 8,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -207,10 +207,10 @@ data:
           "type": "stat",
           "title": "Zones active",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 12,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -264,10 +264,10 @@ data:
           "type": "stat",
           "title": "Access apps",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 16,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -305,10 +305,10 @@ data:
           "type": "stat",
           "title": "Snapshot age",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 20,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -362,65 +362,14 @@ data:
           }
         },
         {
-          "id": 7,
-          "type": "timeseries",
-          "title": "Tunnel connections",
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 5
-          },
-          "targets": [
-            {
-              "expr": "cloudflare_tunnel_connectors",
-              "refId": "A",
-              "legendFormat": "connectors"
-            },
-            {
-              "expr": "cloudflare_tunnel_edge_connections",
-              "refId": "B",
-              "legendFormat": "edge connections"
-            }
-          ],
-          "description": "A drop to one connector means the edge is running without HA.",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "custom": {
-                "lineWidth": 1,
-                "fillOpacity": 8,
-                "showPoints": "never",
-                "spanNulls": true
-              },
-              "min": 0
-            }
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "calcs": []
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
           "id": 8,
           "type": "timeseries",
           "title": "Edge connections by colo",
           "gridPos": {
-            "h": 8,
+            "x": 0,
+            "y": 5,
             "w": 12,
-            "x": 12,
-            "y": 5
+            "h": 8
           },
           "targets": [
             {
@@ -463,10 +412,10 @@ data:
           "type": "table",
           "title": "Zones",
           "gridPos": {
-            "h": 8,
+            "x": 12,
+            "y": 5,
             "w": 12,
-            "x": 0,
-            "y": 13
+            "h": 8
           },
           "targets": [
             {
@@ -499,10 +448,10 @@ data:
           "type": "table",
           "title": "DNS records per zone",
           "gridPos": {
-            "h": 8,
+            "x": 0,
+            "y": 13,
             "w": 12,
-            "x": 12,
-            "y": 13
+            "h": 8
           },
           "targets": [
             {
@@ -535,10 +484,10 @@ data:
           "type": "table",
           "title": "Certificates",
           "gridPos": {
-            "h": 8,
+            "x": 12,
+            "y": 13,
             "w": 12,
-            "x": 0,
-            "y": 21
+            "h": 8
           },
           "targets": [
             {
@@ -571,10 +520,10 @@ data:
           "type": "timeseries",
           "title": "Cloudflare API latency",
           "gridPos": {
-            "h": 8,
+            "x": 0,
+            "y": 21,
             "w": 12,
-            "x": 12,
-            "y": 21
+            "h": 8
           },
           "targets": [
             {
@@ -617,10 +566,10 @@ data:
           "type": "timeseries",
           "title": "API reachable",
           "gridPos": {
-            "h": 6,
-            "w": 24,
             "x": 0,
-            "y": 29
+            "y": 29,
+            "w": 24,
+            "h": 6
           },
           "targets": [
             {
@@ -663,10 +612,10 @@ data:
           "type": "stat",
           "title": "Pageviews (24h)",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 0,
-            "y": 35
+            "y": 35,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -704,10 +653,10 @@ data:
           "type": "stat",
           "title": "Visits (24h)",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 6,
-            "y": 35
+            "y": 35,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -745,10 +694,10 @@ data:
           "type": "stat",
           "title": "Sites reporting",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 12,
-            "y": 35
+            "y": 35,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -802,10 +751,10 @@ data:
           "type": "stat",
           "title": "RUM query",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 18,
-            "y": 35
+            "y": 35,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -859,10 +808,10 @@ data:
           "type": "timeseries",
           "title": "Pageviews by site (7d)",
           "gridPos": {
-            "h": 8,
-            "w": 24,
             "x": 0,
-            "y": 40
+            "y": 40,
+            "w": 24,
+            "h": 8
           },
           "targets": [
             {

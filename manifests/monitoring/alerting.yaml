@@ -16,7 +16,10 @@ data:
             annotations:
               summary: "node-exporter down on {{ $labels.instance }}"
           - alert: TargetDown
-            expr: up == 0
+            # kubelet-cadvisor and longhorn have their own scrape-failure
+            # alerts (they say what you are now blind to), so exclude them
+            # here instead of paging twice for the same condition.
+            expr: up == 0 unless on(job, instance) up{job=~"kubelet-cadvisor|longhorn"} == 0
             for: 10m
             labels: { severity: warning }
             annotations:
@@ -92,13 +95,6 @@ data:
               summary: "WireGuard {{ $labels.iface }} on {{ $labels.instance }} has not handshaked in 5m"
               description: "Packets may still be leaving with no reply - check `wg show {{ $labels.iface }}` and the endpoint IP in the host config."
               runbook_url: "https://runbook.bismigel.dev"
-          - alert: WireGuardHandshakeStale
-            expr: (time() - wireguard_latest_handshake_seconds) > 180
-            for: 10m
-            labels: { severity: warning }
-            annotations:
-              summary: "WireGuard {{ $labels.iface }} handshake older than 3m on {{ $labels.instance }}"
-              description: "Keepalive is 25s, so a healthy tunnel handshakes well inside this window."
           # A handshake is not proof of a working tunnel. This is the alert that
           # was missing on 2026-10-25: a stale private key handshook happily and
           # blackholed everything, and only handshake-based alerts existed.
@@ -218,14 +214,6 @@ data:
               summary: "cloudflare edge exporter has not refreshed in 10m: token expired or API unreachable"
       - name: argocd
         rules:
-          # Jellyfin uses strategy Recreate (RWO config PVC), so any roll kills
-          # active streams. This catches real downtime regardless of pod churn.
-          - alert: JellyfinNotRunning
-            expr: sum(kube_pod_container_status_running{namespace="default",pod=~"jellyfin-.*"}) < 1
-            for: 5m
-            labels: { severity: warning }
-            annotations:
-              summary: "Jellyfin has no running container"
           - alert: ArgoCDAppOutOfSync
             expr: argocd_app_info{sync_status!="Synced"} == 1
             for: 15m
@@ -249,6 +237,18 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
+      - name: media
+        rules:
+          # Jellyfin uses strategy Recreate (RWO config PVC), so any roll kills
+          # active streams. Catches real downtime irrespective of pod churn.
+          - alert: JellyfinNotRunning
+            expr: sum(kube_pod_container_status_running{namespace="default",pod=~"jellyfin-.*"}) < 1
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "Jellyfin has no running container"
+              description: "Deployment strategy is Recreate, so a rollout drops live streams; check whether a roll is in progress before assuming a crash."
+
   slo.yml: |
     groups:
       - name: slo

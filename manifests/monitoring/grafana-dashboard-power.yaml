@@ -15,7 +15,7 @@ data:
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 2,
+      "version": 3,
       "refresh": "30s",
       "time": {
         "from": "now-24h",
@@ -47,10 +47,10 @@ data:
           "type": "stat",
           "title": "Cluster power (W)",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 0,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -88,10 +88,10 @@ data:
           "type": "stat",
           "title": "Energy (24h)",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 4,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -129,10 +129,10 @@ data:
           "type": "stat",
           "title": "Average (24h)",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 8,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -170,10 +170,10 @@ data:
           "type": "stat",
           "title": "Nodes reporting",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 12,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -226,10 +226,10 @@ data:
           "type": "stat",
           "title": "Pods tracked",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 16,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -267,10 +267,10 @@ data:
           "type": "stat",
           "title": "Busiest node share",
           "gridPos": {
-            "h": 5,
-            "w": 4,
             "x": 20,
-            "y": 0
+            "y": 0,
+            "w": 4,
+            "h": 5
           },
           "targets": [
             {
@@ -308,10 +308,10 @@ data:
           "type": "timeseries",
           "title": "CPU package power by node",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 0,
-            "y": 5
+            "y": 5,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -350,70 +350,14 @@ data:
           }
         },
         {
-          "id": 8,
-          "type": "timeseries",
-          "title": "Node components",
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 5
-          },
-          "targets": [
-            {
-              "expr": "rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])",
-              "refId": "A",
-              "legendFormat": "package {{instance}}"
-            },
-            {
-              "expr": "rate(kepler_node_dram_joules_total{mode=\"dynamic\"}[5m])",
-              "refId": "B",
-              "legendFormat": "dram {{instance}}"
-            },
-            {
-              "expr": "rate(kepler_node_uncore_joules_total{mode=\"dynamic\"}[5m])",
-              "refId": "C",
-              "legendFormat": "uncore {{instance}}"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "watt",
-              "custom": {
-                "lineWidth": 1,
-                "fillOpacity": 8,
-                "showPoints": "never",
-                "spanNulls": true
-              },
-              "min": 0,
-              "max": null
-            }
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "calcs": []
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
           "id": 9,
           "type": "timeseries",
           "title": "Per-node measured total (W)",
           "gridPos": {
-            "h": 8,
+            "x": 12,
+            "y": 5,
             "w": 12,
-            "x": 0,
-            "y": 13
+            "h": 8
           },
           "targets": [
             {
@@ -456,10 +400,10 @@ data:
           "type": "timeseries",
           "title": "Top pods by power (W)",
           "gridPos": {
-            "h": 8,
+            "x": 0,
+            "y": 13,
             "w": 12,
-            "x": 12,
-            "y": 13
+            "h": 8
           },
           "targets": [
             {

@@ -16,7 +16,7 @@ data:
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 2,
+      "version": 3,
       "refresh": "30s",
       "time": {
         "from": "now-30d",
@@ -48,10 +48,10 @@ data:
           "type": "stat",
           "title": "Media pool used %",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 0,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -109,10 +109,10 @@ data:
           "type": "stat",
           "title": "Media pool free",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 6,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -170,10 +170,10 @@ data:
           "type": "stat",
           "title": "Media pool size",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 12,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -211,10 +211,10 @@ data:
           "type": "stat",
           "title": "Projected full in",
           "gridPos": {
-            "h": 5,
-            "w": 6,
             "x": 18,
-            "y": 0
+            "y": 0,
+            "w": 6,
+            "h": 5
           },
           "targets": [
             {
@@ -272,10 +272,10 @@ data:
           "type": "timeseries",
           "title": "Media pool used % (30d)",
           "gridPos": {
-            "h": 8,
-            "w": 12,
             "x": 0,
-            "y": 5
+            "y": 5,
+            "w": 12,
+            "h": 8
           },
           "targets": [
             {
@@ -335,61 +335,14 @@ data:
           }
         },
         {
-          "id": 6,
-          "type": "timeseries",
-          "title": "Media pool free bytes",
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 5
-          },
-          "targets": [
-            {
-              "expr": "node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"}",
-              "refId": "A",
-              "legendFormat": "free"
-            }
-          ],
-          "description": "Free space. The *arrs start failing imports before this reaches zero.",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "bytes",
-              "custom": {
-                "lineWidth": 1,
-                "fillOpacity": 8,
-                "showPoints": "never",
-                "spanNulls": true
-              },
-              "min": 0,
-              "max": null
-            }
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "calcs": []
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
           "id": 7,
           "type": "table",
           "title": "Filesystems on the media box",
           "gridPos": {
-            "h": 8,
+            "x": 12,
+            "y": 5,
             "w": 12,
-            "x": 0,
-            "y": 13
+            "h": 8
           },
           "targets": [
             {
@@ -422,10 +375,10 @@ data:
           "type": "table",
           "title": "PVC usage",
           "gridPos": {
-            "h": 8,
+            "x": 0,
+            "y": 13,
             "w": 12,
-            "x": 12,
-            "y": 13
+            "h": 8
           },
           "targets": [
             {
@@ -459,10 +412,10 @@ data:
           "type": "table",
           "title": "Largest container logs",
           "gridPos": {
-            "h": 8,
+            "x": 12,
+            "y": 13,
             "w": 12,
-            "x": 0,
-            "y": 21
+            "h": 8
           },
           "targets": [
             {
@@ -495,10 +448,10 @@ data:
           "type": "timeseries",
           "title": "Volume used bytes",
           "gridPos": {
-            "h": 8,
+            "x": 0,
+            "y": 21,
             "w": 12,
-            "x": 12,
-            "y": 21
+            "h": 8
           },
           "targets": [
             {
