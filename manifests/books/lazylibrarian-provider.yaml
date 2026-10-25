@@ -43,6 +43,11 @@ data:
   BOOKSEARCH: "search"
   MAGSEARCH: "search"
   AUDIOCAT: "3030"
+  AUDIOSEARCH: "search"
+  # Prowlarr's per-indexer Torznab feed for the AudioBookBay indexer (id 4).
+  # Re-check the id if the indexer is ever re-created: kubectl -n media exec
+  # deploy/prowlarr -- curl -s -H "X-Api-Key: $KEY" .../api/v1/indexer
+  PROWLARR_TORZNAB: "http://prowlarr.media.svc.cluster.local:9696/4"
   EXTENDED: "1"
   # Where the audiobook postprocessor drops finished downloads: the same mergerfs
   # pool Audiobookshelf scans at /mnt/media/audiobooks, so ABS picks the file up
