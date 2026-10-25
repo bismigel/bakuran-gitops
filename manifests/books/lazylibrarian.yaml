@@ -262,6 +262,9 @@ spec:
                   log("author activation skipped:", repr(e))
               PY
               chown 1000:1000 /config/config.ini /config/lazylibrarian.db 2>/dev/null || true
+          volumeMounts:
+            - name: config
+              mountPath: /config
         # Upstream bug: torrentparser.torrent_abb() builds f"{host}/{href}" while
         # ABB's hrefs already start with "/", so every details page is requested
         # as //abss/<slug>/ and Cloudflare answers HTTP 425 with an empty body -
@@ -296,6 +299,8 @@ spec:
           volumeMounts:
             - name: patched-app
               mountPath: /patched
+            - name: config
+              mountPath: /config
           envFrom:
             - configMapRef:
                 name: lazylibrarian-provider
@@ -322,9 +327,6 @@ spec:
                   name: lazylibrarian-secrets
                   key: lazylibrarian-api-key
                   optional: true
-          volumeMounts:
-            - name: config
-              mountPath: /config
           resources:
             requests: { cpu: 10m, memory: 32Mi }
             limits: { memory: 128Mi }
