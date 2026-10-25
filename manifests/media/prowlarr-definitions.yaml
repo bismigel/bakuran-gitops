@@ -1,0 +1,95 @@
+# Custom Cardigann definitions for Prowlarr, mounted at
+# /config/Definitions/Custom (Prowlarr's "Custom Definition Folder").
+#
+# Why this file exists: audiobooks had *no* indexer. Upstream Prowlarr/Indexers
+# has no audiobookbay.yml (404 on master), and AudioBookBay has no public API,
+# so the audiobook category (3030) that LazyLibrarian already queries through
+# Prowlarr returned nothing. LazyLibrarian's own built-in ABB scraper works, but
+# it has no download client configured, so the indexer is the useful half.
+#
+# Site shape, verified live on 2026-10-25 against audiobookbay.lu:
+#   search      https://audiobookbay.lu/?s=<terms>          -> div.post rows
+#   row         .postTitle h2 a                             -> /abss/<slug>/
+#   row         div.postContent p:contains("File Size")     -> "205.01 MBs"
+#   details     <td>Info Hash:</td><td>a75c81a1...</td>     -> hash only
+#   details     /downld0?downfs=...                         -> 302 to member/login.php
+#
+# That last line is the reason this definition uses `download.infohash` instead
+# of a download/magnet selector: there is no magnet anywhere on the page and the
+# .torrent download is members-only, but the info hash is public and Prowlarr
+# generates the magnet from it for `type: public` indexers (it adds 10 public
+# trackers, so the site's own tracker list is not needed).
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prowlarr-custom-definitions
+  namespace: media
+  labels:
+    app: prowlarr
+data:
+  audiobookbay.yml: |
+    ---
+    id: audiobookbay
+    name: AudioBookBay
+    description: AudioBookBay (ABB) is a public audiobook tracker. Listing pages carry no magnet and the .torrent download is members-only, but the details page prints the info hash, from which the magnet is generated.
+    language: en-US
+    type: public
+    encoding: UTF-8
+    links:
+      - https://audiobookbay.lu/
+
+    caps:
+      categorymappings:
+        - {id: 3030, cat: Audio/AudioBook, desc: Audiobooks}
+      modes:
+        search: [q]
+
+    download:
+      infohash:
+        hash:
+          selector: td:contains("Info Hash") + td
+          filters:
+            - name: regexp
+              args: ([A-F|a-f|0-9]{40})
+        title:
+          selector: h1[itemprop="name"]
+          filters:
+            - name: trim
+            - name: validfilename
+
+    search:
+      paths:
+        - path: "?s={{ .Keywords }}"
+      rows:
+        selector: div.post
+      fields:
+        category:
+          text: 3030
+        title:
+          selector: .postTitle h2 a
+        details:
+          selector: .postTitle h2 a
+          attribute: href
+        download:
+          selector: .postTitle h2 a
+          attribute: href
+          filters:
+            - name: prepend
+              args: https://audiobookbay.lu
+        size:
+          selector: div.postContent p:contains("File Size")
+          filters:
+            - name: regexp
+              args: [".*File Size:\\s*([0-9.]+)\\s*(\\w+).*", "$1 $2"]
+            - name: replace
+              args: ["MBs", "MB"]
+            - name: replace
+              args: ["GBs", "GB"]
+            - name: replace
+              args: ["KBs", "KB"]
+        downloadvolumefactor:
+          text: 0
+        uploadvolumefactor:
+          text: 1
+    # engine v11
