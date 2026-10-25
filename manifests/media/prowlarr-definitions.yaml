@@ -39,6 +39,15 @@ data:
     links:
       - https://audiobookbay.lu/
 
+    # AudioBookBay answers 404 to anything that is not a browser UA (verified:
+    # "Prowlarr/2.6.5.5623" -> 404, "Mozilla/5.0" -> 200 on the same URL). The
+    # indexer test failed with exactly that before this was added.
+    settings:
+      - name: useragent
+        type: text
+        label: User-Agent
+        default: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
     caps:
       categorymappings:
         - {id: 3030, cat: Audio/AudioBook, desc: Audiobooks}
@@ -59,6 +68,8 @@ data:
             - name: validfilename
 
     search:
+      headers:
+        User-Agent: ["{{ .Config.useragent }}"]
       paths:
         - path: "?s={{ .Keywords }}"
       rows:
