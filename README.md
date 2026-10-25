@@ -69,10 +69,19 @@ One **3-node k3s cluster** (embedded etcd, 3 members) — everything is `in-clus
 
 ## Edge (Cloudflare)
 
-The edge is declared in **`bakuran-infra/cloudflare/sync.sh`** and reconciled
-**daily** by a systemd timer on `.82`. Jellyfin and Immich are intentionally **not**
-behind Cloudflare Access (native TV/phone clients can't complete the email-OTP);
-the admin/media apps are. Admin apps use a 24h Access session, media 730h.
+The edge is declared in **`bakuran-infra/opentofu/cloudflare/`** (OpenTofu): DNS
+records, tunnel ingress, Access apps, zone settings and R2 lifecycle, planned and
+applied with `tofu` against state in the R2 backend.
+
+`bakuran-infra/cloudflare/sync.sh` is **retired** — a manual rollback path only —
+and the daily `cloudflare-sync.timer` is gone, so it cannot fight the OpenTofu
+state. A new hostname means a record in `records_all.tf` **and** an ingress entry
+in `tunnel.tf`.
+
+Jellyfin, Immich, Kavita and Audiobookshelf are intentionally **not** behind
+Cloudflare Access (native TV/phone/mobile clients can't complete the email-OTP);
+they rely on their own auth. Access-gated apps: Books, Longhorn, Private API,
+Homelab Agent, Runbook and Grafana at a **24h** session, Homelab Media at **730h**.
 
 ## Secrets
 
