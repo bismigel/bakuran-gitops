@@ -634,11 +634,17 @@ data:
     deliberate per-item choice: `Movies-2160p` exists so 4K is possible without the
     remux class.
     
-    **Still not capped:** per-quality MB/min size limits. A 2160p WEB-DL landed at
-    **33.9GB** when `Marty Supreme` was moved off its remux — better than 68G, far
-    from the ~15GB the resolution alone implies, and the stock Radarr definition for
-    2160p is `maxSize: null`. The real cap is `devopsarr_*_quality_definition` in the
-    Tofu layer (step 2, not built yet).
+    **Size caps (added 2026-10-24):** `bakuran-infra/opentofu/media/` owns
+    `quality_definition` and nothing else. Stock Radarr/Sonarr ship `maxSize: null`
+    for **every** 2160p class — that is how a 68G remux got in. Caps in MB/min:
+    720p 22 · 1080p **35** (2.1 GB/h) · 1080p remux 60 · 2160p **250** (15 GB/h) ·
+    2160p remux 400. Evidence: 60-min 1080p episode ≈ 30 MB/min, the 34GB 2160p
+    WEB-DL ≈ 309, the 68G remux ≈ 620 — so 250 blocks remuxes and the fattest
+    WEB-DLs while admitting normal 4K. (A first draft used 20/55 MB/min, which would
+    have rejected every real 4K WEB-DL; do not go back to it.) Changes go through
+    `tofu plan/apply` there; the *arr hostPorts are not reachable from
+    `nix-station`, so apply over `kubectl -n media port-forward svc/radarr 17878:7878`
+    (and 18989 for sonarr) with `TF_VAR_*_url=http://127.0.0.1:<port>`.
     
     Toleration notes that cost time:
     
