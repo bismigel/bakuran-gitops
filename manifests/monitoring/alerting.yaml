@@ -206,6 +206,17 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
+          # Component health, not app health. Without this, ArgoCD can be
+          # cluster-wide single-node (every replica on one host) and nothing
+          # notices: the apps still report Synced/Healthy until that node dies.
+          - alert: ArgoCDComponentDown
+            expr: |
+              (kube_deployment_status_replicas_available{namespace="argocd",deployment=~"argocd-server|argocd-repo-server|argocd-applicationset-controller"} < 1)
+              or (kube_statefulset_status_replicas_ready{namespace="argocd",statefulset="argocd-application-controller"} < 1)
+            for: 10m
+            labels: { severity: critical }
+            annotations:
+              summary: "ArgoCD {{ $labels.deployment }}{{ $labels.statefulset }} has no ready replica"
           - alert: ArgoCDAppUnhealthy
             expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
             for: 15m
