@@ -142,12 +142,33 @@ spec:
                           for k, v in keys.items():
                               if not v:
                                   continue
+                              # LL stores and reads option names LOWERCASE. Writing
+                              # AUDIO_DIR next to LL's own audio_dir makes the file
+                              # unreadable (DuplicateOptionError) and LL refuses to
+                              # start, so always key by the lowercase spelling.
+                              k = k.lower()
                               cur = cp.get(sec, k, fallback=None)
                               if cur != v:
                                   cp.set(sec, k, v)
                                   # never log secrets (password, api key)
-                                  shown = "(changed)" if any(x in k for x in ("PASS", "KEY")) else repr(v)
+                                  shown = "(changed)" if any(x in k for x in ("pass", "key")) else repr(v)
                                   changed.append("[%s] %s=%s" % (sec, k, shown))
+
+                      # Repair any case-duplicate an earlier revision of this script
+                      # left behind: keep the lowercase spelling, drop the duplicate.
+                      for sec in cp.sections():
+                          names = cp.options(sec)
+                          for n in list(names):
+                              low = n.lower()
+                              if n == low:
+                                  continue
+                              if low in names:
+                                  cp.remove_option(sec, n)
+                                  changed.append("[%s] removed duplicate %s" % (sec, n))
+                              else:
+                                  cp.set(sec, low, cp.get(sec, n))
+                                  cp.remove_option(sec, n)
+                                  changed.append("[%s] %s -> %s" % (sec, n, low))
 
                       if changed:
                           bak = pathlib.Path(str(INI) + ".init.bak")
