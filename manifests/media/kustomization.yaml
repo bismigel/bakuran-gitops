@@ -7,6 +7,7 @@ resources:
   - qbittorrent.yaml
   - sabnzbd.yaml
   - media-mcp.yaml
+  - recyclarr.yaml
   - ghcr-secret.yaml
 # The media stack uses hostPath /mnt/media and /dev/dri (QuickSync), which exist
 # only on calamansi-intel (.81). Pin every media pod to that node.
