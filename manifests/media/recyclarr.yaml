@@ -29,26 +29,42 @@ data:
         base_url: http://sonarr.media.svc.cluster.local:8989
         api_key: !env_var SONARR_API_KEY
 
-        quality_definition:
-          type: series
-
         quality_profiles:
-          - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+          - name: TV-1080p
             reset_unmatched_scores:
-              enabled: true
+              enabled: false
+            upgrade:
+              allowed: true
+              until_quality: WEBDL-1080p
+              until_score: 10000
+            min_format_score: 0
+            quality_sort: top
+            qualities:
+              - name: WEBDL-1080p
+              - name: WEBRip-1080p
+              - name: Bluray-1080p
+              - name: HDTV-1080p
 
     radarr:
       movies-1080p:
         base_url: http://radarr.media.svc.cluster.local:7878
         api_key: !env_var RADARR_API_KEY
 
-        quality_definition:
-          type: movie
-
         quality_profiles:
-          - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+          - name: Movies-1080p
             reset_unmatched_scores:
-              enabled: true
+              enabled: false
+            upgrade:
+              allowed: true
+              until_quality: WEBDL-1080p
+              until_score: 10000
+            min_format_score: 0
+            quality_sort: top
+            qualities:
+              - name: WEBDL-1080p
+              - name: WEBRip-1080p
+              - name: Bluray-1080p
+              - name: HDTV-1080p
 ---
 # Nightly sync. Starts in --dry-run: it logs the exact profile/CF diff and writes
 # nothing. Flip the arg to `sync` in a follow-up once the dry-run output has been
@@ -102,7 +118,7 @@ spec:
           containers:
             - name: recyclarr
               image: ghcr.io/recyclarr/recyclarr:7.4.0@sha256:619c3b8920a179f2c578acd0f54e9a068f57c049aff840469eed66e93a4be2cf
-              args: ["sync", "--preview", "--debug"]
+              args: ["sync", "--debug"]
               env:
                 - name: SONARR_API_KEY
                   valueFrom:
