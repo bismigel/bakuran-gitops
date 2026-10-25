@@ -77,6 +77,35 @@ data:
               summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} projected to fill within 7 days"
               description: "At the current 6h trend this filesystem runs out inside a week. Rebalance, tighten acquisition sizes, or add capacity."
               runbook_url: "https://runbook.bismigel.dev"
+          # --- WireGuard (ProtonVPN) on the media node -------------------
+          # 2026-10-25: the tunnel died with "packets sent, 0 bytes received"
+          # (stale endpoint IP) and took the whole media stack with it. Nothing
+          # monitored it: the pool alerts watch disks, NodeDown watches the node,
+          # and this failure leaves both looking healthy while no *arr can reach
+          # an indexer. Metrics come from a textfile collector on the host
+          # (bakuran-infra modules/wireguard-metrics.nix).
+          - alert: WireGuardNoHandshake
+            expr: (time() - wireguard_latest_handshake_seconds) > 300
+            for: 5m
+            labels: { severity: critical }
+            annotations:
+              summary: "WireGuard {{ $labels.iface }} on {{ $labels.instance }} has not handshaked in 5m"
+              description: "Packets may still be leaving with no reply - check `wg show {{ $labels.iface }}` and the endpoint IP in the host config."
+              runbook_url: "https://runbook.bismigel.dev"
+          - alert: WireGuardHandshakeStale
+            expr: (time() - wireguard_latest_handshake_seconds) > 180
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "WireGuard {{ $labels.iface }} handshake older than 3m on {{ $labels.instance }}"
+              description: "Keepalive is 25s, so a healthy tunnel handshakes well inside this window."
+          - alert: WireGuardMetricsMissing
+            expr: absent(wireguard_latest_handshake_seconds)
+            for: 20m
+            labels: { severity: warning }
+            annotations:
+              summary: "No WireGuard metrics at all"
+              description: "Either the textfile timer on the media node is not running or node-exporter is not scraping /var/lib/node-exporter/textfile."
           - alert: MediaPoolFillingUp
             expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 85
             for: 30m

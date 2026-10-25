@@ -35,6 +35,11 @@ spec:
             # never showed up, and why the "/" numbers were the overlay's.
             - '--path.rootfs=/rootfs'
             - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+            # Textfile collector: hosts drop custom metrics here. Used for
+            # WireGuard (handshake age, transfer counters) on calamansi-intel,
+            # because node_exporter has no wireguard collector and "is the VPN
+            # up" cannot be answered from the container.
+            - '--collector.textfile.directory=/host/textfile'
           securityContext:
             runAsNonRoot: true
             runAsUser: 65534
@@ -45,6 +50,9 @@ spec:
               mountPath: /host/sys
             - name: rootfs
               mountPath: /rootfs
+            - name: textfile
+              mountPath: /host/textfile
+              readOnly: true
           resources:
             requests:
               memory: 50Mi
@@ -64,3 +72,7 @@ spec:
           hostPath:
             path: /
             type: Directory
+        - name: textfile
+          hostPath:
+            path: /var/lib/node-exporter/textfile
+            type: DirectoryOrCreate
