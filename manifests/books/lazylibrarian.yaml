@@ -277,8 +277,11 @@ spec:
           args:
             - |
               set -e
-              rm -rf /patched/lazylibrarian
-              cp -a /app/lazylibrarian/lazylibrarian /patched/lazylibrarian
+              # copy the whole app dir, not just the package: the emptyDir is
+              # mounted AT /app/lazylibrarian, so the entrypoint and lib/ must be
+              # in it too
+              rm -rf /patched/* 
+              cp -a /app/lazylibrarian/. /patched/
               python - /patched/lazylibrarian/torrentparser.py <<'PATCH'
               import sys
               path = sys.argv[1]
@@ -344,7 +347,7 @@ spec:
             - { name: books, mountPath: /books }
             - { name: downloads, mountPath: /downloads }
             # patched package copy (see the abb-url-patcher init container)
-            - { name: patched-app, mountPath: /app/lazylibrarian/lazylibrarian }
+            - { name: patched-app, mountPath: /app/lazylibrarian }
           resources:
             requests: { cpu: 20m, memory: 128Mi }
             limits: { memory: 512Mi }
