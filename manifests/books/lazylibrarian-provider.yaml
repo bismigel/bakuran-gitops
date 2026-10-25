@@ -32,6 +32,16 @@ data:
   GENERALSEARCH: "search"
   BOOKSEARCH: "search"
   EXTENDED: "1"
+  # Where the audiobook postprocessor drops finished downloads: the same mergerfs
+  # pool Audiobookshelf scans at /mnt/media/audiobooks, so ABS picks the file up
+  # with no copy and no second path convention.
+  AUDIO_DIR: "/books/audiobooks"
+  # ABB only ever hands out magnets, so an audiobook cannot be fetched without a
+  # torrent client. qBittorrent is the one the arr stack already uses.
+  QBT_HOST: "qbittorrent.downloads.svc.cluster.local"
+  QBT_PORT: "8080"
+  QBT_USER: "admin"
+  QBT_LABEL: "books"
   # Every Kubernetes/platform author in the library is 'Paused', so none of them
   # has ever been searched. Set to "false" to leave them alone.
   ACTIVATE_PAUSED_AUTHORS: "true"

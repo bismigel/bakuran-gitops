@@ -98,15 +98,56 @@ spec:
                               cp.set(target, k, v)
                               changed.append(k if k == "api" else "%s: %r -> %r" % (k, cur, v))
 
+                      # -- audiobooks: destination + torrent client -----------------
+                      # Without these two blocks LazyLibrarian can *find* an
+                      # audiobook in Prowlarr and still never fetch it: ABB hands
+                      # out magnets (see prowlarr-definitions.yaml), so a torrent
+                      # client is required, and AUDIO_DIR is where the
+                      # postprocessor puts what it downloads. Empty AUDIO_DIR was
+                      # why every book kept AudioFile = NULL.
+                      extra_cfg = {
+                          "GENERAL": {
+                              "AUDIO_DIR": os.environ.get("AUDIO_DIR", "").strip(),
+                          },
+                          "TORRENT": {
+                              "TOR_DOWNLOADER_QBITTORRENT": "1",
+                          },
+                          "QBITTORRENT": {
+                              "QBITTORRENT_HOST": os.environ.get("QBT_HOST", "").strip(),
+                              "QBITTORRENT_PORT": os.environ.get("QBT_PORT", "8080").strip(),
+                              "QBITTORRENT_USER": os.environ.get("QBT_USER", "").strip(),
+                              "QBITTORRENT_LABEL": os.environ.get("QBT_LABEL", "").strip(),
+                              # qBittorrent's WebUI skips auth only for localhost,
+                              # and LL connects from a pod IP, so the password is
+                              # mandatory. No secret = leave the section out rather
+                              # than write a client that cannot log in.
+                              "QBITTORRENT_PASS": os.environ.get("QBT_PASS", "").strip(),
+                          },
+                      }
+                      for sec, keys in extra_cfg.items():
+                          if not cp.has_section(sec) and not any(keys.values()):
+                              continue
+                          if not cp.has_section(sec):
+                              cp.add_section(sec)
+                          for k, v in keys.items():
+                              if not v:
+                                  continue
+                              cur = cp.get(sec, k, fallback=None)
+                              if cur != v:
+                                  cp.set(sec, k, v)
+                                  # never log the password itself
+                                  shown = "(changed)" if "PASS" in k else repr(v)
+                                  changed.append("[%s] %s=%s" % (sec, k, shown))
+
                       if changed:
                           bak = pathlib.Path(str(INI) + ".init.bak")
                           if not bak.exists():
                               shutil.copy2(INI, bak)
                           with INI.open("w", encoding="utf-8") as fh:
                               cp.write(fh)
-                          log("[%s] updated:" % target, ", ".join(changed))
+                          log("updated:", ", ".join(changed))
                       else:
-                          log("[%s] already correct" % target)
+                          log("config already correct")
 
                       for extra in secs[1:]:
                           log("additional provider [%s] enabled=%s host=%s" % (
@@ -141,6 +182,14 @@ spec:
                 secretKeyRef:
                   name: lazylibrarian-secrets
                   key: prowlarr-api-key
+                  optional: true
+            # Same credential media/media-mcp uses for qBittorrent; seeded into
+            # this namespace by bakuran-infra scripts/lazylibrarian-secrets.sh.
+            - name: QBT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: qbt-password
                   optional: true
           volumeMounts:
             - name: config
