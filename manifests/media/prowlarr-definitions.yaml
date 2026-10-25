@@ -70,6 +70,17 @@ data:
     search:
       headers:
         User-Agent: ["{{ .Config.useragent }}"]
+      # ABB's search is a WordPress AND over every token, so a full library title
+      # finds nothing: "The Phoenix Project: A Novel About IT, DevOps, and Helping
+      # Your Business Win" -> 0 results, "The Phoenix Project" -> 9. LazyLibrarian
+      # sends the full title, so strip the subtitle and any bracketed noise here
+      # rather than in every client.
+      keywordsfilters:
+        - name: re_replace
+          args: [":.*$", ""]
+        - name: re_replace
+          args: ["\\(.*?\\)|\\[.*?\\]", ""]
+        - name: trim
       paths:
         - path: "?s={{ .Keywords }}"
       rows:
