@@ -29,14 +29,20 @@ data:
   BOOKCAT: "7000,7020"
   MAGCAT: "7010"
   # AudioBookBay (torrent) is the audiobook source; Prowlarr stays ebook/magazine
-  # only. With AUDIOCAT set, LL searched Prowlarr for audiobooks too, picked that
-  # result on match score, and then failed to download it - the Newznab provider
-  # hands results to the Usenet client, so a torrent result becomes
-  # "No NZB download method is enabled". Empty cat = LL skips this provider for
-  # audio searches (providers.py leaves params None) and uses ABB instead.
-  AUDIOCAT: ""
-  GENERALSEARCH: "search"
+  # only. When Prowlarr also answered audio searches, LL preferred its copy of the
+  # release on match score and then failed to download it, because a Newznab result
+  # always goes to the Usenet client ("No NZB download method is enabled").
+  #
+  # providers.py picks the search type per book type: BOOKSEARCH for books,
+  # AUDIOSEARCH for audio, MAGSEARCH for magazines - and falls back to
+  # GENERALSEARCH for each. So an empty GENERALSEARCH (and the default empty
+  # AUDIOSEARCH) leaves `params = None` for audio, i.e. this provider is skipped
+  # for audiobooks while books and magazines keep working through their own keys.
+  # Clearing AUDIOCAT does NOT do this: LL re-detects it from the indexer caps.
+  GENERALSEARCH: ""
   BOOKSEARCH: "search"
+  MAGSEARCH: "search"
+  AUDIOCAT: "3030"
   EXTENDED: "1"
   # Where the audiobook postprocessor drops finished downloads: the same mergerfs
   # pool Audiobookshelf scans at /mnt/media/audiobooks, so ABS picks the file up

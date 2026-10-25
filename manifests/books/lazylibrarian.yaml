@@ -80,6 +80,9 @@ spec:
                           "enabled": "1",
                           "generalsearch": os.environ.get("GENERALSEARCH", "search"),
                           "booksearch": os.environ.get("BOOKSEARCH", "search"),
+                          # explicit so magazines do not depend on the
+                          # GENERALSEARCH fallback, which is deliberately empty
+                          "magsearch": os.environ.get("MAGSEARCH", "search"),
                           "bookcat": os.environ.get("BOOKCAT", "7000,7020"),
                           "magcat": os.environ.get("MAGCAT", "7010"),
                           "audiocat": os.environ.get("AUDIOCAT", "3030"),
