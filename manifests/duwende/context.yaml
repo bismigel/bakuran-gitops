@@ -608,6 +608,50 @@ data:
       = Wanted**, so new authors/books are searched automatically (audiobooks stay
       `Skipped`); to want existing books, select them under Manage Books → Wanted.
     
+    ## Quality policy and what owns what (recyclarr)
+    
+    App *state* (config.xml + SQLite) is on PVCs, so ArgoCD cannot manage it. Three
+    owners, and **no object is co-managed** — that is the rule that keeps two
+    reconcilers from fighting:
+    
+    | Owner | Objects |
+    | --- | --- |
+    | **ArgoCD** (`manifests/media/`) | Deployment/PVC/Service/Ingress shape, image pins, nodeSelector, netpol |
+    | **recyclarr** (`manifests/media/recyclarr.yaml`, nightly 04:17) | `quality_profile` + `custom_format` scores |
+    | **OpenTofu** (`bakuran-infra/opentofu/`, *not yet built*) | indexers (Prowlarr), download clients, root folders, notifications, **and per-quality MB/min size caps** (`devopsarr_*_quality_definition`) |
+    | nothing | download history, seeds, cookies | R2 `appdata/` backups |
+    
+    Profiles it maintains (both **1080p-only**, upgrade enabled, cutoff `WEBDL-1080p`):
+    `Radarr: Movies-1080p`, `Sonarr: TV-1080p`. Allowed set: `WEBDL-1080p`,
+    `WEBRip-1080p`, `Bluray-1080p`, `HDTV-1080p`. No 2160p, no Remux — the 68G
+    `Remux-2160p` that nearly filled a pool branch (2026-10-24) cannot come back
+    through these.
+    
+    Toleration notes that cost time:
+    
+    - The image is pinned at **7.4.0** (v7 schema). `recyclarr config create` pulls
+    templates from the `config-templates` repo's **master**, which is already **v8** —
+    so its output is rejected (`Property 'trash_id' not found`). Spell profiles out
+    by name/qualities instead of copying templates.
+    - **Do not set `quality_definition`.** TRaSH's current presets are `Max = 1000
+      (Unlimited)` for *every* quality; applying them removes the 1080p cap and keeps
+      2160p unlimited. Sizes belong to the Tofu layer so only one owner touches them.
+    - `--preview` (not `--dry-run`) is the dry run; `--debug` is the verbose flag.
+    - `reset_unmatched_scores` must be an object (`enabled: false` keeps existing CF
+      scores). It is false on purpose.
+    
+    Dry run / verify:
+    
+    ```bash
+    ssh ... .81 'k3s kubectl -n media create job --from=cronjob/recyclarr rr-check-$(date +%s)'
+    ssh ... .81 'k3s kubectl -n media logs job/rr-check-... -c recyclarr | tail -40'
+    ```
+    
+    Existing items keep whatever profile they already had — recyclarr creates/updates
+    profiles, it does not reassign media. Reassigning the 3 4K movies to
+    `Movies-1080p` is a deliberate per-item decision (or a follow-up script), not an
+    automatic one.
+    
     ## Login alerts
     
     Three CronJobs in `monitoring` POST to Alertmanager → Telegram:
