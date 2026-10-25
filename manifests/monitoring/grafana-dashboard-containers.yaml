@@ -22,7 +22,7 @@ data:
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 2,
+      "version": 3,
       "refresh": "30s",
       "time": {
         "from": "now-6h",
@@ -50,7 +50,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "count(container_memory_working_set_bytes{container!=\"\",container!=\"POD\"} / on (namespace, pod, container) kube_pod_container_resource_limits{resource=\"memory\"} > 0.9)",
+              "expr": "count((sum by (namespace, pod, container) (container_memory_working_set_bytes{container!=\"\",container!=\"POD\"})) / (sum by (namespace, pod, container) (kube_pod_container_resource_limits{resource=\"memory\",container!=\"\"}) > 0) > 0.9)",
               "instant": true
             }
           ],
@@ -84,7 +84,8 @@ data:
               }
             },
             "overrides": []
-          }
+          },
+          "description": "Count of containers using >90% of their memory limit. Aggregates both sides by (namespace,pod,container) first: cAdvisor exposes several series per container (different id/image labels), so the bare / on(...) join was many-to-many and returned 422. A zero limit is excluded rather than counted as infinitely over."
         },
         {
           "id": 3,
