@@ -117,6 +117,10 @@ spec:
                        done=1; next } { print }' "$conf" > "$conf.tmp"
                 mv "$conf.tmp" "$conf"
               fi
+              # the rewrite above runs as root; hand it back to the app user or
+              # qBittorrent (abc) can read our settings but cannot save any,
+              # which silently reverts preferences to defaults on the next start
+              chown 1000:1000 "$conf" 2>/dev/null || true   # PUID/PGID of the app container
           volumeMounts:
             - name: config
               mountPath: /config
