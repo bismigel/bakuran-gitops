@@ -88,6 +88,35 @@ spec:
                 printf '[Logging]\nLogging\\Enabled=true\nLogging\\Rotate=true\nLogging\\MaxSizeBytes=10485760\n' >> "$conf"
                 printf '[Legal]\nLegal\\NoNotices=true\n' >> "$conf"
               fi
+              # Keep this client out of the router's state.
+              #
+              # qBittorrent defaults Connection\UPnP to TRUE, so every session it
+              # asks the router for port mappings. On 2026-10-25 the media node lost
+              # all WAN egress for 61 minutes starting ~11 min after a torrent swarm
+              # peaked: LAN fine, the router answered a hairpin ping for .82 in 0.3ms
+              # but dropped .81's, and it self-healed when the router state cleared.
+              # UPnP buys nothing here anyway - all traffic leaves through the
+              # WireGuard tunnel - so disable it and cap the connection counts that
+              # generate that state.
+              #
+              # Idempotent: drop our keys, then re-add them under [Preferences], so
+              # repeated starts cannot duplicate or drift.
+              sed -i \
+                -e '/^Connection\\UPnP=/d' \
+                -e '/^Connection\\MaxConnections=/d' \
+                -e '/^Connection\\MaxConnectionsPerTorrent=/d' \
+                -e '/^Connection\\MaxUploadsPerTorrent=/d' \
+                "$conf"
+              if grep -q '^\[Preferences\]' "$conf"; then
+                awk '/^\[Preferences\]$/ && !done {
+                       print;
+                       print "Connection\\UPnP=false";
+                       print "Connection\\MaxConnections=200";
+                       print "Connection\\MaxConnectionsPerTorrent=50";
+                       print "Connection\\MaxUploadsPerTorrent=20";
+                       done=1; next } { print }' "$conf" > "$conf.tmp"
+                mv "$conf.tmp" "$conf"
+              fi
           volumeMounts:
             - name: config
               mountPath: /config
