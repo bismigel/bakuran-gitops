@@ -28,7 +28,13 @@ data:
   # 7000/7020 = Books/Ebooks at both newznab and nZEDb sites.
   BOOKCAT: "7000,7020"
   MAGCAT: "7010"
-  AUDIOCAT: "3030"
+  # AudioBookBay (torrent) is the audiobook source; Prowlarr stays ebook/magazine
+  # only. With AUDIOCAT set, LL searched Prowlarr for audiobooks too, picked that
+  # result on match score, and then failed to download it - the Newznab provider
+  # hands results to the Usenet client, so a torrent result becomes
+  # "No NZB download method is enabled". Empty cat = LL skips this provider for
+  # audio searches (providers.py leaves params None) and uses ABB instead.
+  AUDIOCAT: ""
   GENERALSEARCH: "search"
   BOOKSEARCH: "search"
   EXTENDED: "1"
