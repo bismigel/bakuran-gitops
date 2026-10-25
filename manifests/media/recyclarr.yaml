@@ -1,0 +1,129 @@
+# Recyclarr — quality profiles + custom formats for Sonarr/Radarr as code.
+#
+# Ownership boundary (see MEDIA.md): recyclarr owns quality_profiles,
+# custom_formats and quality_definition *presets*; OpenTofu/devopsarr owns
+# indexers, download clients, root folders and notifications; ArgoCD owns the
+# workload shape. Nothing is co-managed, and recyclarr matches by name/trash_id
+# so anything referencing a profile keeps working.
+#
+# The profiles here are TRaSH Guides presets pulled by trash_id:
+#   72dae194fc92bf828f32cde7744e51a1  Sonarr  WEB-1080p
+#   d1d67249d3890e49bc12e275d989a7e9  Radarr  HD Bluray + WEB
+# Both stop at 1080p on purpose: the 68G movie that nearly filled the pool was
+# a Remux-2160p, and stock Radarr has `maxSize: null` for 2160p, i.e. no cap at
+# all. Per-quality MB/min caps are NOT expressible in recyclarr; those belong in
+# the Tofu layer (devopsarr_*_quality_definition).
+#
+# Scope note: this file does NOT delete or reassign anything. It creates/updates
+# the two profiles and their custom formats; which profile a movie/series uses
+# is a per-item setting.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recyclarr-config
+  namespace: media
+data:
+  recyclarr.yml: |
+    sonarr:
+      tv-1080p:
+        base_url: http://sonarr.media.svc.cluster.local:8989
+        api_key: !env_var SONARR_API_KEY
+
+        quality_definition:
+          type: series
+
+        quality_profiles:
+          - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+            reset_unmatched_scores:
+              enabled: true
+
+    radarr:
+      movies-1080p:
+        base_url: http://radarr.media.svc.cluster.local:7878
+        api_key: !env_var RADARR_API_KEY
+
+        quality_definition:
+          type: movie
+
+        quality_profiles:
+          - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+            reset_unmatched_scores:
+              enabled: true
+---
+# Nightly sync. Starts in --dry-run: it logs the exact profile/CF diff and writes
+# nothing. Flip the arg to `sync` in a follow-up once the dry-run output has been
+# reviewed.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: recyclarr
+  namespace: media
+spec:
+  schedule: "17 4 * * *"
+  timeZone: America/Toronto
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: recyclarr
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: calamansi-intel
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            # Recyclarr owns /config (cache, cloned TRaSH repos, logs) and treats
+            # the mounted file as its config. Copy it in so the ConfigMap stays
+            # read-only and recyclarr's own writes never touch Git-managed state.
+            - name: seed-config
+              image: ghcr.io/recyclarr/recyclarr:7.4.0@sha256:619c3b8920a179f2c578acd0f54e9a068f57c049aff840469eed66e93a4be2cf
+              command: ["/bin/sh", "-c"]
+              args:
+                - cp -f /seed/recyclarr.yml /config/recyclarr.yml && chmod 0600 /config/recyclarr.yml
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - { name: seed, mountPath: /seed, readOnly: true }
+                - { name: config, mountPath: /config }
+          containers:
+            - name: recyclarr
+              image: ghcr.io/recyclarr/recyclarr:7.4.0@sha256:619c3b8920a179f2c578acd0f54e9a068f57c049aff840469eed66e93a4be2cf
+              args: ["sync", "--dry-run", "--log-level", "info"]
+              env:
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef: { name: media-setup, key: sonarr-api-key }
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef: { name: media-setup, key: radarr-api-key }
+                - { name: TZ, value: America/Toronto }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests: { cpu: 10m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              volumeMounts:
+                - { name: config, mountPath: /config }
+          volumes:
+            - name: seed
+              configMap:
+                name: recyclarr-config
+            - name: config
+              emptyDir: {}
