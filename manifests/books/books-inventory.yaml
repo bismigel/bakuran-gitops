@@ -1,0 +1,80 @@
+# Read-only inventory of the book library.
+#
+# LazyLibrarian reports 151 Danielle Steel titles as 'Have'; Kavita indexes 51.
+# The difference has to be one of a few things, and all of them are visible from
+# the filesystem:
+#
+#   - the files are not there at all (status set without a file behind it),
+#   - the files are in a format Kavita cannot read (it handles epub/pdf/cbz/cbr,
+#     not azw3 or mobi — and NZBgeek book releases are usually "azw3 epub mobi"
+#     bundles where the importer may keep the azw3),
+#   - the files landed in /config during the ENOSPC window at 15:17, where the
+#     app fell back to "using /config" and Kavita never sees them.
+#
+# This prints counts by extension, total size, the newest paths, and any ebooks
+# sitting in /config. No writes, no deletes.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: books-inventory
+  namespace: books
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: calamansi-intel
+      containers:
+        - name: inventory
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -u
+              echo "===== /books (what Kavita reads) ====="
+              echo "top-level entries: $(ls -1 /books 2>/dev/null | wc -l)"
+              ls -1 /books 2>/dev/null | head -15
+              echo
+              echo "total files: $(find /books -type f 2>/dev/null | wc -l)"
+              echo "total size:  $(du -sh /books 2>/dev/null | cut -f1)"
+              echo
+              echo "--- by extension ---"
+              find /books -type f 2>/dev/null | sed 's/.*\.//' | tr 'A-Z' 'a-z' \
+                | sort | uniq -c | sort -rn | head -12
+              echo
+              echo "--- newest 12 files ---"
+              ls -1t /books/*/* 2>/dev/null | head -12
+              echo
+              echo "--- sample book dir ---"
+              find /books -mindepth 2 -maxdepth 2 -type d 2>/dev/null | head -3 | while read -r d; do
+                echo "$d:"; ls -l "$d" 2>/dev/null | head -5
+              done
+              echo
+              echo "===== /config (fallback target during ENOSPC) ====="
+              find /config -maxdepth 3 -type f \
+                \( -iname '*.epub' -o -iname '*.mobi' -o -iname '*.azw3' -o -iname '*.pdf' \) \
+                2>/dev/null | head -20
+              echo "ebook files in /config: $(find /config -maxdepth 3 -type f \
+                \( -iname '*.epub' -o -iname '*.mobi' -o -iname '*.azw3' -o -iname '*.pdf' \) \
+                2>/dev/null | wc -l)"
+          volumeMounts:
+            - name: books
+              mountPath: /books
+              readOnly: true
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 64Mi }
+      volumes:
+        - name: books
+          hostPath:
+            path: /mnt/media/books
+            type: Directory
+        - name: config
+          persistentVolumeClaim:
+            claimName: lazylibrarian-config
+            readOnly: true

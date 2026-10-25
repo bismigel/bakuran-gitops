@@ -1,18 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - audiobookshelf.yaml
   - kavita.yaml
   - lazylibrarian-provider.yaml
   - lazylibrarian.yaml
+  # One-shot inventory of the book library. Read-only; exists to explain the gap
+  # between LazyLibrarian's book counts and what Kavita actually indexes.
+  - books-inventory.yaml
 patches:
-  # A pod-template annotation, not a setting: any change to it makes Kubernetes
-  # build a new ReplicaSet. The ReplicaSet that #160 rolled out sat in
-  # FailedCreate backoff after the PodSecurity rejection and does not retry
-  # promptly once the namespace label is fixed, so after correcting the policy
-  # in #161 the workload was still idle with zero pods. Bumping this value is
-  # the declarative equivalent of `kubectl rollout restart`, and it is how this
-  # workload gets unstuck without touching the cluster by hand.
   - target:
       kind: Deployment
       name: lazylibrarian
@@ -20,4 +15,4 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations
         value:
-          bakuran.dev/rollout: "2026-10-24T18:10:00Z"
+          bakuran.dev/rollout: "2026-10-24T20:15:00Z"
