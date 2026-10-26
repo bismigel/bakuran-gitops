@@ -275,6 +275,42 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+          envFrom:
+            - configMapRef:
+                name: lazylibrarian-provider
+          env:
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: prowlarr-api-key
+                  optional: true
+            # Same credential media/media-mcp uses for qBittorrent; seeded into
+            # this namespace by bakuran-infra scripts/lazylibrarian-secrets.sh.
+            - name: QBT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: qbt-password
+                  optional: true
+            # LazyLibrarian's own API key (32 chars). Same value media-mcp uses
+            # as LAZYLIBRARIAN_API_KEY.
+            # SABnzbd API key; seeded by bakuran-infra scripts/lazylibrarian-secrets.sh
+            - name: SAB_API
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: sabnzbd-api-key
+                  optional: true
+            - name: LL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: lazylibrarian-api-key
+                  optional: true
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
         # Upstream bug: torrentparser.torrent_abb() builds f"{host}/{href}" while
         # ABB's hrefs already start with "/", so every details page is requested
         # as //abss/<slug>/ and Cloudflare answers HTTP 425 with an empty body -
@@ -314,42 +350,6 @@ spec:
               mountPath: /patched
             - name: config
               mountPath: /config
-          envFrom:
-            - configMapRef:
-                name: lazylibrarian-provider
-          env:
-            - name: PROWLARR_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: lazylibrarian-secrets
-                  key: prowlarr-api-key
-                  optional: true
-            # Same credential media/media-mcp uses for qBittorrent; seeded into
-            # this namespace by bakuran-infra scripts/lazylibrarian-secrets.sh.
-            - name: QBT_PASS
-              valueFrom:
-                secretKeyRef:
-                  name: lazylibrarian-secrets
-                  key: qbt-password
-                  optional: true
-            # LazyLibrarian's own API key (32 chars). Same value media-mcp uses
-            # as LAZYLIBRARIAN_API_KEY.
-            # SABnzbd API key; seeded by bakuran-infra scripts/lazylibrarian-secrets.sh
-            - name: SAB_API
-              valueFrom:
-                secretKeyRef:
-                  name: lazylibrarian-secrets
-                  key: sabnzbd-api-key
-                  optional: true
-            - name: LL_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: lazylibrarian-secrets
-                  key: lazylibrarian-api-key
-                  optional: true
-          resources:
-            requests: { cpu: 10m, memory: 32Mi }
-            limits: { memory: 128Mi }
       containers:
         - name: lazylibrarian
           image: linuxserver/lazylibrarian:version-754d0eb6
