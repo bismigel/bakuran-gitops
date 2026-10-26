@@ -137,7 +137,7 @@ spec:
                               "sab_api": os.environ.get("SAB_API", "").strip(),
                           },
                           "ABB": {
-                              "ABB": "1",
+                              "ABB": "0",
                               "ABB_HOST": os.environ.get("ABB_HOST", "audiobookbay.lu").strip(),
                               "ABB_DLTYPES": "A",
                           },
