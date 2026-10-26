@@ -344,6 +344,31 @@ spec:
                   print("abb-url-patcher: WARNING pattern not found - ABB downloads are"
                         " probably broken again, check torrentparser.torrent_abb()")
               PATCH
+              # Second upstream annoyance: for a Newznab *book* search LL sends
+              # q="<author> <title>", and indexers AND every term. A release name
+              # that omits the subtitle or spells the author differently then
+              # matches nothing:
+              #   q="Ichiro Kishimi The Courage to be Happy - True Contentment..." -> 0
+              #   q="The Courage to be Happy"                                      -> 1
+              # The author is still used by LL's own scoring, so dropping it from
+              # the query keeps results correct while making them findable.
+              python - /patched/lazylibrarian/providers.py <<'PATCH2'
+              import sys
+              path = sys.argv[1]
+              lines = open(path, encoding="utf-8").read().split("\n")
+              changed = False
+              for i, line in enumerate(lines):
+                  # the book-search branch: q="<author> <title>" followed by BOOKCAT
+                  if 'f"{authorname} {bookname}"' in line and i + 1 < len(lines) and "BOOKCAT" in lines[i + 1]:
+                      lines[i] = line.replace('f"{authorname} {bookname}"', "bookname")
+                      changed = True
+                      break
+              if changed:
+                  open(path, "w", encoding="utf-8").write("\n".join(lines))
+                  print("book-query-patcher: book search queries by title only")
+              else:
+                  print("book-query-patcher: already patched or upstream changed - check providers.py")
+              PATCH2
               chown -R 1000:1000 /patched
           volumeMounts:
             - name: patched-app
