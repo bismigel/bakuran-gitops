@@ -33,13 +33,15 @@ data:
   # release on match score and then failed to download it, because a Newznab result
   # always goes to the Usenet client ("No NZB download method is enabled").
   #
-  # providers.py picks the search type per book type: BOOKSEARCH for books,
-  # AUDIOSEARCH for audio, MAGSEARCH for magazines - and falls back to
-  # GENERALSEARCH for each. So an empty GENERALSEARCH (and the default empty
-  # AUDIOSEARCH) leaves `params = None` for audio, i.e. this provider is skipped
-  # for audiobooks while books and magazines keep working through their own keys.
-  # Clearing AUDIOCAT does NOT do this: LL re-detects it from the indexer caps.
-  GENERALSEARCH: ""
+  # MUST stay "search": providers.py sends `t = GENERALSEARCH` for *book*
+  # searches, so blanking it (which an earlier change did, to keep Prowlarr out
+  # of audio queries) made every ebook search send `t=` and Prowlarr returned
+  # nothing. That looked exactly like "search is broken".
+  # Trade-off: the audio branch falls back to the same key, so Prowlarr is also
+  # asked for audiobooks, where it ignores title/author and returns the whole
+  # catalogue. Results are junk but they are rejected by LL's match threshold;
+  # audiobooks are meant to come from the ABB provider anyway.
+  GENERALSEARCH: "search"
   BOOKSEARCH: "search"
   MAGSEARCH: "search"
   AUDIOCAT: "3030"
