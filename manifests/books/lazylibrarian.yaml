@@ -118,6 +118,12 @@ spec:
                               #  -> "WARNING: Download dir [''] not found, using /config"
                               # i.e. a snatch succeeds, SAB completes, and the file
                               # is never imported into the library.
+                              # OL_URL defaults to https://www.openlibrary.org, which
+                              # answers 301. ol.py builds every OpenLibrary request from
+                              # it and the redirect is not followed, so the UI's "add a
+                              # book" search returns nothing for any term (e.g. "kafka"
+                              # -> 0 while openlibrary.org/search.json reports 7062).
+                              "OL_URL": os.environ.get("OL_URL", "https://openlibrary.org").strip(),
                               "EBOOK_DIR": os.environ.get("EBOOK_DIR", "/books").strip(),
                               "DOWNLOAD_DIR": os.environ.get("DOWNLOAD_DIR", "/downloads").strip(),
                           },
