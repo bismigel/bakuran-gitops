@@ -198,6 +198,12 @@ spec:
                       extra_cfg["API"] = {
                           "API_ENABLED": "1" if len(_api) == 32 else "",
                           "API_KEY": _api if len(_api) == 32 else "",
+                          # Enable the OpenLibrary metadata source. search_for()
+                          # returns [] immediately when CONFIG['OL_API'] is false,
+                          # and the default is 0 - so the UI's "add a book" search
+                          # ("kafka") returned nothing for every term. OpenLibrary
+                          # needs no API key (unlike GoogleBooks/GoodReads).
+                          "OL_API": "1",
                       }
                       for sec, keys in extra_cfg.items():
                           if not cp.has_section(sec) and not any(keys.values()):
