@@ -97,10 +97,12 @@ data:
             icon: kavita
         - LazyLibrarian:
             href: https://lazylibrarian.bismigel.dev
-            description: Book manager (Usenet → /books)
+            description: Book manager (Prowlarr → SAB → /books)
+            icon: mdi-book-search
         - Audiobookshelf:
             href: https://audiobookshelf.bismigel.dev
             description: Audiobooks + podcasts (/mnt/media/audiobooks)
+            icon: audiobookshelf
         - Karakeep:
             href: https://karakeep.bismigel.dev
             description: Bookmarks + AI tagging (local qwen)
@@ -174,61 +176,6 @@ data:
         - Bitwarden:
             - abbr: BW
               href: https://vault.bitwarden.com
-    - Homelab:
-        - Homepage:
-            - abbr: HP
-              href: https://homepage.bismigel.dev
-        - Status:
-            - abbr: ST
-              href: https://status.bismigel.dev
-        - Grafana:
-            - abbr: GR
-              href: https://grafana.bismigel.dev
-        - Prometheus:
-            - abbr: PR
-              href: https://prometheus.bismigel.dev
-        - Longhorn:
-            - abbr: LH
-              href: https://longhorn.bismigel.dev
-        - Hermes:
-            - abbr: HE
-              href: https://agent.bismigel.dev
-        - Immich:
-            - abbr: IM
-              href: https://immich.bismigel.dev
-        - Jellyfin:
-            - abbr: JF
-              href: https://jellyfin.bismigel.dev
-        - Kavita:
-            - abbr: KV
-              href: https://kavita.bismigel.dev
-        - Karakeep:
-            - abbr: KP
-              href: https://karakeep.bismigel.dev
-        - LazyLibrarian:
-            - abbr: LL
-              href: https://lazylibrarian.bismigel.dev
-        - Sonarr:
-            - abbr: SO
-              href: https://sonarr.bismigel.dev
-        - Radarr:
-            - abbr: RD
-              href: https://radarr.bismigel.dev
-        - Prowlarr:
-            - abbr: PL
-              href: https://prowlarr.bismigel.dev
-        - Bazarr:
-            - abbr: BZ
-              href: https://bazarr.bismigel.dev
-        - qBittorrent:
-            - abbr: QB
-              href: https://qbittorrent.bismigel.dev
-        - SABnzbd:
-            - abbr: SB
-              href: https://sabnzbd.bismigel.dev
-        - Private API:
-            - abbr: PA
-              href: https://private.bismigel.dev
     - Docs:
         - NixOS packages:
             - abbr: NX
