@@ -126,6 +126,16 @@ spec:
                           # hash. Audiobooks come from Prowlarr's Torznab feed
                           # instead (block below), which is the same index and is
                           # fetched correctly.
+                          # Usenet client for ebooks/magazines. Without it every
+                          # search result LL accepts fails at the download step
+                          # ("No NZB download method is enabled"), which reads as
+                          # "search does not work".
+                          "SABNZBD": {
+                              "sab_host": os.environ.get("SAB_HOST", "").strip(),
+                              "sab_port": os.environ.get("SAB_PORT", "8080").strip(),
+                              "sab_cat": os.environ.get("SAB_CAT", "books").strip(),
+                              "sab_api": os.environ.get("SAB_API", "").strip(),
+                          },
                           "ABB": {
                               "ABB": "1",
                               "ABB_HOST": os.environ.get("ABB_HOST", "audiobookbay.lu").strip(),
@@ -324,6 +334,13 @@ spec:
                   optional: true
             # LazyLibrarian's own API key (32 chars). Same value media-mcp uses
             # as LAZYLIBRARIAN_API_KEY.
+            # SABnzbd API key; seeded by bakuran-infra scripts/lazylibrarian-secrets.sh
+            - name: SAB_API
+              valueFrom:
+                secretKeyRef:
+                  name: lazylibrarian-secrets
+                  key: sabnzbd-api-key
+                  optional: true
             - name: LL_API_KEY
               valueFrom:
                 secretKeyRef:
