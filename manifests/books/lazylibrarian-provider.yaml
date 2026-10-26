@@ -48,6 +48,13 @@ data:
   # Re-check the id if the indexer is ever re-created: kubectl -n media exec
   # deploy/prowlarr -- curl -s -H "X-Api-Key: $KEY" .../api/v1/indexer
   PROWLARR_TORZNAB: "http://prowlarr.media.svc.cluster.local:9696/4"
+  # Usenet client. Without it every ebook LL finds dies with "No NZB download
+  # method is enabled" - the [SABnzbd] section had gone missing with the rest of
+  # config.ini, which is why "search" looked broken: it found things it could
+  # never fetch. SAB has a books category.
+  SAB_HOST: "sabnzbd.downloads.svc.cluster.local"
+  SAB_PORT: "8080"
+  SAB_CAT: "books"
   EXTENDED: "1"
   # Where the audiobook postprocessor drops finished downloads: the same mergerfs
   # pool Audiobookshelf scans at /mnt/media/audiobooks, so ABS picks the file up
