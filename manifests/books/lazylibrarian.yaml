@@ -130,6 +130,13 @@ spec:
                           # search result LL accepts fails at the download step
                           # ("No NZB download method is enabled"), which reads as
                           # "search does not work".
+                          # Enable the SABnzbd downloader. [SABNZBD] alone is not
+                          # enough: downloadmethods.py checks NZB_DOWNLOADER_SABNZBD
+                          # in [USENET], which is why a found book still failed with
+                          # "No NZB download method is enabled".
+                          "USENET": {
+                              "nzb_downloader_sabnzbd": "1",
+                          },
                           "SABNZBD": {
                               "sab_host": os.environ.get("SAB_HOST", "").strip(),
                               "sab_port": os.environ.get("SAB_PORT", "8080").strip(),
