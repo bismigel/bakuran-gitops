@@ -111,6 +111,15 @@ spec:
                       extra_cfg = {
                           "GENERAL": {
                               "AUDIO_DIR": os.environ.get("AUDIO_DIR", "").strip(),
+                              # Without these two LL cannot file anything it
+                              # downloads: get_directory('eBook'/'Download') return
+                              # '' and every postprocess falls back to /config.
+                              #  -> "WARNING: eBook dir [''] not found, using /config"
+                              #  -> "WARNING: Download dir [''] not found, using /config"
+                              # i.e. a snatch succeeds, SAB completes, and the file
+                              # is never imported into the library.
+                              "EBOOK_DIR": os.environ.get("EBOOK_DIR", "/books").strip(),
+                              "DOWNLOAD_DIR": os.environ.get("DOWNLOAD_DIR", "/downloads").strip(),
                           },
                           "TORRENT": {
                               "TOR_DOWNLOADER_QBITTORRENT": "1",
