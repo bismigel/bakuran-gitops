@@ -42,7 +42,13 @@ data:
   # catalogue. Results are junk but they are rejected by LL's match threshold;
   # audiobooks are meant to come from the ABB provider anyway.
   GENERALSEARCH: "search"
-  BOOKSEARCH: "search"
+  # Intentionally EMPTY. When BOOKSEARCH is set, providers.py takes the Newznab
+  # "book search" branch and sends t=search&title=…&author=…: Prowlarr then turns
+  # that into q="<author> <title>" (indexers AND every term -> 0 hits for most
+  # books) and DROPS the category. Empty forces the general-search branch instead:
+  # t=search&q=<title>&cat=BOOKCAT, which is what actually works (verified: 0 vs
+  # 1 hits for the same book).
+  BOOKSEARCH: ""
   MAGSEARCH: "search"
   AUDIOCAT: "3030"
   AUDIOSEARCH: "search"
