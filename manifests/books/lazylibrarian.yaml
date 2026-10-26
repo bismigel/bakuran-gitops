@@ -360,6 +360,31 @@ spec:
               else:
                   print("book-query-patcher: already patched or upstream changed - check providers.py")
               PATCH2
+              # Third upstream quirk: the UI's interactive search drops every
+              # result. manualbook.search_item() picks the provider with
+              #   if 'dispname' in item:  provider = item['dispname']
+              # and Prowlarr returns dispname='' (the real value is in nzbprov),
+              # so provider stays empty and the result fails the
+              # `if title and provider and mode and url` gate -> the manual
+              # search page is always empty even though the same query works
+              # from the automated search. Test for truthiness, not key presence.
+              python - /patched/lazylibrarian/manualbook.py <<'PATCH3'
+              import sys
+              path = sys.argv[1]
+              src = open(path, encoding="utf-8").read()
+              pairs = [("if 'dispname' in item:", "if item.get('dispname'):"),
+                       ("elif 'nzbprov' in item:", "elif item.get('nzbprov'):"),
+                       ("elif 'tor_prov' in item:", "elif item.get('tor_prov'):"),
+                       ("elif 'rss_prov' in item:", "elif item.get('rss_prov'):")]
+              changed = [old for old, new in pairs if old in src]
+              if not changed:
+                  print("manual-result-patcher: already patched or upstream changed")
+              else:
+                  for old, new in pairs:
+                      src = src.replace(old, new)
+                  open(path, "w", encoding="utf-8").write(src)
+                  print("manual-result-patcher: provider detection now truthiness-based (%d sites)" % len(changed))
+              PATCH3
               chown -R 1000:1000 /patched
           volumeMounts:
             - name: patched-app
