@@ -124,6 +124,12 @@ spec:
                               # book" search returns nothing for any term (e.g. "kafka"
                               # -> 0 while openlibrary.org/search.json reports 7062).
                               "OL_URL": os.environ.get("OL_URL", "https://openlibrary.org").strip(),
+                              # MAX_PAGES defaults to 0 = unlimited: ol.find_results()
+                              # paginates until numFound, so a broad term like "kafka"
+                              # (6914 hits) fetches ~70 pages and the UI just sits on
+                              # "searching". 10 pages is ~1000 results, plenty to pick
+                              # from, and returns in seconds.
+                              "MAX_PAGES": os.environ.get("MAX_PAGES", "10").strip(),
                               "EBOOK_DIR": os.environ.get("EBOOK_DIR", "/books").strip(),
                               "DOWNLOAD_DIR": os.environ.get("DOWNLOAD_DIR", "/downloads").strip(),
                           },
