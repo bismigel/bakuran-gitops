@@ -158,44 +158,19 @@ spec:
                       # never set (it went missing with the rest of config.ini).
                       # LL rejects a key that is not exactly 32 chars, so a bad
                       # secret leaves the API off instead of half-configured.
-                      # -- audiobooks: Torznab feed DISABLED --------------------
-                      # Prowlarr's ABB indexer ignores the Newznab title/author
-                      # parameters: its log shows "Term: []" and it answers with
-                      # the whole catalogue (100 items, none related). LL matched
-                      # one of those at 32% before rejecting it - a slightly
-                      # better accidental match would have grabbed the wrong
-                      # book, so this provider stays off.
-                      # A Newznab result always goes to the Usenet client, so a
-                      # torrent found through [Newznab_0] can be seen and never
-                      # downloaded ("No NZB download method is enabled"). Prowlarr
-                      # also exposes a Torznab feed per indexer; configured as a
-                      # torznab provider, LL marks those results as torrents and
-                      # sends the magnet to qBittorrent. Restricted to audio
-                      # (dlttypes=A, no book/mag/general search) so ebooks keep
-                      # flowing Newznab -> SABnzbd.
-                      _tzh = os.environ.get("PROWLARR_TORZNAB", "").strip()
-                      _pkey = os.environ.get("PROWLARR_API_KEY", "").strip()
-                      if _tzh and _pkey:
-                          _tz = next((x for x in cp.sections() if x.lower().startswith("torznab")), "Torznab_0")
-                          if not cp.has_section(_tz):
-                              cp.add_section(_tz)
-                          for k, v in {
-                              "enabled": "0",
-                              "host": _tzh,
-                              "api": _pkey,
-                              "audiosearch": os.environ.get("AUDIOSEARCH", "search"),
-                              "audiocat": os.environ.get("AUDIOCAT", "3030"),
-                              "dlttypes": "A",
-                              "generalsearch": "",
-                              "booksearch": "",
-                              "magsearch": "",
-                              "extended": "1",
-                          }.items():
-                              cur = cp.get(_tz, k, fallback=None)
-                              if cur != v:
-                                  cp.set(_tz, k, v)
-                                  shown = "(changed)" if "api" in k else repr(v)
-                                  changed.append("[%s] %s=%s" % (_tz, k, shown))
+                      # -- audiobooks: no Torznab provider ----------------------
+                      # The Torznab feed was tried and abandoned (Prowlarr's ABB
+                      # indexer ignores title/author and answers with the whole
+                      # catalogue). It must also be REMOVED, not just disabled:
+                      # its extra keys are not in LL's TORZNAB schema, and the
+                      # resulting "Unknown option TORZNAB_0.DLTTYPES in config"
+                      # rejected the whole config load at startup - provider
+                      # arrays came up with defaults (host '', bookcat '') and
+                      # every ebook search then queried Prowlarr with an empty
+                      # category. Audiobooks come from the ABB provider instead.
+                      for _sec in [x for x in cp.sections() if x.lower().startswith("torznab")]:
+                          cp.remove_section(_sec)
+                          changed.append("removed obsolete section [%s]" % _sec)
 
                       _api = os.environ.get("LL_API_KEY", "").strip()
                       extra_cfg["API"] = {
