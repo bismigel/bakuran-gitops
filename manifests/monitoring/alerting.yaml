@@ -120,6 +120,31 @@ data:
             annotations:
               summary: "No WireGuard metrics at all"
               description: "Either the textfile timer on the media node is not running or node-exporter is not scraping /var/lib/node-exporter/textfile."
+          - alert: StrayCNIAddress
+            # A host interface holding an address inside the pod CIDR is an
+            # address the IPAM will happily hand to a pod. On 2026-10-26 a pod got
+            # 10.42.0.1 - the leftover flannel bridge cni0 on one node - so every
+            # request to that pod's IP was delivered to the host instead: the
+            # liveness probe got connection refused and the container was killed
+            # on a loop while the deployment sat at 1/2 ready.
+            # The cni-stray-sweep unit removes the interface and leaves this at 1
+            # for the run that did.
+            expr: homelab_stray_cni_removed > 0
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.instance }} had a non-Cilium interface inside the pod CIDR (removed by cni-stray-sweep)"
+              description: "Pods can be allocated an address the node itself owns, which makes them unreachable while they look scheduled. Check which interface was removed in the host journal (tag cni-stray-sweep)."
+          - alert: StrayCNIMetricsMissing
+            # Same lesson as WireGuardMetricsMissing: a monitor whose metric never
+            # arrives is not a monitor. The sweep runs hourly; 90m of silence
+            # means the timer or the textfile broke, not that the hosts are clean.
+            expr: absent(homelab_stray_cni_removed)
+            for: 90m
+            labels: { severity: warning }
+            annotations:
+              summary: "homelab_stray_cni_* metrics absent - cni-stray-sweep is not reporting"
+              description: "Check the timer on the hosts (systemctl list-timers cni-stray-sweep) and that /var/lib/node-exporter/textfile/stray-cni.prom exists and is world-readable."
           - alert: MediaPoolFillingUp
             expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 85
             for: 30m
@@ -237,6 +262,29 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
+      - name: workloads
+        rules:
+          # On 2026-10-26 the public site ran at 1 of 2 ready replicas for minutes
+          # while one pod crash-looped, and nothing fired: the pod-level signals
+          # (restarts) and the deployment-level signal (ready vs desired) were both
+          # unwatched. "Degraded but still serving" is exactly the state that goes
+          # unnoticed until the second replica goes too.
+          - alert: KubePodCrashLooping
+            expr: increase(kube_pod_container_status_restarts_total[15m]) > 3
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarted {{ $value | printf \"%.0f\" }} times in 15m"
+              description: "Find the cause before deleting the pod: a crash loop with a clean exit is usually something killing it (probe, OOM, unreachable address)."
+          - alert: KubeDeploymentReplicasMismatch
+            expr: |
+              (kube_deployment_spec_replicas - kube_deployment_status_replicas_ready) > 0
+              and kube_deployment_spec_replicas > 0
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.deployment }} is {{ $value | printf \"%.0f\" }} replica(s) short of desired"
+              description: "Ten minutes is longer than a rollout: either a pod cannot become ready or the rollout is stuck. Check pod events for probe failures."
       - name: media
         rules:
           # Jellyfin uses strategy Recreate (RWO config PVC), so any roll kills
