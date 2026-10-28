@@ -23,7 +23,7 @@ metadata:
   namespace: books
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: longhorn
   resources:
     requests:
       storage: 2Gi
@@ -36,7 +36,7 @@ metadata:
   labels:
     app: kavita
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
