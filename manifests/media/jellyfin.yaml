@@ -12,8 +12,11 @@ spec:
   accessModes:
     - ReadWriteOnce
   resources:
+      # 8Gi, not 1Gi: Jellyfin refuses to start unless /config/data has 2GiB
+      # free. On local-path it was seeing the whole disk; a Longhorn volume
+      # only has what we ask for (2026-10-28 crash loop).
     requests:
-      storage: 1Gi
+      storage: 8Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
