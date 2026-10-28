@@ -49,10 +49,14 @@ spec:
           enabled: true
           relay:
             enabled: true
+            # Requests only, sized from observed usage (2026-10-28).
+            resources: { requests: { cpu: 10m, memory: 64Mi } }
           ui:
             enabled: false
         operator:
           replicas: 1
+          # Requests only, sized from observed usage (2026-10-28).
+          resources: { requests: { cpu: 20m, memory: 128Mi } }
           # Operator metrics (:9963). The host firewall must allow the port —
           # see modules/base.nix in bakuran-infra.
           prometheus:
