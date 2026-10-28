@@ -32,7 +32,7 @@ spec:
         app: lazylibrarian
     spec:
       nodeSelector:
-        kubernetes.io/hostname: calamansi-intel
+        homelab.io/media-pool: "true"
       initContainers:
         # The provider lives in config.ini on the config PVC, so this is
         # the only place it can be declared. Runs before the app starts, only

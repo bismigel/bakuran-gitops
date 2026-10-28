@@ -35,7 +35,7 @@ spec:
         spec:
           restartPolicy: OnFailure
           nodeSelector:
-            kubernetes.io/hostname: calamansi-intel
+            homelab.io/media-pool: "true"
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000

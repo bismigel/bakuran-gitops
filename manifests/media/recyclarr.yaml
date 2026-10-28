@@ -107,8 +107,6 @@ spec:
             app: recyclarr
         spec:
           restartPolicy: OnFailure
-          nodeSelector:
-            kubernetes.io/hostname: calamansi-intel
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000

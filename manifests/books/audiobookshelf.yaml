@@ -39,7 +39,7 @@ spec:
         app: audiobookshelf
     spec:
       nodeSelector:
-        kubernetes.io/hostname: calamansi-intel
+        homelab.io/media-pool: "true"
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

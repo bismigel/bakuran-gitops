@@ -48,7 +48,7 @@ spec:
         app: kavita
     spec:
       nodeSelector:
-        kubernetes.io/hostname: calamansi-intel
+        homelab.io/media-pool: "true"
       containers:
         - name: kavita
           image: linuxserver/kavita:version-v0.9.1.4@sha256:49be245da019056e5627f0c01d46871a89b25683aa0b68c7c7afac3918bca0f5
