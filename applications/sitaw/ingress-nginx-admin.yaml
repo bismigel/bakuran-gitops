@@ -24,6 +24,12 @@ spec:
           # no endpoint left to reach (found 2026-10-28).
           # maxSurge/maxUnavailable 1 so a rollout still progresses when only
           # two nodes are schedulable: the old pod leaves and frees its node.
+          # The class itself is owned by the edge-config app (manifests/edge/), so
+          # this release must NOT try to create IngressClass/nginx - it would fight
+          # the public controller for the same object and sit OutOfSync forever.
+          ingressClassResource:
+            enabled: false
+          ingressClass: nginx-admin
           replicaCount: 2
           updateStrategy:
             type: RollingUpdate
