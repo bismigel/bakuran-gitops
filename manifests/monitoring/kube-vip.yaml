@@ -1,0 +1,113 @@
+# kube-vip — a floating API address for the cluster.
+#
+# Why: without it every client points at one node (sitaw-amd, .82). That node is
+# not special, but losing it broke `kubectl` for humans and for anything outside
+# the cluster, even though the other two servers were healthy. This advertises
+# 192.168.2.100 over ARP from whichever control-plane node currently holds the
+# leader lease.
+#
+# The address must also be in the API server certificate, or TLS fails even
+# though the TCP connection works — that is the `--tls-san=192.168.2.100` line in
+# each host's k3s flags (bakuran-infra, 2026-10-28).
+#
+# ARP mode, not BGP: this is one flat L2 segment. If the network is ever cut into
+# VLANs with routing between them, revisit this.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-vip
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-vip
+rules:
+  - apiGroups: [""]
+    resources: ["services", "services/status", "nodes", "endpoints"]
+    verbs: ["list", "get", "watch", "update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["list", "get", "watch", "create", "update", "patch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["list", "get", "watch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-vip
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-vip
+subjects:
+  - kind: ServiceAccount
+    name: kube-vip
+    namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-vip
+  namespace: kube-system
+  labels:
+    app: kube-vip
+spec:
+  selector:
+    matchLabels:
+      app: kube-vip
+  template:
+    metadata:
+      labels:
+        app: kube-vip
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      # One instance per server; the lease decides which one owns the address,
+      # so a node failure hands it over without a human.
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      hostNetwork: true
+      serviceAccountName: kube-vip
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: kube-vip
+          image: ghcr.io/kube-vip/kube-vip:v0.8.7
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN", "NET_RAW", "SYS_TIME"]
+          env:
+            - name: vip_arp
+              value: "true"
+            - name: port
+              value: "6443"
+            - name: vip_cidr
+              value: "32"
+            # We do not start control-plane components with kube-vip; k3s owns
+            # the apiserver/scheduler/controller-manager lifecycle.
+            - name: cp_enable
+              value: "false"
+            - name: svc_enable
+              value: "false"
+            - name: vip_leaderelection
+              value: "true"
+            - name: vip_leaseduration
+              value: "5"
+            - name: vip_renewdeadline
+              value: "3"
+            - name: vip_retryperiod
+              value: "1"
+            - name: address
+              value: "192.168.2.100"
+            - name: prometheus_server
+              value: ":8080"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
