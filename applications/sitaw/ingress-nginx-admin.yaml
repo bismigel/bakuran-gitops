@@ -35,7 +35,10 @@ spec:
                 - topologyKey: kubernetes.io/hostname
                   labelSelector:
                     matchLabels:
-                      app.kubernetes.io/name: ingress-nginx
+                      # instance, not name: both releases are called 'ingress-nginx', so
+                      # matching on name made each controller block the other and left one
+                      # replica permanently Pending (4 pods, 3 nodes).
+                      app.kubernetes.io/instance: ingress-nginx-admin
                       app.kubernetes.io/component: controller
           config:
             # The origin is loopback-only; cloudflared is the only client.
