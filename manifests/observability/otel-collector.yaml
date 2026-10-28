@@ -61,6 +61,8 @@ spec:
     spec:
       containers:
         - name: otel-collector
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
           image: otel/opentelemetry-collector-contrib:0.110.0
           command: ["/otelcol-contrib", "--config=/etc/config.yaml"]
           ports:
