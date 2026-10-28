@@ -99,7 +99,7 @@ metadata:
   namespace: immich
 spec:
   serviceName: immich-postgres
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: immich-postgres
