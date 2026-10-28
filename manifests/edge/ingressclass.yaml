@@ -3,4 +3,10 @@ kind: IngressClass
 metadata:
   name: nginx-admin
 spec:
-  controller: k8s.io/ingress-nginx-admin
+  # Must equal the controller's --controller-class, which is k8s.io/ingress-nginx
+  # for BOTH releases (it is the chart default). What separates the two
+  # controllers is --ingress-class: the public one watches `nginx`, the admin one
+  # watches `nginx-admin`. With `k8s.io/ingress-nginx-admin` here, neither
+  # controller matched, so every Ingress using this class was ignored and every
+  # admin hostname returned 404 behind Cloudflare Access (found 2026-10-28).
+  controller: k8s.io/ingress-nginx
