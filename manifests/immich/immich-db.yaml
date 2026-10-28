@@ -7,72 +7,38 @@ metadata:
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
 ---
-# ---- Storage on the MacBook's unused disk (/mnt/data on .83) ----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: immich-library
-spec:
-  capacity:
-    storage: 90Gi
-  accessModes: [ReadWriteOnce]
-  persistentVolumeReclaimPolicy: Retain
-  hostPath:
-    path: /mnt/data/immich/library
-    type: DirectoryOrCreate
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values: [patola-thinkcentre]
----
+# ---- Storage: Longhorn, so losing a node is a restart, not a restore ----
+# These were hostPath PVs pinned to one node (previously the MacBook, then
+# patola-thinkcentre). The data is ~1.8G, so the requests are right-sized: a
+# 90Gi volume with 2 replicas needs 180G and Longhorn has 168G free in total.
+# Growing a Longhorn volume is one `kubectl patch` when the library needs it.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: immich-library
   namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: ""
-  volumeName: immich-library
+  storageClassName: longhorn
   resources:
     requests:
-      storage: 90Gi
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: immich-postgres
-spec:
-  capacity:
-    storage: 20Gi
-  accessModes: [ReadWriteOnce]
-  persistentVolumeReclaimPolicy: Retain
-  hostPath:
-    path: /mnt/data/immich/postgres
-    type: DirectoryOrCreate
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values: [patola-thinkcentre]
+      storage: 30Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: immich-postgres
   namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: ""
-  volumeName: immich-postgres
+  storageClassName: longhorn
   resources:
     requests:
-      storage: 20Gi
+      storage: 10Gi
 ---
 # ---- Postgres (with the vector extension Immich needs) ----
 apiVersion: external-secrets.io/v1
@@ -99,7 +65,7 @@ metadata:
   namespace: immich
 spec:
   serviceName: immich-postgres
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: immich-postgres
