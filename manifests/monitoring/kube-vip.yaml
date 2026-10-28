@@ -90,10 +90,12 @@ spec:
               value: "6443"
             - name: vip_cidr
               value: "32"
-            # We do not start control-plane components with kube-vip; k3s owns
-            # the apiserver/scheduler/controller-manager lifecycle.
+            # cp_enable is what enables the control-plane VIP feature - it does
+            # not start apiserver/scheduler/controller-manager (k3s owns those).
+            # With both cp and svc disabled kube-vip exits: "no features are
+            # enabled".
             - name: cp_enable
-              value: "false"
+              value: "true"
             - name: svc_enable
               value: "false"
             - name: vip_leaderelection
