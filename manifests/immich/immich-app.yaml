@@ -15,7 +15,7 @@ spec:
         app: immich-redis
     spec:
       nodeSelector:
-        kubernetes.io/hostname: kamatis-mbp
+        kubernetes.io/hostname: patola-thinkcentre
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
@@ -61,8 +61,8 @@ spec:
       labels:
         app: immich-machine-learning
     spec:
-      # ML is the CPU-bound part -> run it on the Ryzen (.82). Storage + DB stay
-      # on the MacBook, which is where the free disk is.
+      # ML is the CPU-bound part -> run it on the Ryzen (.82). Storage + DB moved
+      # to patola-thinkcentre (.84) when the MacBook was retired.
       nodeSelector:
         kubernetes.io/hostname: sitaw-amd
       containers:
@@ -136,7 +136,7 @@ spec:
         app: immich-server
     spec:
       nodeSelector:
-        kubernetes.io/hostname: kamatis-mbp
+        kubernetes.io/hostname: patola-thinkcentre
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
