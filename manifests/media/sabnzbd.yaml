@@ -14,7 +14,7 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: longhorn
   resources:
     requests:
       storage: 2Gi
@@ -25,7 +25,7 @@ metadata:
   name: sabnzbd
   namespace: downloads
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:

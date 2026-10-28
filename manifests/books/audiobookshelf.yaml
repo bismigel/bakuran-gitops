@@ -14,7 +14,7 @@ metadata:
   namespace: books
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: longhorn
   resources:
     requests:
       storage: 5Gi
@@ -27,7 +27,7 @@ metadata:
   labels:
     app: audiobookshelf
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
