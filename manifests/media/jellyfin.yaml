@@ -26,7 +26,7 @@ metadata:
   labels:
     app: jellyfin
 spec:
-  replicas: 1
+  replicas: 0
   # hostPort 8096 (+ RWO config PVC) can't overlap during a rollout, so a
   # RollingUpdate deadlocks (old pod holds the port) — stop old, then start.
   strategy:
