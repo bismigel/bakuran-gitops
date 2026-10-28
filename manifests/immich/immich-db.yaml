@@ -108,9 +108,9 @@ spec:
       labels:
         app: immich-postgres
     spec:
-      # Immich lives on the MacBook (its disk is the storage).
+      # Storage moved with the PVs to patola-thinkcentre (.84).
       nodeSelector:
-        kubernetes.io/hostname: kamatis-mbp
+        kubernetes.io/hostname: patola-thinkcentre
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
