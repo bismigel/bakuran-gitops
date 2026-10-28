@@ -24,6 +24,7 @@ spec:
           # no endpoint left to reach (found 2026-10-28).
           # maxSurge/maxUnavailable 1 so a rollout still progresses when only
           # two nodes are schedulable: the old pod leaves and frees its node.
+          replicaCount: 2
           updateStrategy:
             type: RollingUpdate
             rollingUpdate:
