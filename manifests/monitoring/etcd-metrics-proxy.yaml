@@ -11,9 +11,10 @@
 # existing annotation-driven `kubernetes-pods` job, which is why the pod carries
 # prometheus.io/* annotations instead of needing a new scrape config.
 #
-# All three nodes are control-plane + etcd members, so no nodeSelector: every
-# node has something to proxy. If a future node runs no etcd, the relay still
-# accepts the TCP connection and the scrape fails, which TargetDown reports.
+# Only etcd members have something to proxy, so the DaemonSet is pinned to them
+# with a nodeSelector. That is not optional: when kamatis-mbp stopped being an
+# etcd member (2026-10-28) the relay kept running there, accepted the TCP
+# connection and served nothing - the TargetDown on :9101.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
