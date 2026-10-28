@@ -72,7 +72,7 @@ metadata:
   name: prowlarr
   namespace: media
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate          # RWO config PVC: terminate before starting the new pod
   selector:
@@ -157,7 +157,7 @@ metadata:
   name: sonarr
   namespace: media
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate          # RWO config PVC: terminate before starting the new pod
   selector:
@@ -247,7 +247,7 @@ metadata:
   name: radarr
   namespace: media
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate          # RWO config PVC: terminate before starting the new pod
   selector:
@@ -337,7 +337,7 @@ metadata:
   name: bazarr
   namespace: media
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate          # RWO config PVC: terminate before starting the new pod
   selector:

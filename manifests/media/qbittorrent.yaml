@@ -61,7 +61,7 @@ metadata:
   name: qbittorrent
   namespace: downloads
 spec:
-  replicas: 1
+  replicas: 0
   # hostPort 8081 + RWO config PVC: a RollingUpdate would deadlock on the port.
   strategy:
     type: Recreate
