@@ -1,0 +1,90 @@
+# Does every published hostname actually reach an application?
+#
+# Why: on 2026-10-28 fifteen admin hostnames returned 404 for hours. Cloudflare
+# Access sits in front of them, so every external probe saw a 302 (the Access
+# login) and reported success — the failure was invisible from outside the
+# cluster, and was found by hand.
+#
+# This runs inside the cluster, against the ingress Services directly (bypassing
+# Access), and asserts something no probe outside can assert: the request is not
+# answered by the ingress default backend.
+#
+#   404            -> no Ingress matched: the class/controller wiring is broken
+#   5xx            -> matched but the backend is broken
+#   2xx/3xx/401/403 -> the app answered (its own login redirect, or Access-free auth)
+#
+# Alerts are pushed the same way the other one-shot watchers do it: a single
+# resolved-by-expiry alert per failing hostname, so a flapping check does not
+# page repeatedly.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingress-host-check
+  namespace: monitoring
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 900
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: check
+              image: curlimages/curl:8.11.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -u
+                  AM="http://alertmanager.monitoring.svc:9093/api/v2/alerts"
+                  HOST="$(cat /proc/sys/kernel/hostname)"
+                  fail=0
+
+                  check() { # <ingress-service> <hostname> <class>
+                    svc="$1"; h="$2"; cls="$3"
+                    code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' -H "Host: $h" "http://$svc/" || echo 000)
+                    case "$code" in
+                      404|000|5*)
+                        echo "FAIL $h [$cls] -> $code"
+                        fail=$((fail+1))
+                        curl -s -m 10 -X POST -H 'Content-Type: application/json' \
+                          -d "[{\"labels\":{\"alertname\":\"IngressHostBroken\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"host\":\"$h\",\"http_code\":\"$code\"},\"annotations\":{\"summary\":\"$h returns $code through the ingress\",\"description\":\"404 means no Ingress matched (class/controller wiring); 5xx means the backend is broken. Auto-resolves in ~5 min if the next check passes.\"}}]" \
+                          "$AM" || true
+                        ;;
+                      *) echo "ok   $h [$cls] -> $code" ;;
+                    esac
+                  }
+
+                  # public class: served by the main ingress controller
+                  for h in bismigel.dev www.bismigel.dev ciceley.cc www.ciceley.cc \
+                           miguelarbis.dev www.miguelarbis.dev status.bismigel.dev \
+                           jellyfin.bismigel.dev immich.bismigel.dev kavita.bismigel.dev \
+                           audiobookshelf.bismigel.dev karakeep.bismigel.dev; do
+                    check ingress-nginx-controller.ingress-nginx.svc.cluster.local "$h" public
+                  done
+
+                  # admin class: the LAN-only UI surfaces (Access in front of them externally)
+                  for h in argocd.bismigel.dev sonarr.bismigel.dev radarr.bismigel.dev \
+                           prowlarr.bismigel.dev bazarr.bismigel.dev qbittorrent.bismigel.dev \
+                           sabnzbd.bismigel.dev grafana.bismigel.dev prometheus.bismigel.dev \
+                           longhorn.bismigel.dev homepage.bismigel.dev agent.bismigel.dev \
+                           lazylibrarian.bismigel.dev runbook.bismigel.dev private.bismigel.dev; do
+                    check ingress-nginx-admin-controller.ingress-nginx-admin.svc.cluster.local "$h" admin
+                  done
+
+                  echo "failures: $fail"
+                  [ "$fail" -eq 0 ]
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { memory: 96Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65534
+                capabilities: { drop: ["ALL"] }
