@@ -29,6 +29,11 @@ spec:
           # the public controller for the same object and sit OutOfSync forever.
           ingressClassResource:
             enabled: false
+            # The controller advertises this as --controller-class, and it must match
+            # IngressClass/nginx-admin.spec.controller. At the chart default
+            # (k8s.io/ingress-nginx) BOTH controllers claimed BOTH classes, so every
+            # admin hostname 404'd behind Access (2026-10-28).
+            controllerValue: k8s.io/ingress-nginx-admin
           ingressClass: nginx-admin
           replicaCount: 2
           updateStrategy:
