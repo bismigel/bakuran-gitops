@@ -73,13 +73,32 @@ data:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} cannot create its container ({{ $labels.reason }})"
               description: "Usually a missing Secret/ConfigMap key, or a hostPath that does not exist on this node."
           - alert: PodRestartingOften
-            expr: increase(kube_pod_container_status_restarts_total[1h]) > 3
+            # A node reboot restarts every DaemonSet and kubelet-adjacent pod on
+            # it, which trips this rule for an hour afterwards - 13 false alarms
+            # after rebooting .81 twice on 2026-10-28, on pods that were perfectly
+            # healthy. Suppress for 1h after a node boots (the same window the rule
+            # measures over), so a reboot's own noise can never mask or mimic a
+            # crash loop.
+            #
+            # `and ... group_left` is NOT valid PromQL ("no grouping allowed for
+            # 'and' operation"), which fails silently as an empty result - hence
+            # the `*`-by-kube_pod_info (=1) to carry host_ip onto the left side.
+            # Match host_ip because kube_pod_info has no node-exporter instance:
+            # kube_pod_info.host_ip="192.168.2.81", node_boot_time_seconds
+            # .instance="192.168.2.81:9100", so the port is stripped on the right.
+            expr: |
+              (
+                (increase(kube_pod_container_status_restarts_total[1h]) > 3)
+                * on (namespace, pod) group_left (host_ip) kube_pod_info
+              )
+              unless on (host_ip)
+                label_replace((time() - node_boot_time_seconds < 3600), "host_ip", "$1", "instance", "(.*):.*")
             for: 5m
             labels:
               severity: warning
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] restarted {{ printf \"%.0f\" $value }} times in the last hour"
-              description: "Crash loop or a failing probe. Check `kubectl describe pod` and the previous container log."
+              description: "Crash loop or a failing probe. Check `kubectl describe pod` and the previous container log. Restarts caused by a node reboot are suppressed for 1h."
           - alert: CAdvisorScrapeFailing
             expr: up{job="kubelet-cadvisor"} == 0
             for: 10m
