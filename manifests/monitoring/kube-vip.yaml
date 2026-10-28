@@ -100,12 +100,21 @@ spec:
               value: "false"
             - name: vip_leaderelection
               value: "true"
+            # 15/10/2, not 5/3/1. kube-vip's leader-election client EXITS when it
+            # cannot renew (manager.go calls Kill() when election returns, bypassing
+            # the deferred Cleanup), and the address it held is then left on the host
+            # interface - so another node can acquire the same VIP and two nodes
+            # answer ARP for one address. Reproduced in staging 2026-10-28 by killing
+            # the node that held both the VIP and the etcd leadership: API writes
+            # stall while a new etcd leader is elected, renewal misses its deadline,
+            # kube-vip exits 255. With 15/10/2 the same experiment leaves the VIP
+            # untouched and the API answering throughout (single holder for 274s).
             - name: vip_leaseduration
-              value: "5"
+              value: "15"
             - name: vip_renewdeadline
-              value: "3"
+              value: "10"
             - name: vip_retryperiod
-              value: "1"
+              value: "2"
             - name: address
               value: "192.168.2.100"
           resources:
