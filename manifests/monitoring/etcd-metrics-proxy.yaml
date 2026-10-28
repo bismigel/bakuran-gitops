@@ -40,7 +40,7 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       nodeSelector:
-        node-role.kubernetes.io/etcd: ""
+        node-role.kubernetes.io/etcd: "true"
       tolerations:
         - operator: Exists
       containers:
