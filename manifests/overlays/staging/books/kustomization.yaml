@@ -1,15 +1,19 @@
 # Staging's books stack: the same five manifests production runs, minus
-# production's workarounds and minus work that has no meaning here.
+# production's workarounds, plus the two things this cluster does not have.
 #
 # What differs, and why:
 #   * no `bakuran.dev/rollout` annotation — that exists to unstick a ReplicaSet in
-#     production, it is not part of the workload's definition;
+#     production; it is not part of the workload's definition;
 #   * the nightly Kavita rescan CronJob is SUSPENDED — staging's library is a
-#     fixture, so a rescan proves nothing and burns the guest's CPU.
+#     fixture, so a rescan proves nothing and burns the guest's CPU;
+#   * storage: the base asks for `longhorn` (production). The KVM cluster has only
+#     k3s's `local-path`, so a PVC there would stay Pending forever. This is the
+#     overlay doing exactly its job — the base says *what* storage, the overlay
+#     says *which* storage this cluster has.
 #
-# What deliberately does NOT differ: images, probes, env, volumes, replicas (the
-# base already runs one of each). If staging passed with different images it would
-# prove nothing about production.
+# What deliberately does NOT differ: images (same digests as production), probes,
+# env, volumes, replicas. If staging passed with different ones it would prove
+# nothing about production.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -22,3 +26,9 @@ patches:
       - op: add
         path: /spec/suspend
         value: true
+  - target:
+      kind: PersistentVolumeClaim
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: local-path
