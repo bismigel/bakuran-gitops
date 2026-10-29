@@ -13,6 +13,11 @@ metadata:
     # The running pods were created before the enforce label was applied, so the
     # trap only showed up when a pod had to be recreated. Same reasoning as
     # monitoring and media, which are audit/warn for hostNetwork/hostPath.
+    # Explicit, because an unlabelled namespace means "no enforcement, no explanation".
+    # `privileged` is not an oversight: baseline forbids hostPath volumes, and these
+    # workloads mount /mnt/media/books directly. The audit/warn levels stay at
+    # restricted so violations are still reported.
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
 ---

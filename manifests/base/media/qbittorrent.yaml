@@ -3,6 +3,8 @@ kind: Namespace
 metadata:
   name: downloads
   labels:
+    # Same reason as `media`: hostPath into the download spool on the pool.
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
 ---
