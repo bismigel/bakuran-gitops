@@ -94,18 +94,24 @@ spec:
               # empty provider with "The field MetadataProvider is invalid".
               ensure_library() {
                 tok=$(token)
-                existing=$(curl -sS --max-time 20 -H "Authorization: Bearer $tok" "$KAVITA_URL/api/Library")
-                case "$existing" in
-                  ""|"[]")
-                    echo "no library; creating 'Books' on /books"
-                    payload='{"name":"Books","type":2,"folders":["/books"],"fileGroupTypes":[1,2,3],"excludePatterns":[],"folderWatching":true,"includeInDashboard":true,"manageCollections":true,"manageReadingLists":true,"allowScrobbling":true,"allowMetadataMatching":true,"enableMetadata":true,"metadataProvider":2,"removePrefixForSortName":false,"inheritWebLinksFromFirstChapter":false}'
-                    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-                      -X POST "$KAVITA_URL/api/Library/create" \
-                      -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -d "$payload")
-                    echo "create HTTP $code"
-                    [ "$code" = "200" ] || { echo "ERROR: library creation failed"; exit 1; }
-                    ;;
-                  *) echo "library already present; nothing to do" ;;
+                # Do NOT gate on GET /api/Library: on v0.9.1.4 it answers 204 with an
+                # empty body even when a library exists, so trusting it made this
+                # hook retry the create and fail with 400 "library-name-exists".
+                # The create response itself is the reliable signal.
+                echo "attempting library create (idempotent)"
+                payload='{"name":"Books","type":2,"folders":["/books"],"fileGroupTypes":[1,2,3],"excludePatterns":[],"folderWatching":true,"includeInDashboard":true,"manageCollections":true,"manageReadingLists":true,"allowScrobbling":true,"allowMetadataMatching":true,"enableMetadata":true,"metadataProvider":2,"removePrefixForSortName":false,"inheritWebLinksFromFirstChapter":false}'
+                resp=$(curl -sS -w '\nHTTP:%{http_code}' --max-time 30 \
+                  -X POST "$KAVITA_URL/api/Library/create" \
+                  -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -d "$payload")
+                code=$(printf '%s' "$resp" | sed -n 's/.*HTTP:\([0-9]*\)$/\1/p')
+                case "$code" in
+                  200) echo "library created" ;;
+                  400)
+                    case "$resp" in
+                      *library-name-exists*) echo "library already present; nothing to do" ;;
+                      *) echo "ERROR: library create rejected (400), but not for a name clash:"; printf '%s\n' "$resp" | head -c 300; exit 1 ;;
+                    esac ;;
+                  *) echo "ERROR: library create returned ${code:-nothing}"; printf '%s\n' "$resp" | head -c 300; exit 1 ;;
                 esac
               }
 
