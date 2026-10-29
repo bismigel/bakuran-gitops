@@ -1,0 +1,107 @@
+# Kavita's first-run, declaratively.
+#
+# Why this exists: Kavita's admin account lives only in its SQLite database, so a
+# fresh config volume means the UI asks for a new admin account and every API call
+# answers 401 — including `kavita-scan`, which nightly leaves a failed Job behind
+# and marks the whole Application Degraded. On 2026-10-29 that is exactly what
+# happened, and the account had to be re-created by hand.
+#
+# Idempotent by construction:
+#   1. log in with the credentials that already exist in `kavita-secrets`
+#   2. if that works, do nothing
+#   3. if it does not, register the first user (which Kavita treats as the admin)
+#   4. verify the login afterwards, and fail loudly if it still does not work
+#
+# Step 4 matters: if the account exists with a *different* password, register
+# returns 400 ("username taken") and this Job fails — which is correct, because
+# that is a credential mismatch a human has to resolve, not something to paper over.
+#
+# Runs as an ArgoCD PostSync hook with hook-delete-policy BeforeHookCreation, so it
+# re-runs on every sync and leaves exactly one Job object behind.
+#
+# Lives in the *overlay*, not the base: it depends on this environment's credential,
+# and staging deliberately has no `kavita-secrets`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kavita-bootstrap
+  namespace: books
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      # Same placement as the scan Job: this is a client of Kavita, not the app.
+      nodeSelector:
+        homelab.io/media-pool: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: bootstrap
+          image: docker.io/curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          env:
+            - name: KAVITA_URL
+              value: http://kavita.books.svc.cluster.local:5000
+            - name: KAVITA_USER
+              value: gio
+            - name: KAVITA_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: kavita-secrets, key: kavita-admin-password }
+            - name: HOME
+              value: /tmp
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              body() {
+                printf '{"username":"%s","password":"%s"}' "$KAVITA_USER" "$KAVITA_PASSWORD"
+              }
+              login() {
+                curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+                  -X POST "$KAVITA_URL/api/Account/login" \
+                  -H 'Content-Type: application/json' -d "$(body)"
+              }
+
+              # Kavita can take a moment to answer after a restart; wait for it
+              # rather than failing the sync on a race.
+              i=0
+              until [ "$(login)" = "401" ] || [ "$(login)" = "200" ]; do
+                i=$((i + 1)); [ "$i" -ge 30 ] && { echo "ERROR: Kavita never answered at $KAVITA_URL"; exit 1; }
+                sleep 2
+              done
+
+              if [ "$(login)" = "200" ]; then
+                echo "admin account already works; nothing to do"
+                exit 0
+              fi
+
+              echo "no working login; registering the first (admin) user $KAVITA_USER"
+              code=$(curl -sS -o /tmp/reg -w '%{http_code}' --max-time 20 \
+                -X POST "$KAVITA_URL/api/Account/register" \
+                -H 'Content-Type: application/json' -d "$(body)")
+              echo "register HTTP $code"
+              if [ "$code" != "200" ]; then
+                echo "ERROR: register failed; the account may exist with a different password"
+                head -c 300 /tmp/reg || true
+                exit 1
+              fi
+
+              if [ "$(login)" = "200" ]; then
+                echo "admin account created and verified"
+                exit 0
+              fi
+              echo "ERROR: registered but login still fails"
+              exit 1
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
