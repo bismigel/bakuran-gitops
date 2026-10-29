@@ -1,0 +1,37 @@
+# Monitoring stack, cluster-agnostic. Alert rules, dashboards, exporters and the
+# Prometheus/Alertmanager/Grafana workloads themselves.
+#
+# Prometheus and Longhorn are NOT here: they are Helm/operator releases owned by
+# their own Applications (manifests/*-config, manifests/edge).
+#
+# Scrape targets that are production-specific (public hostnames probed by blackbox,
+# the ingress host check) still live in these files; moving them into the overlay
+# is the next step — it changes the rendered output, so it is a separate change
+# with its own verification.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - alerting-workloads.yaml
+  - alerting.yaml
+  - blackbox-exporter.yaml
+  - cloudflare-edge-exporter.yaml
+  - etcd-metrics-proxy.yaml
+  - grafana-dashboard-cilium.yaml
+  - grafana-dashboard-containers.yaml
+  - grafana-dashboard-control-plane.yaml
+  - grafana-dashboard-edge.yaml
+  - grafana-dashboard-longhorn.yaml
+  - grafana-dashboard-network.yaml
+  - grafana-dashboard-overview.yaml
+  - grafana-dashboard-power.yaml
+  - grafana-dashboard-slo.yaml
+  - grafana-dashboard-storage.yaml
+  - immich-login-watch.yaml
+  - ingress-host-check.yaml
+  - jellyfin-bitrate.yaml
+  - jellyfin-login-watch.yaml
+  - kube-state-metrics.yaml
+  - kube-vip.yaml
+  - login-alerts.yaml
+  - longhorn-metrics-policy.yaml
+  - monitoring.yaml

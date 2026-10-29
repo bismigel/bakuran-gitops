@@ -1,0 +1,13 @@
+# The books stack, cluster-agnostic: LazyLibrarian (search + acquire), Kavita
+# (reading), Audiobookshelf (listening), and the nightly Kavita rescan.
+#
+# No placement, no rollout annotations, no storage class. Those belong to an
+# overlay so a second cluster can run these same definitions.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - audiobookshelf.yaml
+  - kavita-scan.yaml
+  - kavita.yaml
+  - lazylibrarian-provider.yaml
+  - lazylibrarian.yaml
