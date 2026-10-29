@@ -50,3 +50,18 @@ deny contains msg if {
 	container.securityContext.privileged == true
 	msg := sprintf("%s/%s: container %q is privileged", [input.metadata.namespace, input.metadata.name, container.name])
 }
+
+# 5. Every Namespace must state its Pod Security level.
+#
+#    Until 2026-10-29 eleven namespaces had no `enforce` label at all, so a
+#    privileged or hostPath pod there was not even warned about - and a namespace
+#    with no label reads exactly like a namespace nobody thought about. `privileged`
+#    is a valid answer *if it is written down*; silence is not.
+allowed_psa_levels := {"privileged", "baseline", "restricted"}
+
+deny contains msg if {
+	input.kind == "Namespace"
+	level := object.get(input.metadata.labels, "pod-security.kubernetes.io/enforce", "")
+	not allowed_psa_levels[level]
+	msg := sprintf("Namespace %q must set pod-security.kubernetes.io/enforce to one of privileged|baseline|restricted (got %q)", [input.metadata.name, level])
+}
