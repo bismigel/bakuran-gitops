@@ -100,7 +100,7 @@ jobs:
             fail=0
             for d in "${dirs[@]}"; do
               kustomize build "$d" > /tmp/rendered.yaml 2>/dev/null || { echo "::error::build failed: $d"; fail=1; continue; }
-              conftest test /tmp/rendered.yaml --policy policy --all-namespaces --no-fail-on-warn || {
+              conftest test /tmp/rendered.yaml --policy policy --all-namespaces || {
                 echo "::error::policy check failed for $d"; fail=1; }
             done
             exit "$fail"
