@@ -30,11 +30,11 @@ jobs:
           sudo install /tmp/prometheus-2.51.0.linux-amd64/promtool /usr/local/bin/promtool
 
       - name: YAML lint
-        run: python3 -m yamllint -c .yamllint manifests applications
+        run: python3 -m yamllint -c .yamllint manifests clusters
 
       - name: Kubernetes schema validation
         run: |
-            find manifests applications -name '*.yaml' ! -name 'values.yaml' -print0 |
+            find manifests clusters -name '*.yaml' ! -name 'values.yaml' -print0 |
               xargs -0 kubeconform -strict -ignore-missing-schemas -summary
 
       - name: Prometheus rule validation
