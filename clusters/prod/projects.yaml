@@ -9,6 +9,11 @@
 #   * destination NAMESPACE — the list below is exactly the namespaces this
 #     cluster's Applications legitimately write to. Nothing else is reachable.
 #   * source REPOS — every repo (git or chart) an Application is allowed to read.
+# NOT used: namespaceResourceBlacklist. It is *not* namespace-scoped — it blocks
+# the group/kind in every destination, so blacklisting apps:Deployment to protect
+# the argocd namespace rejected all 41 Deployments in the cluster. Destination
+# namespaces are the boundary; that is the right granularity.
+#
 #   * cluster-scoped resources — currently any, because the Helm-chart apps create
 #     CRDs, ClusterRoles, StorageClasses and webhook configurations, and enumerating
 #     them from chart output is not something to guess. This is the one place still
@@ -65,7 +70,3 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: staging}
   clusterResourceWhitelist:
     - {group: '*', kind: '*'}
-  namespaceResourceBlacklist:
-    # nothing may manage the ArgoCD control plane's own workloads except the
-    # argocd app itself; this blocks an accidental "deploy my app into argocd"
-    - {group: 'apps', kind: 'Deployment'}
