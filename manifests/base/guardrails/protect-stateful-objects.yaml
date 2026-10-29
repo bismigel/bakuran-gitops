@@ -33,12 +33,13 @@ spec:
   validations:
     - expression: >-
         has(oldObject.metadata.annotations) &&
+        'bakuran.dev/allow-delete' in oldObject.metadata.annotations &&
         oldObject.metadata.annotations['bakuran.dev/allow-delete'] == 'true'
       message: >-
         Deleting a PersistentVolumeClaim, PersistentVolume or Namespace requires the
         annotation bakuran.dev/allow-delete="true" on the object. This is the guard
         against a wrong-namespace delete reaching production data (2026-10-29,
-        homelab-context/docs/05-deployment-patterns.md).
+        docs/05-deployment-patterns.md).
       reason: Forbidden
 ---
 apiVersion: admissionregistration.k8s.io/v1
