@@ -1275,7 +1275,7 @@ data:
       host secrets are SOPS-encrypted in `bakuran-infra/secrets/`. Sealed Secrets was
       removed.
     - **Everything is GitOps**, including the media stack
-      (`bakuran-gitops/applications/calamansi-intel/`).
+      (`bakuran-gitops/clusters/prod/apps/calamansi-intel/`).
     - **Disaster recovery** = `bakuran-infra/docs/REBUILD.md` + the daily R2 backup
       (`scripts/backup-credentials.sh`).
   RUNBOOK.md: |
@@ -1304,7 +1304,7 @@ data:
     git add -A && git commit -m "init <app>" && git push     # CI builds → GHCR
     
     # 4. Register with ArgoCD (add a file to the gitops repo)
-    #    applications/sitaw/<app>.yaml   (or applications/calamansi-intel/ for the media box)
+    #    clusters/prod/apps/sitaw/<app>.yaml   (or .../calamansi-intel/ for the media box)
     ```
     
     - **Public** package → nothing else needed (the `imagePullSecrets` is ignored).
@@ -1386,7 +1386,7 @@ data:
     ## Media stack (.81): GitOps
     
     Managed by the `media` ArgoCD app
-    (`bakuran-gitops/applications/calamansi-intel/media.yaml` → `manifests/overlays/prod/media/`),
+    (`bakuran-gitops/clusters/prod/apps/calamansi-intel/media.yaml` → `manifests/overlays/prod/media/`),
     deployed to the `calamansi-intel` cluster. Wiring (root folders, download
     clients, Prowlarr → Sonarr/Radarr):
     
@@ -1831,7 +1831,7 @@ data:
     | Repo | Visibility | Purpose |
     |---|---|---|
     | `bismigel/bakuran-infra` | private | NixOS machine configs (`calamansi-intel`, `sitaw-amd`), `deploy-rs`, `modules/`, `scripts/`, `docs/REBUILD.md` |
-    | `bismigel/bakuran-gitops` | private | **ArgoCD desired state**, `bootstrap/root-app.yaml`, `applications/{sitaw,calamansi-intel}/*`, `applications/node-exporter-appset.yaml`, `manifests/*`, `clusters/*` |
+    | `bismigel/bakuran-gitops` | private | **ArgoCD desired state**, `clusters/{prod,staging}/root.yaml`, `clusters/prod/apps/{sitaw,calamansi-intel}/*`, `clusters/prod/apps/node-exporter-appset.yaml`, `manifests/*`, `clusters/*` |
     | `bismigel/bismigel-site` | public | Emacs `org-publish` / Hugo site → `bismigel.dev` (primary blog) |
     | `bismigel/homelab-app-template` | private, template | New-app scaffold (Dockerfile, `deploy/k8s`, CI → GHCR → tag bump) |
     | `Ciceley/ciceleywebsite` | public | Hugo site (Stack theme), content synced from Notion |
@@ -1849,8 +1849,8 @@ data:
     (`scripts/bootstrap-argocd.sh`); Redis is a single replica.
     
     ```
-    bootstrap/root-app.yaml      # the one app-of-apps (watches applications/)
-    applications/
+    clusters/prod/root.yaml      # app-of-apps for this cluster (watches clusters/prod/apps)
+    clusters/prod/apps/
       sitaw/*                     # apps + platform
       calamansi-intel/media.yaml  # the media stack (in-cluster, nodeSelector .81)
       node-exporter-appset.yaml   # ApplicationSet -> every registered cluster

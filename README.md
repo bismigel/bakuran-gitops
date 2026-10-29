@@ -16,8 +16,8 @@ personal, and safe to break on purpose.
 ## Layout
 
 ```
-bootstrap/root-app.yaml     # app-of-apps: points ArgoCD at ./applications (applied once)
-applications/               # one ArgoCD Application per workload (recursed)
+clusters/<name>/root.yaml   # app-of-apps per cluster (applied once): prod, staging
+clusters/<name>/apps/       # one ArgoCD Application per workload (recursed)
 ├── sitaw/                  # platform + apps (in-cluster)
 ├── calamansi-intel/media.yaml  # the media app (still in-cluster, pinned to .81)
 └── node-exporter-appset.yaml   # ApplicationSet -> every node
@@ -37,13 +37,13 @@ Helm chart (`ingress-nginx`, `cert-manager`, `external-secrets`,
 
 ## How it works
 
-1. `bootstrap/root-app.yaml` is applied **once** (see `bootstrap/README.md`).
-2. The root Application reconciles everything under `applications/` (recursed).
+1. `clusters/<name>/root.yaml` is applied **once** per cluster (see `bootstrap/README.md`).
+2. Each root Application reconciles everything under its own `clusters/<name>/apps/` (recursed).
 3. Each `Application` points at a path in this repo, an app repo's `deploy/k8s`,
    or a Helm chart; ArgoCD keeps it in sync (auto-sync + self-heal).
 4. Sync waves (`argocd.argoproj.io/sync-wave`) order infra (`"0"`) before apps (`"1"`).
 
-**Adding a workload** = add one file under `applications/sitaw/`. That's it.
+**Adding a workload** = add one file under `clusters/prod/apps/sitaw/`. That's it.
 
 ## Cluster
 

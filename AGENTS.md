@@ -18,9 +18,9 @@ There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pul
 1. **Do not put application source, Dockerfiles, or plaintext secrets here.**
    App code lives in its own repo; only `Application`/`ApplicationSet` manifests
    and cluster add-ons live here.
-2. **One `Application` per workload**, in `applications/<cluster>/<name>.yaml`.
+2. **One `Application` per workload**, in `clusters/<env>/apps/<group>/<name>.yaml`.
 3. **Shared workloads** (run on every cluster) are an `ApplicationSet` with a
-   `clusters` generator (see `applications/node-exporter-appset.yaml`).
+   `clusters` generator (see `clusters/prod/apps/node-exporter-appset.yaml`).
 4. Never commit plaintext `Secret`s, tokens, or keys. In-cluster secrets are
    **Bitwarden Secrets Manager + External Secrets Operator**
    (`ExternalSecret`/`PushSecret` against `ClusterSecretStore/bitwarden`). Host
@@ -31,7 +31,7 @@ There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pul
 
 ```
 bootstrap/root-app.yaml          # the single root app-of-apps (on sitaw-amd)
-applications/
+clusters/prod/apps/
   sitaw/*.yaml                   # platform + apps (in-cluster)
   calamansi-intel/media.yaml     # the media app (in-cluster, pinned to .81)
   node-exporter-appset.yaml      # ApplicationSet -> every node
@@ -43,7 +43,7 @@ scripts/                         # generators (generate-duwende-context.sh)
 
 1. Ensure the app repo has `deploy/k8s/` (Namespace, Deployment, Service,
    Ingress). Use the `homelab-app-template`.
-2. Create `applications/sitaw/<app>.yaml`:
+2. Create `clusters/prod/apps/sitaw/<app>.yaml`:
 
    ```yaml
    apiVersion: argoproj.io/v1alpha1
@@ -85,7 +85,7 @@ are no external cluster registrations. Pin a workload to a node with `nodeSelect
 
 - **App manifest change** → edit the app repo's `deploy/k8s/`, not this repo.
 - **New image tag** → the app's CI bumps it. Don't hand-edit tags.
-- **Cluster add-on** → new file under `applications/<cluster>/` with
+- **Cluster add-on** → new file under `clusters/prod/apps/<cluster>/` with
   `sync-wave: "0"`.
 
 ## Useful commands
