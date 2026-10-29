@@ -34,8 +34,6 @@ spec:
             app: kavita-scan
         spec:
           restartPolicy: OnFailure
-          nodeSelector:
-            homelab.io/media-pool: "true"
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000

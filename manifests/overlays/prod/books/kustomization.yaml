@@ -1,18 +1,41 @@
-# Production-specific settings for the books stack.
+# Production settings for the books stack.
 #
-# The only one today is a pod-template annotation on LazyLibrarian. It is not a
-# setting: any change to it makes Kubernetes build a new ReplicaSet. The
-# ReplicaSet rolled by #160 sat in FailedCreate backoff after a PodSecurity
-# rejection and did not retry promptly once the namespace label was fixed, so
-# after #161 the workload was still idle with zero pods. Bumping this value is the
-# declarative equivalent of `kubectl rollout restart`, and it is how the workload
-# gets unstuck without hand-editing the cluster — which is why it lives in the
-# overlay, not in the shared definition.
+# Two differences from the shared base, both production-only:
+#
+# 1. PLACEMENT. The library lives on the mergerfs pool at /mnt/media, which only
+#    exists on the node labelled `homelab.io/media-pool`. This used to be baked into
+#    the base manifests, which made the "cluster-agnostic" base impossible to run on
+#    a cluster that has no such pool — discovered when staging's copies sat Pending
+#    with "0/3 nodes didn't match Pod's node affinity/selector".
+#
+# 2. A pod-template annotation on LazyLibrarian. Not a setting: any change to it
+#    makes Kubernetes build a new ReplicaSet. The ReplicaSet rolled by #160 sat in
+#    FailedCreate backoff after a PodSecurity rejection and did not retry promptly
+#    once the namespace label was fixed, so after #161 the workload was still idle
+#    with zero pods. Bumping this value is the declarative equivalent of
+#    `kubectl rollout restart`, and it is how the workload gets unstuck without
+#    hand-editing the cluster.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../../base/books
 patches:
+  - target:
+      kind: Deployment
+      name: (audiobookshelf|kavita|lazylibrarian)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          homelab.io/media-pool: "true"
+  - target:
+      kind: CronJob
+      name: kavita-scan
+    patch: |-
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/nodeSelector
+        value:
+          homelab.io/media-pool: "true"
   - target:
       kind: Deployment
       name: lazylibrarian

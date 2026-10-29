@@ -38,8 +38,6 @@ spec:
       labels:
         app: audiobookshelf
     spec:
-      nodeSelector:
-        homelab.io/media-pool: "true"
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
