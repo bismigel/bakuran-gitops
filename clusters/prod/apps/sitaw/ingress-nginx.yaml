@@ -1,0 +1,90 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.15.1
+    helm:
+      values: |
+        controller:
+          # Two replicas, spread across nodes, so the edge survives losing a node
+          # (matches the two cloudflared connectors).
+          # REQUIRED, not preferred. With a soft rule both replicas landed on
+          # sitaw-amd, so 'two replicas' protected against a pod crash and not
+          # against losing that node - and the connector on the other host had
+          # no endpoint left to reach (found 2026-10-28).
+          # maxSurge/maxUnavailable 1 so a rollout still progresses when only
+          # two nodes are schedulable: the old pod leaves and frees its node.
+          replicaCount: 2
+          updateStrategy:
+            type: RollingUpdate
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 1
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      # instance, not name: both releases are called 'ingress-nginx', so
+                      # matching on name made each controller block the other and left one
+                      # replica permanently Pending (4 pods, 3 nodes).
+                      app.kubernetes.io/instance: ingress-nginx
+                      app.kubernetes.io/component: controller
+          config:
+            proxy-set-headers: "ingress-nginx/headers"
+            # Trust the real client IP that cloudflared forwards (the ingress is
+            # loopback-only, so only cloudflared reaches it). Lets Jellyfin see
+            # remote clients as remote instead of as the ingress pod IP.
+            use-forwarded-headers: "true"
+            # ingress-nginx emits its own `limit_req_status`; set the code here
+            # rather than duplicating the directive in the snippet (a duplicate
+            # makes `nginx -t` fail and the reload is skipped).
+            limit-req-status-code: "429"
+            # Per-client-IP request limiting for the PUBLIC hostnames only
+            # (this is the nginx controller; admin hostnames use
+            # ingress-nginx-admin behind Access).
+            #
+            # Jellyfin is explicitly exempted: its map key is the empty string,
+            # and nginx does not account for or delay requests with an empty
+            # limit_req key — so streaming is completely untouched. The key is
+            # "host:client-ip" so one site's traffic cannot exhaust another's
+            # bucket.
+            #
+            # Generous on purpose: burst=200 admits a page/thumbnail flurry in
+            # one go, and 40r/s sustained only trips on a real flood/scrape.
+            # nodelay => reject fast (429), never queue (no added latency).
+            http-snippet: |
+              map $host $ratelimit_key {
+                default               "$host:$binary_remote_addr";
+                jellyfin.bismigel.dev "";
+              }
+              limit_req_zone $ratelimit_key zone=perip:20m rate=40r/s;
+            server-snippet: |
+              limit_req zone=perip burst=200 nodelay;
+          service:
+            type: NodePort
+            # TLS terminates at Cloudflare; the origin leg is HTTP and no Ingress
+            # uses tls:, so the https port is disabled (drop the dead 32443).
+            enableHttps: false
+            nodePorts:
+              http: 32080
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

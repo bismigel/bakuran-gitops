@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.16.0
+    helm:
+      values: |
+        installCRDs: true
+        # Requests only (no limits): they make scheduling and eviction honest
+        # without turning a slow day into an OOMKill. Sized from observed usage
+        # with ~4x headroom (2026-10-28).
+        resources: { requests: { cpu: 10m, memory: 64Mi } }
+        cainjector: { resources: { requests: { cpu: 10m, memory: 96Mi } } }
+        webhook: { resources: { requests: { cpu: 10m, memory: 48Mi } } }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

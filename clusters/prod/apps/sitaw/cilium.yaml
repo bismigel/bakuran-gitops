@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://helm.cilium.io
+    chart: cilium
+    targetRevision: 1.20.3
+    helm:
+      releaseName: cilium
+      values: |
+        # The API VIP (kube-vip), not a node IP. Cilium uses this only to reach the
+        # API for registration and config; with a node IP here, any agent that
+        # restarted while that node was down could never reinitialise - even though
+        # etcd and the API had survived on the other two.
+        # Rehearsed in bakuran-infra/staging 2026-10-28: rollout to Running in ~20s,
+        # a running agent tolerates losing the VIP, a cold start waits for it
+        # (kube-vip is hostNetwork, so it starts without CNI).
+        k8sServiceHost: 192.168.2.100
+        k8sServicePort: "6443"
+        # Requests only, sized from observed usage (2026-10-28).
+        kubeProxyReplacement: "false"
+        # Chart default is maxUnavailable: 2 - on a 3-node cluster that means two
+        # CNI agents down simultaneously. One at a time.
+        updateStrategy:
+          type: RollingUpdate
+          rollingUpdate: { maxUnavailable: 1 }
+        routingMode: tunnel
+        tunnelProtocol: vxlan
+        ipv4:
+          enabled: true
+        ipv6:
+          enabled: false
+        ipam:
+          mode: kubernetes
+        cni:
+          customConf: true
+          configMap: cilium-cni-config
+          confPath: /etc/cni/net.d
+          binPath: /opt/cni/bin
+        prometheus:
+          enabled: true
+        # Envoy is a separate DaemonSet. Without its own prometheus endpoint the
+        # chart's cilium-envoy Service is still annotated for scraping, so the
+        # target sits at up=0 and TargetDown fires forever.
+        envoy:
+          prometheus:
+            enabled: true
+        podAnnotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "9962"
+          prometheus.io/path: "/metrics"
+        hubble:
+          enabled: true
+          relay:
+            enabled: true
+            # Requests only, sized from observed usage (2026-10-28).
+            resources: { requests: { cpu: 10m, memory: 64Mi } }
+          ui:
+            enabled: false
+        operator:
+          replicas: 1
+          # Requests only, sized from observed usage (2026-10-28).
+          resources: { requests: { cpu: 20m, memory: 128Mi } }
+          # Operator metrics (:9963). The host firewall must allow the port —
+          # see modules/base.nix in bakuran-infra.
+          prometheus:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

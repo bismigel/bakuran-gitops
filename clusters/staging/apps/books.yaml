@@ -1,0 +1,27 @@
+# The books stack in staging — the first component wired to an overlay rather than
+# a copy. Light enough (three pods) to run in the KVM cluster, and it exercises the
+# whole path: base manifests → staging overlay → ArgoCD → running pods.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: books
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/overlays/staging/books
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: books
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
