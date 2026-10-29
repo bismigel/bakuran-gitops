@@ -107,8 +107,12 @@ spec:
                 case "$code" in
                   200) echo "library created" ;;
                   400)
+                    # Kavita returns the *localised message*, not the resource key:
+                    #   "Library name already exists. Please choose a unique name to the server."
+                    # Match both shapes; a PreSync hook that fails on a benign clash
+                    # blocks the very sync it is meant to unblock.
                     case "$resp" in
-                      *library-name-exists*) echo "library already present; nothing to do" ;;
+                      *"already exists"*|*library-name-exists*) echo "library already present; nothing to do" ;;
                       *) echo "ERROR: library create rejected (400), but not for a name clash:"; printf '%s\n' "$resp" | head -c 300; exit 1 ;;
                     esac ;;
                   *) echo "ERROR: library create returned ${code:-nothing}"; printf '%s\n' "$resp" | head -c 300; exit 1 ;;
