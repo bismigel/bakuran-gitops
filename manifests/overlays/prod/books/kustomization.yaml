@@ -1,0 +1,23 @@
+# Production-specific settings for the books stack.
+#
+# The only one today is a pod-template annotation on LazyLibrarian. It is not a
+# setting: any change to it makes Kubernetes build a new ReplicaSet. The
+# ReplicaSet rolled by #160 sat in FailedCreate backoff after a PodSecurity
+# rejection and did not retry promptly once the namespace label was fixed, so
+# after #161 the workload was still idle with zero pods. Bumping this value is the
+# declarative equivalent of `kubectl rollout restart`, and it is how the workload
+# gets unstuck without hand-editing the cluster — which is why it lives in the
+# overlay, not in the shared definition.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/books
+patches:
+  - target:
+      kind: Deployment
+      name: lazylibrarian
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations
+        value:
+          bakuran.dev/rollout: "2026-10-24T18:10:00Z"

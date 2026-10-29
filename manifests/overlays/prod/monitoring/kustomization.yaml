@@ -1,0 +1,10 @@
+# Production monitoring placement and values.
+#
+# Today this is a thin reference: the monitoring stack is identical on every cluster
+# this repo currently runs. It exists as the seam, and it is where the next real
+# difference goes — the public hostnames blackbox probes and the ingress host check
+# asserts are production-specific and belong here, not in the shared base.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/monitoring
