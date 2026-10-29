@@ -27,7 +27,13 @@ metadata:
   name: kavita-bootstrap
   namespace: books
   annotations:
-    argocd.argoproj.io/hook: PostSync
+    # PreSync, not PostSync: ArgoCD refuses to run PostSync hooks when the sync
+    # itself fails, and a CronJob whose last run failed ("has not completed its
+    # last execution successfully") does exactly that. With PostSync the bootstrap
+    # could never run in the one situation it exists for. PreSync runs first, and
+    # Kavita is already serving by then because this is a *re*-provision, not first
+    # install.
+    argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 0
