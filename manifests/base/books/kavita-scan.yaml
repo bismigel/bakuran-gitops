@@ -24,10 +24,15 @@ spec:
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
+  # A failed scan must not poison the Application: ArgoCD rates a CronJob by its
+  # last run, so one failure left `books` Degraded, failed every later sync, and
+  # blocked the first-run hook. One failed Job kept for inspection is enough.
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
-      backoffLimit: 2
+      # No retries: a 401 does not fix itself in 30 seconds.
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 3600
       template:
         metadata:
           labels:
