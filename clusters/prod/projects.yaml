@@ -75,5 +75,19 @@ spec:
     # kube-public / kube-node-lease are never targeted by an app; deliberately absent.
     # status-api-staging lives here until it moves to the staging cluster
     - {server: https://kubernetes.default.svc, namespace: staging}
+  # Derived from ArgoCD's own resource trees (every Application's
+  # status.resources entry with an empty namespace), not from memory:
+  #   kubectl get applications -n argocd -o json | jq -r   #     '[.items[].status.resources[]? | select((.namespace // "")=="") | "\(.group):\(.kind)"] | unique'
+  # 9 kinds. Anything a chart creates that is NOT listed here will be rejected at
+  # sync time - which is why this list is verified by forcing a sync of every app
+  # rather than assumed.
   clusterResourceWhitelist:
-    - {group: '*', kind: '*'}
+    - {group: '', kind: 'Namespace'}
+    - {group: 'admissionregistration.k8s.io', kind: 'MutatingWebhookConfiguration'}
+    - {group: 'admissionregistration.k8s.io', kind: 'ValidatingWebhookConfiguration'}
+    - {group: 'apiextensions.k8s.io', kind: 'CustomResourceDefinition'}
+    - {group: 'external-secrets.io', kind: 'ClusterSecretStore'}
+    - {group: 'networking.k8s.io', kind: 'IngressClass'}
+    - {group: 'rbac.authorization.k8s.io', kind: 'ClusterRole'}
+    - {group: 'rbac.authorization.k8s.io', kind: 'ClusterRoleBinding'}
+    - {group: 'scheduling.k8s.io', kind: 'PriorityClass'}
