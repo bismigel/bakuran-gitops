@@ -1,0 +1,22 @@
+# Secret scanning. Free and local: gitleaks is a single binary run in CI, no GitHub
+# Advanced Security required (that is the paid path for private repos).
+title = "bakuran-gitops"
+
+[extend]
+# The default ruleset: cloud keys, tokens, private keys, connection strings.
+useDefault = true
+
+[allowlist]
+description = "Things that look like secrets but are published placeholders"
+paths = [
+  # Chart/CRD defaults and chart lockfiles routinely contain example values.
+  '''.*\.lock$''',
+  '''manifests/.*/values\.yaml$''',
+]
+regexes = [
+  # Deliberately fake values used to scaffold an ExternalSecret until the real one
+  # is added to Bitwarden (see manifests/duwende/deepseek-key.yaml).
+  '''(?i)(scaffold|placeholder|dummy|example|changeme|REPLACE_ME)''',
+  # Age *recipients* are public keys; only identities are secret.
+  '''age1[0-9a-z]{50,}''',
+]
