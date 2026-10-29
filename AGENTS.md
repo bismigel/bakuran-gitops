@@ -6,10 +6,12 @@ This repo is the **ArgoCD desired state** for the Bakuran homelab.
 3-node k3s cluster** (embedded etcd, 3 members):
 - **sitaw-amd** (.82, AMD) — platform + sites/APIs (in-cluster)
 - **calamansi-intel** (.81, Intel) — the media stack (in-cluster, pinned via `nodeSelector`)
-- **kamatis-mbp** (.83, MacBook) — 3rd etcd node (tainted); **Immich** runs there
+- **patola-thinkcentre** (.80, Lenovo) — 3rd etcd member, also QSV-capable
+- **kamatis-mbp** (.83, MacBook) — **staging host** (KVM guests), NOT a cluster member
 
-The Cloudflare edge (tunnel/DNS/Access) is **not** in this repo — it lives in
-`bakuran-infra/cloudflare/sync.sh` and is reconciled daily on `.82`.
+The Cloudflare edge (tunnel/DNS/Access) is **not** in this repo — it is owned by
+**OpenTofu** in `bakuran-infra/opentofu/cloudflare/` (state in R2). The old
+`cloudflare/sync.sh` is retired; the agent's Cloudflare access is read-only.
 
 There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pulls).
 
@@ -80,6 +82,24 @@ scripts/                         # generators (generate-duwende-context.sh)
 Use `destination.server: https://kubernetes.default.svc` for everything — there
 are no external cluster registrations. Pin a workload to a node with `nodeSelector`
 (e.g. media → `.81`, Immich → `.83`).
+
+## Deleting things (there is a guardrail — respect it)
+
+`manifests/base/guardrails/` installs a `ValidatingAdmissionPolicy` that denies
+`DELETE` on PersistentVolumeClaims, PersistentVolumes and Namespaces unless the object
+carries `bakuran.dev/allow-delete: "true"`. It exists because a `kubectl delete pvc
+--all` aimed at staging's `books` namespace hit production's identically-named
+namespace on 2026-10-29 and destroyed three config volumes.
+
+- **Never `delete ... --all`** in a namespace that exists on both clusters — `books`,
+  `media` and `monitoring` all do.
+- A genuine deletion is **one object, named**, after confirming the cluster:
+  `kubectl config current-context` (or which host you are ssh'd into), then runbook 17.
+- If a data-holding manifest is removed from git, ArgoCD will try to prune it and the
+  API will refuse. That is the policy working: annotate the object, delete it, then
+  drop the annotation from git.
+- The guardrail is a backstop, not permission. Do not "test" it against real objects,
+  and never downgrade the binding to `Warn` outside runbook 17.
 
 ## Change something already deployed
 
