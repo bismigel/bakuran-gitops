@@ -1,0 +1,71 @@
+# ArgoCD projects: the blast-radius boundary.
+#
+# Before this, all 31 Applications ran in `project: default`, which permits ANY
+# destination on ANY cluster — so a typo in `destination.namespace` deploys into
+# the wrong namespace, and self-heal then makes it permanent. A project turns that
+# class of mistake into an API-server rejection instead of an incident.
+#
+# What is enforced here:
+#   * destination NAMESPACE — the list below is exactly the namespaces this
+#     cluster's Applications legitimately write to. Nothing else is reachable.
+#   * source REPOS — every repo (git or chart) an Application is allowed to read.
+#   * cluster-scoped resources — currently any, because the Helm-chart apps create
+#     CRDs, ClusterRoles, StorageClasses and webhook configurations, and enumerating
+#     them from chart output is not something to guess. This is the one place still
+#     wide open, and it tightens naturally once CI renders every overlay (CI step
+#     added in the same change) — the rendered kinds become a checkable list rather
+#     than a guess.
+#
+# The `root` Application deliberately stays in `default`: it only creates other
+# Application objects, and a project that can create Applications can create them
+# with any project, so wrapping it in `prod` would be theatre.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: prod
+  namespace: argocd
+spec:
+  description: Bakuran production cluster (.80/.81/.82)
+  sourceRepos:
+    - git@github.com:bismigel/bakuran-gitops.git
+    - git@github.com:bismigel/private-api.git
+    - https://github.com/bismigel/bismigel-site
+    - https://github.com/bismigel/status-api
+    - https://github.com/Ciceley/ciceleywebsite
+    # chart repositories
+    - https://helm.cilium.io
+    - https://charts.jetstack.io
+    - https://charts.longhorn.io
+    - https://charts.external-secrets.io
+    - https://kubernetes.github.io/ingress-nginx
+    - https://open-telemetry.github.io/opentelemetry-helm-charts
+    - https://sustainable-computing-io.github.io/kepler-helm-chart
+  destinations:
+    # every namespace an Application actually targets today
+    - {server: https://kubernetes.default.svc, namespace: apps}
+    - {server: https://kubernetes.default.svc, namespace: argocd}
+    - {server: https://kubernetes.default.svc, namespace: books}
+    - {server: https://kubernetes.default.svc, namespace: cert-manager}
+    - {server: https://kubernetes.default.svc, namespace: default}
+    - {server: https://kubernetes.default.svc, namespace: duwende}
+    - {server: https://kubernetes.default.svc, namespace: external-secrets}
+    - {server: https://kubernetes.default.svc, namespace: homepage}
+    - {server: https://kubernetes.default.svc, namespace: immich}
+    - {server: https://kubernetes.default.svc, namespace: ingress-nginx}
+    - {server: https://kubernetes.default.svc, namespace: ingress-nginx-admin}
+    - {server: https://kubernetes.default.svc, namespace: karakeep}
+    - {server: https://kubernetes.default.svc, namespace: kepler}
+    - {server: https://kubernetes.default.svc, namespace: kube-system}
+    - {server: https://kubernetes.default.svc, namespace: longhorn-system}
+    - {server: https://kubernetes.default.svc, namespace: media}
+    - {server: https://kubernetes.default.svc, namespace: monitoring}
+    - {server: https://kubernetes.default.svc, namespace: observability}
+    - {server: https://kubernetes.default.svc, namespace: opentelemetry-operator-system}
+    # status-api-staging lives here until it moves to the staging cluster
+    - {server: https://kubernetes.default.svc, namespace: staging}
+  clusterResourceWhitelist:
+    - {group: '*', kind: '*'}
+  namespaceResourceBlacklist:
+    # nothing may manage the ArgoCD control plane's own workloads except the
+    # argocd app itself; this blocks an accidental "deploy my app into argocd"
+    - {group: 'apps', kind: 'Deployment'}

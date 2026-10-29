@@ -39,3 +39,41 @@ jobs:
 
       - name: Prometheus rule validation
         run: .github/scripts/check-prometheus-rules.sh
+
+      # Every overlay must actually RENDER. Linting raw YAML cannot catch the bugs
+      # that actually reached the cluster this week: a kustomization-level
+      # `namespace:` that rewrote kube-vip out of kube-system, `commonLabels`
+      # mutating an immutable Deployment selector, and a volume index that clobbered
+      # an init container's emptyDir. All three were found by ArgoCD at sync time —
+      # i.e. in production — because CI only ever validated the files as written.
+      - name: Render every kustomization (and validate the rendered output)
+        run: |
+            set -euo pipefail
+            curl -sSfL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz \
+              | tar -xz -C /tmp kustomize
+            sudo install /tmp/kustomize /usr/local/bin/kustomize
+
+            mapfile -t dirs < <(find manifests clusters -name kustomization.yaml -printf '%h\n' | sort -u)
+            # An empty list means the tree moved: fail loudly, never pass silently.
+            if [ "${#dirs[@]}" -eq 0 ]; then
+              echo "ERROR: no kustomization.yaml found under manifests/ or clusters/ — did the tree move?" >&2
+              exit 1
+            fi
+            echo "rendering ${#dirs[@]} kustomization(s)"
+            fail=0
+            for d in "${dirs[@]}"; do
+              if ! out="$(kustomize build "$d" 2>&1)"; then
+                echo "::error::kustomize build failed: $d"
+                echo "$out" | sed 's/^/    /'
+                fail=1
+                continue
+              fi
+              # Empty output is a broken overlay, not a small one.
+              if [ -z "$out" ]; then
+                echo "::error::kustomize build produced nothing: $d"
+                fail=1
+                continue
+              fi
+              printf '%s\n' "$out" | kubeconform -strict -ignore-missing-schemas -summary -output pretty || fail=1
+            done
+            exit "$fail"

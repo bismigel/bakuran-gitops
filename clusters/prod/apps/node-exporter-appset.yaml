@@ -14,7 +14,7 @@ spec:
     metadata:
       name: 'node-exporter-{{.name}}'
     spec:
-      project: default
+      project: prod
       source:
         repoURL: git@github.com:bismigel/bakuran-gitops.git
         targetRevision: main

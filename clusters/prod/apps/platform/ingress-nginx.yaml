@@ -8,7 +8,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: prod
   source:
     repoURL: https://kubernetes.github.io/ingress-nginx
     chart: ingress-nginx
