@@ -1,21 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: books
+  name: media
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: prod
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/overlays/prod/books
+    path: manifests/overlays/prod/media
   destination:
+    # calamansi-intel is now a node in the unified cluster (in-cluster), with
+    # the media pods pinned there via nodeSelector (see manifests/overlays/prod/media).
     server: https://kubernetes.default.svc
-    namespace: books
+    namespace: media
   syncPolicy:
     automated:
       prune: true

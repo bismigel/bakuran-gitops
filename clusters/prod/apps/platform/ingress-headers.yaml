@@ -1,24 +1,22 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: status-api
+  name: ingress-headers
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: prod
   source:
-    repoURL: https://github.com/bismigel/status-api
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: deploy/overlays/prod
+    path: manifests/ingress-headers
   destination:
     server: https://kubernetes.default.svc
-    namespace: apps
+    namespace: ingress-nginx
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true

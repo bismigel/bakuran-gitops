@@ -1,21 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: duwende
+  name: immich
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: prod
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/duwende
+    path: manifests/immich
   destination:
     server: https://kubernetes.default.svc
-    namespace: duwende
+    namespace: immich
   syncPolicy:
     automated:
       prune: true

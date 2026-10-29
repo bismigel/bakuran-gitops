@@ -1,24 +1,24 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: bismigel-site
+  name: intel-gpu-plugin
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: prod
   source:
-    repoURL: https://github.com/bismigel/bismigel-site
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: deploy/k8s
+    path: manifests/intel-gpu-plugin
   destination:
+    # The plugin runs on calamansi-intel only (nodeSelector), but device plugins
+    # conventionally live in kube-system.
     server: https://kubernetes.default.svc
-    namespace: apps
+    namespace: kube-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true

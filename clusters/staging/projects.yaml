@@ -1,0 +1,19 @@
+# Staging's project. Deliberately narrower than prod's: the staging cluster runs
+# only what it is rehearsing, and it must not be able to name a production
+# namespace even if someone pastes the wrong file in.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: staging
+  namespace: argocd
+spec:
+  description: Bakuran staging cluster (KVM on .83)
+  sourceRepos:
+    - git@github.com:bismigel/bakuran-gitops.git
+    - git@github.com:bismigel/bakuran-infra.git
+  destinations:
+    - {server: https://kubernetes.default.svc, namespace: books}
+    - {server: https://kubernetes.default.svc, namespace: staging-demo}
+    - {server: https://kubernetes.default.svc, namespace: argocd}
+  clusterResourceWhitelist:
+    - {group: '*', kind: '*'}

@@ -1,16 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ciceley-site
+  name: bismigel-site
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: prod
   source:
-    repoURL: https://github.com/Ciceley/ciceleywebsite
+    repoURL: https://github.com/bismigel/bismigel-site
     targetRevision: main
     path: deploy/k8s
   destination:
