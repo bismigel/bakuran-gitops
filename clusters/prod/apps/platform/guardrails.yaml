@@ -1,0 +1,26 @@
+# Cluster-level action guardrails (ValidatingAdmissionPolicy). Cluster-scoped and
+# independent of every workload: it must be able to block a delete even when the
+# thing being deleted is what makes the cluster useful.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: guardrails
+  namespace: argocd
+  annotations:
+    # First, so a later app cannot be blamed for a policy that is not yet live.
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: prod
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/overlays/prod/guardrails
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

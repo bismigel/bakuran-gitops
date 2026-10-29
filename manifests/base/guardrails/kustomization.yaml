@@ -1,0 +1,7 @@
+# Cluster-level guardrails: rules that hold even when the operator (or their
+# automation) is wrong. Kept separate from network-policies, which are about
+# traffic; this directory is about *actions* that cannot be undone.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - protect-stateful-objects.yaml

@@ -1,0 +1,6 @@
+# Production guardrails. Identical to the base on purpose: a safety rule that
+# differs per cluster is a safety rule you have to remember to check.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/guardrails

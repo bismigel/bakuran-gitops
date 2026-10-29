@@ -1,0 +1,53 @@
+# Data deletion must be a deliberate act, not a typo.
+#
+# On 2026-10-29 a `kubectl delete pvc --all` aimed at staging's `books` namespace
+# hit production's identically-named namespace and destroyed three config volumes
+# (Kavita's library database, LazyLibrarian's config, Audiobookshelf's database).
+# They were recovered from the 00:31 backup, but nothing in the cluster had
+# *stopped* the command - the only guardrail was care.
+#
+# This makes it stop: deleting a PersistentVolumeClaim, a PersistentVolume or a
+# Namespace is denied unless the object carries
+#
+#     bakuran.dev/allow-delete: "true"
+#
+# No extra component: ValidatingAdmissionPolicy is built into the API server
+# (GA since Kubernetes 1.30), so this is three objects and nothing to run.
+#
+# Break-glass: annotate the object, delete it, and remove the annotation from git
+# if it was committed. Nothing is unrecoverable - but the deletion now needs a
+# second, explicit action that shows up in audit logs and in the diff.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: protect-stateful-objects
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["DELETE"]
+        resources: ["persistentvolumeclaims", "persistentvolumes", "namespaces"]
+  # For a DELETE request the object being removed is `oldObject` (object is null).
+  validations:
+    - expression: >-
+        has(oldObject.metadata.annotations) &&
+        oldObject.metadata.annotations['bakuran.dev/allow-delete'] == 'true'
+      message: >-
+        Deleting a PersistentVolumeClaim, PersistentVolume or Namespace requires the
+        annotation bakuran.dev/allow-delete="true" on the object. This is the guard
+        against a wrong-namespace delete reaching production data (2026-10-29,
+        homelab-context/docs/05-deployment-patterns.md).
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: protect-stateful-objects
+spec:
+  policyName: protect-stateful-objects
+  # Deny, not Warn: a warning is exactly what an unattended `--all` never reads.
+  validationActions: ["Deny"]
+  # No matchResources: every namespace, every namespace object. A namespace delete
+  # cascades to its PVCs, so exempting one namespace would leave the hole open.
