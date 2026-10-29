@@ -78,6 +78,37 @@ spec:
                   -H 'Content-Type: application/json' -d "$(body)"
               }
 
+              token() {
+                curl -sS --max-time 20 -X POST "$KAVITA_URL/api/Account/login" \
+                  -H 'Content-Type: application/json' -d "$(body)" \
+                | sed -n 's/.*"token":"\([^"]*\)".*/\1/p'
+              }
+
+              # A wiped config volume takes the library with it: the DB is the only
+              # place it exists. `kavita-scan` scans libraryId=1, so the library has
+              # to exist for the nightly job to mean anything.
+              #
+              # The payload is not guesswork - it is UpdateLibraryDto from Kavita
+              # v0.9.1.4: type 2 = Book, fileGroupTypes [1,2,3] = Archive/Epub/Pdf,
+              # and metadataProvider 2 (Hardcover) because a Book library rejects an
+              # empty provider with "The field MetadataProvider is invalid".
+              ensure_library() {
+                tok=$(token)
+                existing=$(curl -sS --max-time 20 -H "Authorization: Bearer $tok" "$KAVITA_URL/api/Library")
+                case "$existing" in
+                  ""|"[]")
+                    echo "no library; creating 'Books' on /books"
+                    payload='{"name":"Books","type":2,"folders":["/books"],"fileGroupTypes":[1,2,3],"excludePatterns":[],"folderWatching":true,"includeInDashboard":true,"manageCollections":true,"manageReadingLists":true,"allowScrobbling":true,"allowMetadataMatching":true,"enableMetadata":true,"metadataProvider":2,"removePrefixForSortName":false,"inheritWebLinksFromFirstChapter":false}'
+                    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+                      -X POST "$KAVITA_URL/api/Library/create" \
+                      -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -d "$payload")
+                    echo "create HTTP $code"
+                    [ "$code" = "200" ] || { echo "ERROR: library creation failed"; exit 1; }
+                    ;;
+                  *) echo "library already present; nothing to do" ;;
+                esac
+              }
+
               # Kavita can take a moment to answer after a restart; wait for it
               # rather than failing the sync on a race.
               i=0
@@ -87,7 +118,8 @@ spec:
               done
 
               if [ "$(login)" = "200" ]; then
-                echo "admin account already works; nothing to do"
+                echo "admin account already works"
+                ensure_library
                 exit 0
               fi
 
@@ -102,12 +134,12 @@ spec:
                 exit 1
               fi
 
-              if [ "$(login)" = "200" ]; then
-                echo "admin account created and verified"
-                exit 0
+              if [ "$(login)" != "200" ]; then
+                echo "ERROR: registered but login still fails"
+                exit 1
               fi
-              echo "ERROR: registered but login still fails"
-              exit 1
+              echo "admin account created and verified"
+              ensure_library
           resources:
             requests: { cpu: 10m, memory: 16Mi }
             limits: { memory: 64Mi }
