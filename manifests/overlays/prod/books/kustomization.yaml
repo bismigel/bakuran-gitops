@@ -22,8 +22,13 @@ resources:
   # First-run provisioning for Kavita's admin account. Environment-specific
   # because it needs this cluster's credential; staging has no kavita-secrets.
   - kavita-bootstrap.yaml
-  # Ciceley's password from Bitwarden (see the file header).
-  - kavita-ciceley-password.yaml
+  # Ciceley's password from Bitwarden - HELD BACK (2026-10-29) until the key
+  # `kavita-ciceley-password` exists in the BWS project. While it is missing, ESO
+  # reports SecretSyncedError and ArgoCD counts that as unhealthy, which leaves
+  # `books` Degraded and trips the smoke test (and therefore an alert) every 15
+  # minutes. Enable the line below as soon as the key is in Bitwarden - the
+  # bootstrap hook already handles her password and no-ops without it.
+  # - kavita-ciceley-password.yaml
 patches:
   - target:
       kind: Deployment
