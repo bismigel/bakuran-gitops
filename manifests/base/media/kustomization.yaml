@@ -1,0 +1,21 @@
+# The media stack, cluster-agnostic.
+#
+# Nothing here is specific to this lab: no node placement, no storage class, no
+# hostnames. Those belong to an overlay, so a second cluster (staging) can run the
+# same definitions with different values instead of keeping its own approximation.
+#
+# What IS here: the workloads themselves and their in-stack wiring (services,
+# config, the *arr auth glue, the Prowlarr custom definitions, the recyclarr job).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - arr-auth.yaml
+  - arr-stack.yaml
+  - jellyfin.yaml
+  - qbittorrent.yaml
+  - sabnzbd.yaml
+  - media-mcp.yaml
+  - flaresolverr.yaml
+  - recyclarr.yaml
+  - prowlarr-definitions.yaml
+  - ghcr-secret.yaml
