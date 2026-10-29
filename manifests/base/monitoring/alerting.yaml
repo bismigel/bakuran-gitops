@@ -340,6 +340,23 @@ data:
             annotations:
               summary: "public SLO slow burn: {{ $labels.instance }} 6h availability {{ $value | humanizePercentage }}"
               description: "Under the 99.5% objective across 6h and 1h, and still failing in the last 5m. A historic blip alone no longer fires this."
+      - name: cronjobs
+        rules:
+          # ArgoCD rates a CronJob by its LAST run, so one failure marks the whole
+          # Application Degraded - kavita-scan did that for 24h on 2026-10-29. Name
+          # the failure directly instead of inferring it from app health, and use it
+          # as the inhibition source above.
+          - alert: CronJobFailed
+            expr: |
+              kube_job_status_failed{job_name!=""} > 0
+              and on (namespace, job_name) kube_job_owner{owner_kind="CronJob"} == 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "CronJob failed: {{ $labels.namespace }}/{{ $labels.job_name }}"
+              description: "A scheduled job's last run failed. Read its logs; it clears on the next success, so a daily job stays visible for a day."
+
 ---
 # Alertmanager
 apiVersion: v1
@@ -364,6 +381,17 @@ data:
           group_wait: 0s
           group_interval: 1m
           repeat_interval: 24h
+    # A pushed SmokeTestFailed is a CONSEQUENCE. On 2026-10-29 a single degraded app
+    # failed the smoke test every 15 minutes all night, each instance "resolving" 5
+    # minutes later - noise on top of the specific alert that already said what was
+    # wrong. While a cause-level alert fires, stay quiet.
+    inhibit_rules:
+      - source_matchers:
+          - 'alertname=~"ArgoCDAppUnhealthy|ArgoCDAppOutOfSync|KubePodCrashLooping|PublicProbeDown|WireGuardNoEgress|CronJobFailed"'
+        target_matchers:
+          - 'alertname="SmokeTestFailed"'
+        # No `equal:` - the pushed alert carries only instance+unit, so there is no
+        # shared label to match on and `equal` would never inhibit.
     receivers:
       - name: telegram
         telegram_configs:
