@@ -1,0 +1,42 @@
+# Production's root: the app-of-apps for THIS cluster.
+#
+# Why clusters/<name>/ instead of one shared root: a cluster only sees the paths
+# its own root names, so an environment-specific Application can never leak into
+# another cluster by sitting in a directory that the other root happens to recurse.
+# Before this, bootstrap/root-app.yaml recursed all of applications/ and quietly
+# deployed a *staging* app (status-api-staging) into production.
+#
+# Applied once per cluster: kubectl apply -f clusters/<name>/root.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: clusters/prod/apps
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  # ArgoCD adds `pre-delete-finalizer.argocd.argoproj.io[/cleanup]` finalizers to
+  # any child Application whose manifests contain a PreDelete hook (e.g. longhorn).
+  # Those finalizers can't be removed by a sync, so without this the app-of-apps
+  # sees the child as perpetually OutOfSync and re-syncs it in a loop.
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jsonPointers:
+        - /metadata/finalizers
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

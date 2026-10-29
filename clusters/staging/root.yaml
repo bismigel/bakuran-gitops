@@ -1,0 +1,41 @@
+# Staging's root: the app-of-apps for the KVM cluster on .83.
+#
+# Same repo, same base manifests, different overlay. This is the payoff of the
+# base/overlay split: staging runs the *definitions* production runs, not a
+# hand-written approximation of them.
+#
+# Applied once, into staging's own ArgoCD:
+#   kubectl --kubeconfig <staging> apply -f clusters/staging/root.yaml
+#
+# Deliberately NOT sharing production's Application set: staging needs single
+# replicas, no media-pool pinning (there is no /mnt/media there) and no public
+# hostnames. Those live in manifests/overlays/staging/<component>/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: clusters/staging/apps
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jsonPointers:
+        - /metadata/finalizers
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx-admin
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.15.1
+    helm:
+      values: |
+        controller:
+          # Separate trust zone for admin/browser surfaces. The Cloudflare
+          # tunnel will point admin hostnames at this loopback NodePort.
+          # REQUIRED, not preferred. With a soft rule both replicas landed on
+          # sitaw-amd, so 'two replicas' protected against a pod crash and not
+          # against losing that node - and the connector on the other host had
+          # no endpoint left to reach (found 2026-10-28).
+          # maxSurge/maxUnavailable 1 so a rollout still progresses when only
+          # two nodes are schedulable: the old pod leaves and frees its node.
+          # The class itself is owned by the edge-config app (manifests/edge/), so
+          # this release must NOT try to create IngressClass/nginx - it would fight
+          # the public controller for the same object and sit OutOfSync forever.
+          ingressClassResource:
+            enabled: false
+            # The controller advertises this as --controller-class, and it must match
+            # IngressClass/nginx-admin.spec.controller. At the chart default
+            # (k8s.io/ingress-nginx) BOTH controllers claimed BOTH classes, so every
+            # admin hostname 404'd behind Access (2026-10-28).
+            controllerValue: k8s.io/ingress-nginx-admin
+          ingressClass: nginx-admin
+          replicaCount: 2
+          updateStrategy:
+            type: RollingUpdate
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 1
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      # instance, not name: both releases are called 'ingress-nginx', so
+                      # matching on name made each controller block the other and left one
+                      # replica permanently Pending (4 pods, 3 nodes).
+                      app.kubernetes.io/instance: ingress-nginx-admin
+                      app.kubernetes.io/component: controller
+          config:
+            # The origin is loopback-only; cloudflared is the only client.
+            use-forwarded-headers: "true"
+          service:
+            type: NodePort
+            enableHttps: false
+            nodePorts:
+              http: 32081
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx-admin
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
