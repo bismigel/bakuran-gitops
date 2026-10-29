@@ -63,6 +63,18 @@ spec:
             - name: KAVITA_PASSWORD
               valueFrom:
                 secretKeyRef: { name: kavita-secrets, key: kavita-admin-password }
+            # Ciceley's password comes from the ExternalSecret next to this file.
+            # `optional: true` on purpose: until the Bitwarden key exists the Secret
+            # is absent, and a missing optional env must NOT fail the hook (it
+            # already blocked a sync once when it failed for a benign reason).
+            - name: CICELEY_USER
+              value: ciceley
+            - name: CICELEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kavita-ciceley-secrets
+                  key: kavita-ciceley-password
+                  optional: true
             - name: HOME
               value: /tmp
           command: ["/bin/sh", "-c"]
@@ -119,6 +131,41 @@ spec:
                 esac
               }
 
+              # Her account is not created here when it is missing: this runs with
+              # `optional: true` credentials, and an account created from an absent
+              # password is worse than a loud failure. What this *does* guarantee is
+              # that the password in Bitwarden is the password Kavita accepts — both
+              # for the account restored from backup and for one an admin made by
+              # hand. Reset is the admin endpoint `POST /api/Account/reset-password`.
+              ensure_ciceley() {
+                if [ -z "${CICELEY_PASSWORD:-}" ]; then
+                  echo "ciceley: no password in Bitwarden (kavita-ciceley-password); skipping"
+                  return 0
+                fi
+                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+                  -X POST "$KAVITA_URL/api/Account/login" \
+                  -H 'Content-Type: application/json' \
+                  -d "$(printf '{"username":"%s","password":"%s"}' "$CICELEY_USER" "$CICELEY_PASSWORD")")
+                if [ "$code" = "200" ]; then
+                  echo "ciceley: password already matches Bitwarden"
+                  return 0
+                fi
+                echo "ciceley: login is $code; resetting to the Bitwarden password"
+                tok=$(token)
+                payload=$(printf '{"userName":"%s","password":"%s"}' "$CICELEY_USER" "$CICELEY_PASSWORD")
+                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+                  -X POST "$KAVITA_URL/api/Account/reset-password" \
+                  -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -d "$payload")
+                echo "ciceley: reset HTTP $code"
+                [ "$code" = "200" ] || { echo "ERROR: reset failed"; exit 1; }
+                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+                  -X POST "$KAVITA_URL/api/Account/login" \
+                  -H 'Content-Type: application/json' \
+                  -d "$(printf '{"username":"%s","password":"%s"}' "$CICELEY_USER" "$CICELEY_PASSWORD")")
+                [ "$code" = "200" ] || { echo "ERROR: login still $code after reset"; exit 1; }
+                echo "ciceley: password set and verified"
+              }
+
               # Kavita can take a moment to answer after a restart; wait for it
               # rather than failing the sync on a race.
               i=0
@@ -130,6 +177,7 @@ spec:
               if [ "$(login)" = "200" ]; then
                 echo "admin account already works"
                 ensure_library
+                ensure_ciceley
                 exit 0
               fi
 
@@ -150,6 +198,7 @@ spec:
               fi
               echo "admin account created and verified"
               ensure_library
+              ensure_ciceley
           resources:
             requests: { cpu: 10m, memory: 16Mi }
             limits: { memory: 64Mi }

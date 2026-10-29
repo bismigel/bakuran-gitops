@@ -22,6 +22,8 @@ resources:
   # First-run provisioning for Kavita's admin account. Environment-specific
   # because it needs this cluster's credential; staging has no kavita-secrets.
   - kavita-bootstrap.yaml
+  # Ciceley's password from Bitwarden (see the file header).
+  - kavita-ciceley-password.yaml
 patches:
   - target:
       kind: Deployment
