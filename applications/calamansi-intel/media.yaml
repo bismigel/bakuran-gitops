@@ -12,10 +12,10 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/media
+    path: manifests/overlays/prod/media
   destination:
     # calamansi-intel is now a node in the unified cluster (in-cluster), with
-    # the media pods pinned there via nodeSelector (see manifests/media).
+    # the media pods pinned there via nodeSelector (see manifests/overlays/prod/media).
     server: https://kubernetes.default.svc
     namespace: media
   syncPolicy:

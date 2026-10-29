@@ -1,0 +1,39 @@
+# Production placement for the media stack.
+#
+# This is the ONLY thing that differs between clusters: where the pods may run.
+# Everything else comes from ../../../base/media untouched.
+#
+# Placement is by *capability*, not hostname:
+#   homelab.io/media-pool = /mnt/media exists on this node
+#   homelab.io/qsv        = Intel QuickSync available for transcoding
+# so moving the pool is a label flip, not a manifest rewrite.
+#
+# Only the pods that touch the pool or the GPU are pinned. flaresolverr,
+# media-mcp and recyclarr touch neither, so they may run anywhere (a blanket rule
+# pinned every media pod to .81 until 2026-10-28).
+#
+# This does not make the stack survive losing .81: with hostPath type=Directory a
+# pool pod scheduled elsewhere fails to start rather than serving an empty
+# library. See HIGH-AVAILABILITY.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/media
+patches:
+  - target:
+      kind: Deployment
+      name: (sonarr|radarr|prowlarr|bazarr|qbittorrent|sabnzbd)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          homelab.io/media-pool: "true"
+  - target:
+      kind: Deployment
+      name: jellyfin
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          homelab.io/media-pool: "true"
+          homelab.io/qsv: "true"

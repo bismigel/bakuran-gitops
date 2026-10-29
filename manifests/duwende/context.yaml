@@ -320,7 +320,7 @@ data:
       on headless sentinel DNS on a small cluster); accepted low-impact SPOF (ArgoCD
       reconciliation pauses if it dies, workloads keep running).
     - **Media stack re-homed in-cluster**, the `media` app now targets the unified
-      cluster; `manifests/media/kustomization.yaml` pins every media pod to `.81`; the
+      cluster; `manifests/overlays/prod/media/kustomization.yaml` pins every media pod to `.81`; the
       `calamansi-intel` external cluster registration + `.81` ingress apps retired.
       Reacts: fresh arr/Jellyfin config (old `local-path` PVCs backed up to
       `/mnt/media/_k3s-storage-backup-*.tar.gz`); re-wired with the media setup scripts.
@@ -616,8 +616,8 @@ data:
     
     | Owner | Objects |
     | --- | --- |
-    | **ArgoCD** (`manifests/media/`) | Deployment/PVC/Service/Ingress shape, image pins, nodeSelector, netpol |
-    | **recyclarr** (`manifests/media/recyclarr.yaml`, nightly 04:17) | `quality_profile` + `custom_format` scores |
+    | **ArgoCD** (`manifests/overlays/prod/media/`) | Deployment/PVC/Service/Ingress shape, image pins, nodeSelector, netpol |
+    | **recyclarr** (`manifests/base/media/recyclarr.yaml`, nightly 04:17) | `quality_profile` + `custom_format` scores |
     | **OpenTofu** (`bakuran-infra/opentofu/`, *not yet built*) | indexers (Prowlarr), download clients, root folders, notifications, **and per-quality MB/min size caps** (`devopsarr_*_quality_definition`) |
     | nothing | download history, seeds, cookies | R2 `appdata/` backups |
     
@@ -1386,7 +1386,7 @@ data:
     ## Media stack (.81): GitOps
     
     Managed by the `media` ArgoCD app
-    (`bakuran-gitops/applications/calamansi-intel/media.yaml` → `manifests/media/`),
+    (`bakuran-gitops/applications/calamansi-intel/media.yaml` → `manifests/overlays/prod/media/`),
     deployed to the `calamansi-intel` cluster. Wiring (root folders, download
     clients, Prowlarr → Sonarr/Radarr):
     
@@ -1843,7 +1843,7 @@ data:
     **A single ArgoCD runs on `sitaw-amd`, managing the one 3-node cluster**
     (in-cluster). There is no external cluster registration and no second ArgoCD.
     All workloads are ordinary in-cluster resources; the media stack is pinned to
-    `calamansi-intel` via `nodeSelector` (see `manifests/media/kustomization.yaml`).
+    `calamansi-intel` via `nodeSelector` (see `manifests/overlays/prod/media/kustomization.yaml`).
     ArgoCD is **HA**: `server`/`repo-server`/`applicationSet` run 2 replicas and the
     `application-controller` runs 2 (active/standby), spread across `.82`/`.81`
     (`scripts/bootstrap-argocd.sh`); Redis is a single replica.
