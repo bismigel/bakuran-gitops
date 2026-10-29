@@ -1,19 +1,25 @@
 # Staging's books stack: the same five manifests production runs, minus
-# production's workarounds, plus the two things this cluster does not have.
+# production's assumptions, plus the two things this cluster does not have.
 #
 # What differs, and why:
 #   * no `bakuran.dev/rollout` annotation — that exists to unstick a ReplicaSet in
 #     production; it is not part of the workload's definition;
 #   * the nightly Kavita rescan CronJob is SUSPENDED — staging's library is a
 #     fixture, so a rescan proves nothing and burns the guest's CPU;
-#   * storage: the base asks for `longhorn` (production). The KVM cluster has only
-#     k3s's `local-path`, so a PVC there would stay Pending forever. This is the
-#     overlay doing exactly its job — the base says *what* storage, the overlay
-#     says *which* storage this cluster has.
+#   * storage class `local-path` (production uses Longhorn);
+#   * the media pool. The base mounts /mnt/media/books, /mnt/media/audiobooks and
+#     /mnt/media with hostPath `type: Directory`, which fails closed — correct in
+#     production, useless where there is no pool. Those volumes become emptyDir.
 #
 # What deliberately does NOT differ: images (same digests as production), probes,
-# env, volumes, replicas. If staging passed with different ones it would prove
-# nothing about production.
+# env, replicas. If staging passed with different ones it would prove nothing.
+#
+# Volume indices are explicit because JSON patches address arrays by position:
+#   audiobookshelf  [0]=config(PVC) [1]=audiobooks(hostPath)
+#   kavita          [0]=config(PVC) [1]=books(hostPath)
+#   lazylibrarian   [0]=config(PVC) [1]=patched-app(emptyDir) [2]=books [3]=downloads
+# Reordering volumes in the base will break this overlay — the render check below
+# catches that (`kustomize build` then look for hostPath).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -32,3 +38,35 @@ patches:
       - op: replace
         path: /spec/storageClassName
         value: local-path
+  - target:
+      kind: Deployment
+      name: audiobookshelf
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: audiobooks
+          emptyDir: {}
+  - target:
+      kind: Deployment
+      name: kavita
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: books
+          emptyDir: {}
+  - target:
+      kind: Deployment
+      name: lazylibrarian
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/2
+        value:
+          name: books
+          emptyDir: {}
+      - op: replace
+        path: /spec/template/spec/volumes/3
+        value:
+          name: downloads
+          emptyDir: {}
