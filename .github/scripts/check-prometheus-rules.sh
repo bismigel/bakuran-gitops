@@ -4,7 +4,17 @@ set -euo pipefail
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-for f in manifests/monitoring/*.yaml; do
+# Rules live in the shared base since the base/overlay split (2026-10-29).
+# Guard the glob: a path that matches nothing must say so, not fail with a
+# confusing yq error when the tree moves again.
+shopt -s nullglob
+files=(manifests/base/monitoring/*.yaml)
+shopt -u nullglob
+if [ "${#files[@]}" -eq 0 ]; then
+  echo "ERROR: no manifests/base/monitoring/*.yaml — did the tree move again?" >&2
+  exit 1
+fi
+for f in "${files[@]}"; do
   base="$(basename "$f" .yaml)"
   while IFS= read -r key; do
     [ -n "$key" ] || continue
