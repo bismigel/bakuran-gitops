@@ -346,22 +346,26 @@ data:
           # Application Degraded - kavita-scan did that for 24h on 2026-10-29. Name
           # the failure directly instead of inferring it from app health, and use it
           # as the inhibition source above.
-          - alert: CronJobFailed
-            # Only for a failure that is still *current*: kube_job_status_failed
-            # stays 1 for every Job object that ever failed, so without the 26h
-            # freshness filter this fired on three arr-auth-sync jobs that failed
-            # three days ago and whose CronJob has succeeded many times since
-            # (2026-10-29). 26h covers a daily job without resurrecting history.
-            expr: |
-              (
-                kube_job_status_failed{job_name!=""} > 0
-                and on (namespace, job_name) kube_job_owner{owner_kind="CronJob"} == 1
-              )
-              and on (namespace, job_name)
-              (
-                kube_job_status_start_time > (time() - 93600)
-              )
-            for: 5m
+            - alert: CronJobFailed
+              # A failed Job object persists forever, and `kube_job_status_failed`
+              # stays 1, so "any failed job of a CronJob" is not a useful signal: on
+              # 2026-10-29 it fired for the rest of the day on failures from the
+              # rolling restart, though every one of those CronJobs had caught up
+              # within minutes. The condition is that the failure is STILL the latest
+              # outcome: the job started after the CronJob's last success.
+              expr: |
+                (
+                  kube_job_status_failed{job_name!=""} > 0
+                  and on (namespace, job_name) group_left (owner_name)
+                      kube_job_owner{owner_kind="CronJob"} == 1
+                )
+                and on (namespace, owner_name)
+                (
+                  kube_job_status_start_time
+                  > on (namespace, owner_name) group_left ()
+                    kube_cronjob_status_last_successful_time
+                )
+              for: 5m
             labels:
               severity: warning
             annotations:
