@@ -66,6 +66,13 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: monitoring}
     - {server: https://kubernetes.default.svc, namespace: observability}
     - {server: https://kubernetes.default.svc, namespace: opentelemetry-operator-system}
+    # created BY the apps rather than being their destination (cilium's
+    # secret namespace, the *arr download spool). Found by the project rejecting
+    # them at sync time — the destination list has to cover namespaces the
+    # manifests declare, not just the ones an Application targets.
+    - {server: https://kubernetes.default.svc, namespace: cilium-secrets}
+    - {server: https://kubernetes.default.svc, namespace: downloads}
+    # kube-public / kube-node-lease are never targeted by an app; deliberately absent.
     # status-api-staging lives here until it moves to the staging cluster
     - {server: https://kubernetes.default.svc, namespace: staging}
   clusterResourceWhitelist:
