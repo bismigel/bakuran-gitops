@@ -83,3 +83,37 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      # Apply ignoreDifferences to the *sync* as well, not just the diff. Without it a
+      # sync would rewrite the three Secrets with freshly generated certs and leave
+      # hubble holding a CA nobody else trusts.
+      - RespectIgnoreDifferences=true
+  # The Cilium chart generates its own CA and leaf certificates with Helm's
+  # `genCA`/`genSignedCert` on every render. `helm template` has no cluster access, so
+  # `lookup` cannot find the existing Secret and the chart emits *different random
+  # certificates each time* — so the live Secrets never match the rendered ones and the
+  # Application sits OutOfSync forever.
+  #
+  # What that cost (2026-10-30): `homelab-smoke` compares every Application's sync
+  # status, so a permanent OutOfSync on `cilium` failed the smoke test and paged
+  # "SmokeTestFailed on sitaw-amd" every 15 minutes. The alert was right; the cause was
+  # a diff that can never converge.
+  #
+  # Ignoring `/data` is correct rather than papering over: Cilium's operator performs
+  # the actual rotation, and the chart's copy only matters at bootstrap. Metadata still
+  # compares, so deleting the Secret is still noticed and recreated.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      namespace: kube-system
+      name: cilium-ca
+      jsonPointers: ["/data"]
+    - group: ""
+      kind: Secret
+      namespace: kube-system
+      name: hubble-server-certs
+      jsonPointers: ["/data"]
+    - group: ""
+      kind: Secret
+      namespace: kube-system
+      name: hubble-relay-client-certs
+      jsonPointers: ["/data"]
