@@ -45,6 +45,11 @@ spec:
     - https://kubernetes.github.io/ingress-nginx
     - https://open-telemetry.github.io/opentelemetry-helm-charts
     - https://sustainable-computing-io.github.io/kepler-helm-chart
+  # The `staging` namespace left this list on 2026-10-30 together with the
+  # status-api-staging Application. That Application deployed a *staging*
+  # overlay into *production* - a leftover from before the per-cluster roots -
+  # and production no longer carries anything named for another environment.
+  # Staging's own cluster runs the same overlay via clusters/staging/.
   destinations:
     # every namespace an Application actually targets today
     - {server: https://kubernetes.default.svc, namespace: apps}
@@ -73,8 +78,6 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: cilium-secrets}
     - {server: https://kubernetes.default.svc, namespace: downloads}
     # kube-public / kube-node-lease are never targeted by an app; deliberately absent.
-    # status-api-staging lives here until it moves to the staging cluster
-    - {server: https://kubernetes.default.svc, namespace: staging}
   # Derived from ArgoCD's own resource trees (every Application's
   # status.resources entry with an empty namespace), not from memory:
   #   kubectl get applications -n argocd -o json | jq -r   #     '[.items[].status.resources[]? | select((.namespace // "")=="") | "\(.group):\(.kind)"] | unique'
