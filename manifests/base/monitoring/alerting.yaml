@@ -32,6 +32,21 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "disk {{ $labels.mountpoint }} on {{ $labels.instance }} >85% full"
+          - alert: RootFilesystemDaysToFull
+            # The root filesystem on the cluster nodes carries etcd, k3s state and
+            # the containerd image store (21-29G of images per node on 2026-10-30),
+            # so it fills from deployment churn rather than from user data and
+            # spends months at 30-40% before crossing 85%. Same two guards as
+            # MediaPoolDaysToFull: a 24h window so a one-off cleanup (20G freed on
+            # 2026-10-30) cannot fake a trend, and fire only when headroom is
+            # genuinely low *and* still shrinking.
+            expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[24h], 7 * 86400) < 0
+              and (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.20
+            for: 2h
+            labels: { severity: warning }
+            annotations:
+              summary: "root filesystem on {{ $labels.instance }} projected to fill within 7 days"
+              description: "Image store and k3s state are growing faster than they are being reclaimed. `k3s crictl rmi --prune` and `nix-collect-garbage --delete-older-than 14d` usually recover 15-20G; etcd does not survive a full /."
           - alert: HostMemoryHigh
             expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
             for: 15m
