@@ -70,6 +70,9 @@ spec:
       nodeSelector:
         node-role.kubernetes.io/control-plane: "true"
       hostNetwork: true
+      # So orphan-guard can see whether the kube-vip container's process is alive;
+      # that is the entire signal it acts on (see the orphan-guard comment below).
+      shareProcessNamespace: true
       serviceAccountName: kube-vip
       tolerations:
         - operator: Exists
@@ -124,7 +127,7 @@ spec:
             limits:
               memory: 64Mi
         # orphan-guard: the address this pod's node is holding, removed again when
-        # this node is not the leader.
+        # kube-vip is no longer running to hold it.
         #
         # Why it exists. kube-vip's leader-election client EXITS (255) when it cannot
         # renew, and manager.go calls sm.Kill() on the way out - which bypasses the
@@ -135,28 +138,31 @@ spec:
         # duplicate VIP. Widening the lease to 15/10/2 removed the *trigger* seen in
         # production on 2026-10-29; this removes the *orphan* for any other exit path.
         #
-        # The rule is one sentence: if the control-plane lease names a different node
-        # and this node still has the VIP, the address is orphaned. It is safe to act
-        # on because kube-vip re-adds the address the moment it acquires the lease;
-        # three consecutive 10s disagreements (30s, longer than the 15s lease) mean a
-        # transient read during a handover cannot trigger it. If the lease cannot be
-        # read, nothing happens - the guard fails closed.
+        # The rule is one sentence: if kube-vip is not running here and this node still
+        # has the VIP, the address is orphaned. Nothing needs to be read over the API,
+        # because a node that is genuinely serving the VIP always has a kube-vip process
+        # holding it; the only way to have the address without the process is an exit
+        # that skipped cleanup.
+        #
+        # That is why this does not read the leader lease. The first version did, via
+        # busybox wget - which cannot verify a CA (no --ca-certificate), and the pod is
+        # hostNetwork so `kubernetes.default.svc` does not resolve from the host's
+        # resolv.conf. It failed closed (nothing removed) and therefore looked healthy
+        # while doing nothing at all. Detecting the absent process needs only /proc and
+        # `ip`, both of which the image already has.
+        #
+        # shareProcessNamespace puts every container's processes in one /proc, so the
+        # guard can see whether kube-vip is alive; `comm` is matched (not cmdline) so
+        # the guard cannot match its own arguments.
         - name: orphan-guard
           image: alpine:3.20
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -u
-              SA=/var/run/secrets/kubernetes.io/serviceaccount
-              API="https://kubernetes.default.svc/apis/coordination.k8s.io/v1/namespaces/kube-system/leases/plndr-cp-lock"
               strikes=0
               while :; do
-                holder=$(wget -qO- --no-check-certificate \
-                           --ca-certificate="$SA/ca.crt" \
-                           --header="Authorization: Bearer $(cat $SA/token)" \
-                           "$API" 2>/dev/null \
-                         | sed -n 's/.*"holderIdentity":"\([^"]*\)".*/\1/p')
-                if [ -n "$holder" ] && [ "$holder" != "$NODE_NAME" ] \
+                if ! grep -qsx 'kube-vip' /proc/[0-9]*/comm \
                    && ip -4 -o addr show | grep -q "inet $VIP/"; then
                   strikes=$((strikes + 1))
                 else
@@ -165,17 +171,13 @@ spec:
                 if [ "$strikes" -ge 3 ]; then
                   addr=$(ip -4 -o addr show | awk -v v="$VIP" '$4 ~ "^" v "/" {print $4; exit}')
                   iface=$(ip -4 -o addr show | awk -v v="$VIP" '$4 ~ "^" v "/" {print $2; exit}')
-                  echo "orphan-guard: lease is held by '$holder'; removing orphaned $addr from $iface"
+                  echo "orphan-guard: no kube-vip process here; removing orphaned $addr from $iface"
                   ip addr del "$addr" dev "$iface" 2>/dev/null || true
                   strikes=0
                 fi
-                sleep 10
+                sleep 3
               done
           env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
             - name: VIP
               value: "192.168.2.100"
           securityContext:
