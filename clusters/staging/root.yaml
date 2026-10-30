@@ -7,6 +7,11 @@
 # Applied once, into staging's own ArgoCD:
 #   kubectl --kubeconfig <staging> apply -f clusters/staging/root.yaml
 #
+# Two sources, like production's root: `apps` (one Application per component) and
+# `projects` (the AppProject object itself), so the project boundary is reconciled
+# instead of hand-applied. See clusters/prod/root.yaml for why this is a second
+# source rather than a child Application.
+#
 # Deliberately NOT sharing production's Application set: staging needs single
 # replicas, no media-pool pinning (there is no /mnt/media there) and no public
 # hostnames. Those live in manifests/overlays/staging/<component>/.
@@ -19,12 +24,15 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
-    repoURL: git@github.com:bismigel/bakuran-gitops.git
-    targetRevision: main
-    path: clusters/staging/apps
-    directory:
-      recurse: true
+  sources:
+    - repoURL: git@github.com:bismigel/bakuran-gitops.git
+      targetRevision: main
+      path: clusters/staging/apps
+      directory:
+        recurse: true
+    - repoURL: git@github.com:bismigel/bakuran-gitops.git
+      targetRevision: main
+      path: clusters/staging/projects
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

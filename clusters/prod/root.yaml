@@ -7,6 +7,18 @@
 # deployed a *staging* app (status-api-staging) into production.
 #
 # Applied once per cluster: kubectl apply -f clusters/<name>/root.yaml
+#
+# Since 2026-10-29 root has TWO sources, so the AppProjects are GitOps too:
+#   * clusters/<name>/apps     - one Application per component (recurse)
+#   * clusters/<name>/projects - the AppProject objects themselves
+#
+# The projects used to be `kubectl apply -f clusters/<name>/projects.yaml` by hand,
+# and they drifted from git twice in one day - an AppProject is exactly the kind of
+# object that quietly stops matching its file. Putting them in root's second source
+# (rather than in a child Application) avoids an ordering hole on a cold bootstrap:
+# the children need their project to exist, and a child that creates the project its
+# siblings need is a race. root is in project `default` on purpose, so it can create
+# them: a project that can create AppProjects could create any project anyway.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -16,12 +28,15 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
-    repoURL: git@github.com:bismigel/bakuran-gitops.git
-    targetRevision: main
-    path: clusters/prod/apps
-    directory:
-      recurse: true
+  sources:
+    - repoURL: git@github.com:bismigel/bakuran-gitops.git
+      targetRevision: main
+      path: clusters/prod/apps
+      directory:
+        recurse: true
+    - repoURL: git@github.com:bismigel/bakuran-gitops.git
+      targetRevision: main
+      path: clusters/prod/projects
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
