@@ -128,7 +128,7 @@ spec:
               mountPath: /config
       containers:
         - name: qbittorrent
-          image: lscr.io/linuxserver/qbittorrent:4.6.7-r0-ls353
+          image: lscr.io/linuxserver/qbittorrent:4.6.7-r0-ls353@sha256:55f15d44396315551f87294a176efae733b16e283f38980308e46073950257c6
           imagePullPolicy: IfNotPresent
           env:
             - name: PUID

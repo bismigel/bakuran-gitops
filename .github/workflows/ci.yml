@@ -88,6 +88,14 @@ jobs:
             sudo install /tmp/gitleaks /usr/local/bin/gitleaks
             gitleaks detect --source . --no-git --config .gitleaks.toml --redact --verbose
 
+      # A tag is a mutable pointer: the registry can repoint `:3.20` at different
+      # code and the next pull runs it. Digests cannot move. On 2026-10-30 44 of 71
+      # references in the cluster were tag-only; these manifests were pinned and this
+      # check stops them drifting back. Chart-provided images never appear here, so
+      # they are out of scope (the chart's appVersion pins them).
+      - name: Image digests
+        run: .github/scripts/check-image-digests.sh .
+
       # Policy on the RENDERED manifests, encoding mistakes this lab actually made.
       - name: Manifest policy (conftest/OPA)
         run: |

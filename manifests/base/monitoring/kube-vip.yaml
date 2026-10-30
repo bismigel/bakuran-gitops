@@ -78,7 +78,7 @@ spec:
         - operator: Exists
       containers:
         - name: kube-vip
-          image: ghcr.io/kube-vip/kube-vip:v0.8.7
+          image: ghcr.io/kube-vip/kube-vip:v0.8.7@sha256:32829cc6f8630eba4e1b5e4df5bcbc34c767e70703d26e64a0f7317951c7b517
           imagePullPolicy: IfNotPresent
           # v0.8.x: the control-plane manager command. Without it the binary prints
           # its help and exits 0, which looks like a Completed pod, not a crash.
@@ -155,7 +155,7 @@ spec:
         # guard can see whether kube-vip is alive; `comm` is matched (not cmdline) so
         # the guard cannot match its own arguments.
         - name: orphan-guard
-          image: alpine:3.20
+          image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
           command: ["/bin/sh", "-c"]
           args:
             - |

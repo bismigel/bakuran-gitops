@@ -325,7 +325,7 @@ spec:
         # a copy of the package (never the image), so an upstream fix simply makes
         # this a no-op. The copy is from the same image, so nothing else drifts.
         - name: abb-url-patcher
-          image: linuxserver/lazylibrarian:version-754d0eb6   # same as the app container
+          image: linuxserver/lazylibrarian:version-754d0eb6@sha256:0ab3d0cc1249ae5c99040270cc7ec8a5f4aef5de5560330d90b23cef7a18ac9e   # same as the app container
           command: ["/bin/sh", "-c"]
           args:
             - |
@@ -409,7 +409,7 @@ spec:
               mountPath: /config
       containers:
         - name: lazylibrarian
-          image: linuxserver/lazylibrarian:version-754d0eb6
+          image: linuxserver/lazylibrarian:version-754d0eb6@sha256:0ab3d0cc1249ae5c99040270cc7ec8a5f4aef5de5560330d90b23cef7a18ac9e
           env:
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }
