@@ -25,6 +25,8 @@ resources:
   # The admin credential, from Bitwarden - ESO-owned since 2026-10-29 so it can't rot
   # unnoticed the way it could while a host script wrote it by hand.
   - kavita-secrets.yaml
+  # ...and LazyLibrarian's four, for the same reason.
+  - lazylibrarian-secrets.yaml
   # Ciceley's password from Bitwarden - HELD BACK (2026-10-29) until the key
   # `kavita-ciceley-password` exists in the BWS project. While it is missing, ESO
   # reports SecretSyncedError and ArgoCD counts that as unhealthy, which leaves
