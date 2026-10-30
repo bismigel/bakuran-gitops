@@ -1,0 +1,8 @@
+# Images that may stay tag-only, one per line, WITH A REASON.
+#
+# Format:  <path>:<image-ref>  # why
+# The check in .github/scripts/check-image-digests.sh reads this file verbatim
+# (substring match), so keep one entry per line and keep the reason on it.
+#
+# Empty is the correct state. If you add a line here, the reason must explain why
+# the image cannot be pinned by digest — "it was easier" is not a reason.
