@@ -333,6 +333,38 @@ data:
               summary: "CronJob failed: {{ $labels.namespace }}/{{ $labels.job_name }}"
               description: "A scheduled job's last run failed. Read its logs; it clears when the next run succeeds."
 
+          # The rule above cannot see a job that is still RETRYING: kube_job_status_failed
+          # stays 0 until the Job gives up. On 2026-10-30 immich-login-watch failed every
+          # minute for ~20 minutes and nothing fired - by the time the Job would have been
+          # marked failed, the next Job had already started.
+          #
+          # This is the signal that exists while it is happening: a container inside a
+          # Job-owned pod terminated with reason=Error. The attributes are deliberately
+          # the Job's, not the CronJob's, because that is what the log command needs.
+          #
+          # The age guard (`time() - kube_pod_created < 3600`) is not decoration: failed
+          # pods LINGER after the job that owns them is replaced, and without it a single
+          # daily-job failure would page for as long as failedJobsHistoryLimit keeps the
+          # pod - days, not minutes. Ten-minute `for` on top of that means a one-off blip
+          # in a 1-minute CronJob (whose pods are cleaned up within three runs) stays quiet.
+          - alert: JobPodsFailing
+            expr: |
+              (
+                count by (namespace, owner_name) (
+                  (kube_pod_container_status_terminated_reason{reason="Error"} > 0)
+                  * on (namespace, pod) group_left (owner_name)
+                      kube_pod_owner{owner_kind="Job"}
+                  and on (namespace, pod)
+                  (time() - kube_pod_created < 3600)
+                )
+              ) > 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Job pods failing: {{ $labels.namespace }}/{{ $labels.owner_name }}"
+              description: "Containers in this Job's pods terminated with an error and are being retried. CronJobFailed only fires once the Job gives up, so this is the earlier signal. Logs: kubectl -n {{ $labels.namespace }} logs job/{{ $labels.owner_name }}."
+
   slo.yml: |
     groups:
       - name: slo
@@ -406,7 +438,7 @@ data:
     # wrong. While a cause-level alert fires, stay quiet.
     inhibit_rules:
       - source_matchers:
-          - 'alertname=~"ArgoCDAppUnhealthy|ArgoCDAppOutOfSync|KubePodCrashLooping|PublicProbeDown|WireGuardNoEgress|CronJobFailed"'
+          - 'alertname=~"ArgoCDAppUnhealthy|ArgoCDAppOutOfSync|KubePodCrashLooping|PublicProbeDown|WireGuardNoEgress|CronJobFailed|JobPodsFailing"'
         target_matchers:
           - 'alertname="SmokeTestFailed"'
         # No `equal:` - the pushed alert carries only instance+unit, so there is no
