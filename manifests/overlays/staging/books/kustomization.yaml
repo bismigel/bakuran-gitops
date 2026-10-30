@@ -18,8 +18,13 @@
 #   audiobookshelf  [0]=config(PVC) [1]=audiobooks(hostPath)
 #   kavita          [0]=config(PVC) [1]=books(hostPath)
 #   lazylibrarian   [0]=config(PVC) [1]=patched-app(emptyDir) [2]=books [3]=downloads
-# Reordering volumes in the base will break this overlay — the render check below
-# catches that (`kustomize build` then look for hostPath).
+#
+# Each replacement is preceded by a `test` of that slot's volume *name*, so a
+# reordering in the base FAILS THE BUILD ("testing value ... failed: test failed")
+# instead of silently emptying the wrong volume — e.g. dropping the `config` PVC and
+# booting a workload with no state. Kustomize's in-element `$patch: replace` was tried
+# first and rejected: on a list it leaves the original field in place (hostPath) and
+# only reorders, which is a worse trap than an index because it looks like it worked.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -42,6 +47,9 @@ patches:
       kind: Deployment
       name: audiobookshelf
     patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: audiobooks
       - op: replace
         path: /spec/template/spec/volumes/1
         value:
@@ -51,6 +59,9 @@ patches:
       kind: Deployment
       name: kavita
     patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: books
       - op: replace
         path: /spec/template/spec/volumes/1
         value:
@@ -60,11 +71,17 @@ patches:
       kind: Deployment
       name: lazylibrarian
     patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/2/name
+        value: books
       - op: replace
         path: /spec/template/spec/volumes/2
         value:
           name: books
           emptyDir: {}
+      - op: test
+        path: /spec/template/spec/volumes/3/name
+        value: downloads
       - op: replace
         path: /spec/template/spec/volumes/3
         value:
