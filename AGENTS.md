@@ -32,11 +32,12 @@ There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pul
 ## Layout
 
 ```
-bootstrap/root-app.yaml          # the single root app-of-apps (on sitaw-amd)
+clusters/prod/root.yaml          # the root app-of-apps (applied once, out of band)
 clusters/prod/apps/
-  sitaw/*.yaml                   # platform + apps (in-cluster)
-  calamansi-intel/media.yaml     # the media app (in-cluster, pinned to .81)
+  platform/*.yaml                # infra that must exist before workloads
+  workloads/*.yaml               # the things a human uses (media is one, pinned to .81)
   node-exporter-appset.yaml      # ApplicationSet -> every node
+clusters/prod/projects/          # the AppProject objects (root's second source)
 manifests/<app>/*.yaml           # raw Kubernetes manifests referenced by apps
 scripts/                         # generators (generate-duwende-context.sh)
 ```
