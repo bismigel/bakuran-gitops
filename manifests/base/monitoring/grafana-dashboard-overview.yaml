@@ -15,7 +15,7 @@ data:
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 3,
+      "version": 4,
       "refresh": "30s",
       "time": {
         "from": "now-6h",
@@ -77,7 +77,7 @@ data:
             "h": 5,
             "w": 4,
             "x": 0,
-            "y": 0
+            "y": 10
           },
           "targets": [
             {
@@ -134,7 +134,7 @@ data:
             "h": 5,
             "w": 4,
             "x": 4,
-            "y": 0
+            "y": 10
           },
           "targets": [
             {
@@ -195,7 +195,7 @@ data:
             "h": 5,
             "w": 4,
             "x": 8,
-            "y": 0
+            "y": 10
           },
           "targets": [
             {
@@ -236,7 +236,7 @@ data:
             "h": 5,
             "w": 4,
             "x": 12,
-            "y": 0
+            "y": 10
           },
           "targets": [
             {
@@ -297,7 +297,7 @@ data:
             "h": 5,
             "w": 4,
             "x": 16,
-            "y": 0
+            "y": 10
           },
           "targets": [
             {
@@ -358,7 +358,7 @@ data:
             "h": 5,
             "w": 4,
             "x": 20,
-            "y": 0
+            "y": 10
           },
           "targets": [
             {
@@ -419,7 +419,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 5
+            "y": 15
           },
           "targets": [
             {
@@ -466,7 +466,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 5
+            "y": 15
           },
           "targets": [
             {
@@ -513,7 +513,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 13
+            "y": 23
           },
           "targets": [
             {
@@ -560,7 +560,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 13
+            "y": 23
           },
           "targets": [
             {
@@ -612,7 +612,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 21
+            "y": 31
           },
           "targets": [
             {
@@ -679,7 +679,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 21
+            "y": 31
           },
           "targets": [
             {
@@ -716,7 +716,7 @@ data:
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 29
+            "y": 39
           },
           "targets": [
             {
@@ -763,7 +763,7 @@ data:
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 29
+            "y": 39
           },
           "targets": [
             {
@@ -800,7 +800,7 @@ data:
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 29
+            "y": 39
           },
           "targets": [
             {
@@ -837,7 +837,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 37
+            "y": 47
           },
           "targets": [
             {
@@ -873,7 +873,7 @@ data:
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 37
+            "y": 47
           },
           "targets": [
             {
@@ -920,7 +920,7 @@ data:
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 45
+            "y": 55
           },
           "targets": [
             {
@@ -947,6 +947,592 @@ data:
             "type": "prometheus",
             "uid": "prometheus"
           }
+        },
+        {
+          "id": 100,
+          "type": "stat",
+          "title": "Cluster CPU",
+          "description": "Sum of container CPU usage across the cluster divided by the sum of allocatable CPU. Container-level (cAdvisor), so it excludes host processes \u2014 on the media node that means QSV work shows up.",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 60
+                  },
+                  {
+                    "color": "red",
+                    "value": 85
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])) / sum(kube_node_status_allocatable{resource=\"cpu\"}) * 100",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 101,
+          "type": "stat",
+          "title": "Cluster memory",
+          "description": "Sum of container working-set memory divided by total physical RAM on all nodes. Pages in the filesystem cache are not counted here, so this reads lower than `free` does.",
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 70
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}) / sum(node_memory_MemTotal_bytes) * 100",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 102,
+          "type": "stat",
+          "title": "PVC storage used",
+          "description": "Used bytes across every Longhorn volume divided by their total provisioned capacity. Per-volume detail is in the Volume usage table below.",
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 70
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(kubelet_volume_stats_used_bytes) / sum(kubelet_volume_stats_capacity_bytes) * 100",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 103,
+          "type": "stat",
+          "title": "Pods running",
+          "description": "Pods in the Running phase. Total objects (including pending/failed) is in the description of the existing Pods-by-phase panel below.",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "count(kube_pod_status_phase{phase=\"Running\"} == 1) or vector(0)",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 104,
+          "type": "stat",
+          "title": "Cluster network",
+          "description": "Receive + transmit across the physical interfaces of every node (loopback, veth, cilium, tap and docker bridges excluded, so this is real LAN/WAN traffic, not in-cluster chatter).",
+          "gridPos": {
+            "x": 16,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|cilium.*|tap.*|docker.*|br-.*\"}[5m])) + sum(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|cilium.*|tap.*|docker.*|br-.*\"}[5m]))",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 105,
+          "type": "stat",
+          "title": "Media pool used",
+          "description": "The mergerfs pool on the media node: used / total. The single number that decides when the library needs pruning.",
+          "gridPos": {
+            "x": 20,
+            "y": 0,
+            "w": 4,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 75
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "max by (instance) (node_filesystem_size_bytes{fstype=\"fuse.mergerfs\"} - node_filesystem_avail_bytes{fstype=\"fuse.mergerfs\"}) / max by (instance) (node_filesystem_size_bytes{fstype=\"fuse.mergerfs\"}) * 100",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 106,
+          "type": "stat",
+          "title": "CPU cores used",
+          "description": "Absolute container CPU use in cores, so a percentage can be read against the ceiling.",
+          "gridPos": {
+            "x": 0,
+            "y": 5,
+            "w": 8,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 2
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m]))",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            },
+            {
+              "expr": "sum(kube_node_status_allocatable{resource=\"cpu\"})",
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 107,
+          "type": "stat",
+          "title": "Memory used",
+          "description": "Container working set for the whole cluster.",
+          "gridPos": {
+            "x": 8,
+            "y": 5,
+            "w": 8,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{container!=\"\",container!=\"POD\"})",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            },
+            {
+              "expr": "sum(node_memory_MemTotal_bytes)",
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
+          "id": 108,
+          "type": "stat",
+          "title": "Storage used",
+          "description": "Bytes used across all Longhorn volumes. Provisioned capacity is the second query.",
+          "gridPos": {
+            "x": 16,
+            "y": 5,
+            "w": 8,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(kubelet_volume_stats_used_bytes)",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            },
+            {
+              "expr": "sum(kubelet_volume_stats_capacity_bytes)",
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
         }
-      ]
+      ],
+      "description": "Cluster totals at the top (CPU, memory, PVC storage, pods, network, media pool), then per-node detail, volume usage, restarts and ArgoCD state."
     }
