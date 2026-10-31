@@ -44,6 +44,14 @@ roleRef:
   kind: Role
   name: hermes-agent-debug
 subjects:
+  # Both accounts, because they are two different callers: kubernetes-mcp is the server
+  # that executes pods_exec/resources_scale, and hermes is the agent that talks to it.
+  # Binding only hermes left the server's own SA without the permission, which is what
+  # the first attempt did - pods_exec still said
+  #   User "system:serviceaccount:duwende:kubernetes-mcp" cannot create resource "pods/exec"
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: duwende
   - kind: ServiceAccount
     name: hermes
     namespace: duwende
@@ -71,6 +79,14 @@ roleRef:
   kind: Role
   name: hermes-agent-debug
 subjects:
+  # Both accounts, because they are two different callers: kubernetes-mcp is the server
+  # that executes pods_exec/resources_scale, and hermes is the agent that talks to it.
+  # Binding only hermes left the server's own SA without the permission, which is what
+  # the first attempt did - pods_exec still said
+  #   User "system:serviceaccount:duwende:kubernetes-mcp" cannot create resource "pods/exec"
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: duwende
   - kind: ServiceAccount
     name: hermes
     namespace: duwende
@@ -98,6 +114,14 @@ roleRef:
   kind: Role
   name: hermes-agent-debug
 subjects:
+  # Both accounts, because they are two different callers: kubernetes-mcp is the server
+  # that executes pods_exec/resources_scale, and hermes is the agent that talks to it.
+  # Binding only hermes left the server's own SA without the permission, which is what
+  # the first attempt did - pods_exec still said
+  #   User "system:serviceaccount:duwende:kubernetes-mcp" cannot create resource "pods/exec"
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: duwende
   - kind: ServiceAccount
     name: hermes
     namespace: duwende
@@ -125,6 +149,14 @@ roleRef:
   kind: Role
   name: hermes-agent-debug
 subjects:
+  # Both accounts, because they are two different callers: kubernetes-mcp is the server
+  # that executes pods_exec/resources_scale, and hermes is the agent that talks to it.
+  # Binding only hermes left the server's own SA without the permission, which is what
+  # the first attempt did - pods_exec still said
+  #   User "system:serviceaccount:duwende:kubernetes-mcp" cannot create resource "pods/exec"
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: duwende
   - kind: ServiceAccount
     name: hermes
     namespace: duwende
@@ -152,6 +184,14 @@ roleRef:
   kind: Role
   name: hermes-agent-debug
 subjects:
+  # Both accounts, because they are two different callers: kubernetes-mcp is the server
+  # that executes pods_exec/resources_scale, and hermes is the agent that talks to it.
+  # Binding only hermes left the server's own SA without the permission, which is what
+  # the first attempt did - pods_exec still said
+  #   User "system:serviceaccount:duwende:kubernetes-mcp" cannot create resource "pods/exec"
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: duwende
   - kind: ServiceAccount
     name: hermes
     namespace: duwende
