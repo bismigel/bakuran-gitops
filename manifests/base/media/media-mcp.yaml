@@ -22,7 +22,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: media-mcp
-          image: ghcr.io/bismigel/media-mcp:latest@sha256:2d52b968fd2056218f515d583b2d66c7c25c344d718991cfc1279bf90f3fda5f
+          image: ghcr.io/bismigel/media-mcp:latest@sha256:95449362a5e23905356c130fbf9b7962ea6d5dcf7f9124e27fa1da9466ae30ac
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
