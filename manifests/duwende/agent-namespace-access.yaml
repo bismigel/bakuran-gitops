@@ -1,0 +1,157 @@
+# What the agent's service account may do *inside specific namespaces*, beyond reading.
+#
+# The ClusterRole (homelab-agent-read) stays read-only on purpose: a cluster-wide grant
+# of pods/exec is equivalent to a cluster-wide shell, because exec into any pod reaches
+# that pod's mounts, its service-account token and its network position. These Roles are
+# namespace-scoped instead, and only in the namespaces the agent actually debugs.
+#
+# Why exec at all (2026-10-31): every filesystem question — LazyLibrarian's config.ini,
+# whether a book is really under /books, qBittorrent's save path, Kavita's gap — became a
+# one-shot Job and a PR, because there was no other way to run `cat` or `ls`. That is a
+# lot of ceremony for a read.
+#
+# What is deliberately NOT granted: `list secrets`. Helm stores release state in Secrets,
+# so `helm_list` needs it — but listing Secrets cluster-wide hands the agent every
+# credential in the cluster (DB passwords, API keys, the ESO credentials themselves) to
+# make a tool work that has nothing to list here: releases on this cluster are ArgoCD
+# Applications, and the handful of real Helm releases predate ArgoCD. Use
+# `applications` for "what is installed", and read a specific Secret deliberately, by
+# name, as a human.
+#
+# Scale is granted because scaling to 0 before touching a volume is the documented
+# procedure (runbook 07/19) and ArgoCD self-heal reverts anything unintended.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hermes-agent-debug
+  namespace: media
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: [deployments/scale, statefulsets/scale]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-agent-debug
+  namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hermes-agent-debug
+subjects:
+  - kind: ServiceAccount
+    name: hermes
+    namespace: duwende
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hermes-agent-debug
+  namespace: books
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: [deployments/scale, statefulsets/scale]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-agent-debug
+  namespace: books
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hermes-agent-debug
+subjects:
+  - kind: ServiceAccount
+    name: hermes
+    namespace: duwende
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hermes-agent-debug
+  namespace: downloads
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: [deployments/scale, statefulsets/scale]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-agent-debug
+  namespace: downloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hermes-agent-debug
+subjects:
+  - kind: ServiceAccount
+    name: hermes
+    namespace: duwende
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hermes-agent-debug
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: [deployments/scale, statefulsets/scale]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-agent-debug
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hermes-agent-debug
+subjects:
+  - kind: ServiceAccount
+    name: hermes
+    namespace: duwende
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hermes-agent-debug
+  namespace: immich
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: [deployments/scale, statefulsets/scale]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-agent-debug
+  namespace: immich
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hermes-agent-debug
+subjects:
+  - kind: ServiceAccount
+    name: hermes
+    namespace: duwende
