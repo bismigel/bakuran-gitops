@@ -4,6 +4,13 @@
 #
 # longhorn_volume_robustness is enum-style: one series per `state` label with
 # value 1 for the current state, so every query here filters on the label.
+#
+# "Disk fill %" is not the number that stops a rebuild. On 2026-10-30 a disk held
+# 45 G of replicas with 120 MiB left for the next one and read 43% used. What
+# Longhorn actually checks is (free space - scheduled) per disk, which it never
+# exported; the last row of panels reads the recording rules in
+# alerting-workloads.yaml that reconstruct it. If those series are empty, the
+# recording rules did not load — that row is not "all clear".
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,7 +24,7 @@ data:
       "tags": ["homelab", "storage", "longhorn"],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "30s",
       "time": {"from": "now-6h", "to": "now"},
       "annotations": {"list": []},
@@ -101,6 +108,64 @@ data:
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
           "targets": [{"refId": "A", "expr": "longhorn_volume_actual_size_bytes", "legendFormat": "{{pvc}}"}],
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
+        },
+        {
+          "id": 9,
+          "type": "stat",
+          "title": "Tightest disk headroom",
+          "description": "Smallest (free space - bytes promised to replicas) of any Longhorn disk: the room the next rebuild has. Not capacity — on 2026-10-30 this was 120 MiB while the disk read 43% full.",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 5, "w": 8, "x": 0, "y": 22},
+          "targets": [{"refId": "A", "expr": "min(longhorn:disk_free_bytes - longhorn:disk_scheduled_bytes)", "instant": true}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value", "colorMode": "value", "graphMode": "none"},
+          "fieldConfig": {"defaults": {"unit": "bytes", "decimals": 1, "noValue": "no data", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 5368709120}, {"color": "green", "value": 21474836480}]}}, "overrides": []}
+        },
+        {
+          "id": 10,
+          "type": "stat",
+          "title": "Longhorn on OS filesystems",
+          "description": "Bytes Longhorn holds in default-disk-* disks, which are directories inside / on each node. Should be zero: that filesystem carries etcd and the image store, so filling it loses the control plane instead of degrading a volume. LonghornDataOnRootFilesystem fires above 15%.",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 5, "w": 8, "x": 8, "y": 22},
+          "targets": [{"refId": "A", "expr": "sum(longhorn_disk_usage_bytes{disk=~\"default-disk-.*\"})", "instant": true}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value", "colorMode": "value", "graphMode": "none"},
+          "fieldConfig": {"defaults": {"unit": "bytes", "decimals": 1, "noValue": "0", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 107374182400}]}}, "overrides": []}
+        },
+        {
+          "id": 11,
+          "type": "stat",
+          "title": "Disks over 75% pressured",
+          "description": "Disks where more than 75% of the remaining free space is already promised to replicas. Same threshold as LonghornDiskSchedulingHeadroomLow.",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 5, "w": 8, "x": 16, "y": 22},
+          "targets": [{"refId": "A", "expr": "count(longhorn:disk_scheduled_to_free_ratio > 0.75) or vector(0)", "instant": true}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value", "colorMode": "value", "graphMode": "none"},
+          "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "noValue": "0", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []}
+        },
+        {
+          "id": 12,
+          "type": "bargauge",
+          "title": "Disk scheduling pressure (promised / free)",
+          "description": "longhorn:disk_scheduled_to_free_ratio. A disk at 1.0 has no room for another replica, whatever its fill percentage says. Also rises when something other than Longhorn fills that filesystem.",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 27},
+          "targets": [{"refId": "A", "expr": "longhorn:disk_scheduled_to_free_ratio", "legendFormat": "{{node}} {{disk_path}}"}],
+          "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "decimals": 2, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.75}, {"color": "red", "value": 0.95}]}}, "overrides": []}
+        },
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "Scheduled vs free per disk",
+          "description": "Promised (longhorn:disk_scheduled_bytes) against free space of the filesystem that disk lives on (longhorn:disk_free_bytes). Where the lines meet, the next replica does not fit.",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 27},
+          "targets": [
+            {"refId": "A", "expr": "longhorn:disk_scheduled_bytes", "legendFormat": "promised {{node}} {{disk_path}}"},
+            {"refId": "B", "expr": "longhorn:disk_free_bytes", "legendFormat": "free {{node}} {{disk_path}}"}
+          ],
+          "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
         }
       ]

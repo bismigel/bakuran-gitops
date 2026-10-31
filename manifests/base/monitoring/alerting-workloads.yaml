@@ -156,6 +156,99 @@ data:
               severity: warning
             annotations:
               summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }} full"
+          # --- per-disk scheduling headroom (2026-10-30) ---------------------
+          # LonghornDiskStorageLow above compares *usage*, which was blind to the
+          # failure that actually happened: sitaw-amd's /var/lib/longhorn held 45G
+          # of replicas with 120MiB left for another one, at 43% "usage" of its
+          # capacity, and nothing fired. The scheduler admits a replica when
+          # (filesystem available - scheduled) > 0, and Longhorn exports scheduled
+          # bytes per *node* only, so that per-disk number was invisible.
+          #
+          # It is reconstructed here: longhorn_replica_info carries the disk *path*
+          # (not the disk name) plus the volume, so joining it with the volume size
+          # sums scheduled bytes per path; node-exporter supplies the free space of
+          # the filesystem that path lives on. node-exporter has no `node` label,
+          # hence the node_uname_info join, and /var/lib/longhorn is a directory on
+          # the root filesystem rather than a mountpoint, hence the second branch.
+          #
+          # Ratio = "how much of the space this disk still has free is already
+          # promised to replicas". It rises when anything else fills the filesystem
+          # too (containerd images on /), which is the same trap from the other
+          # side. A disk at 1.0 can take one more replica of a size it does not
+          # have room for, and it does so by first displacing whatever lives there.
+          # The two numbers Longhorn does not export, and the ratio the alerts use.
+          # Split into three rules rather than one expression because the dashboard
+          # needs the bytes: a ratio of 0.84 says "pressured", but 13 G free against
+          # 45 G promised is what tells you the rebuild will not fit.
+          #
+          # Order matters: rules in a group evaluate in sequence, so the ratio rule
+          # can read the two above it.
+          - record: longhorn:disk_scheduled_bytes
+            expr: |
+              label_replace(
+                sum by (node, disk_path) (
+                  longhorn_replica_info * on (volume) group_left longhorn_volume_capacity_bytes
+                ),
+                "disk_path", "$1", "disk_path", "^(.*)/$"
+              )
+          - record: longhorn:disk_free_bytes
+            expr: |
+              max by (node, disk_path) (
+                label_replace(
+                  label_replace(
+                    node_filesystem_avail_bytes{fstype="ext4", mountpoint=~"/mnt/.+"}
+                      * on (instance) group_left (nodename) node_uname_info,
+                    "node", "$1", "nodename", "(.+)"
+                  ),
+                  "disk_path", "$1", "mountpoint", "(.+)"
+                )
+                or
+                label_replace(
+                  label_replace(
+                    node_filesystem_avail_bytes{fstype="ext4", mountpoint="/"}
+                      * on (instance) group_left (nodename) node_uname_info,
+                    "node", "$1", "nodename", "(.+)"
+                  ),
+                  "disk_path", "/var/lib/longhorn", "__name__", ".*"
+                )
+              )
+          - record: longhorn:disk_scheduled_to_free_ratio
+            expr: |
+              longhorn:disk_scheduled_bytes
+                / on (node, disk_path) group_left () longhorn:disk_free_bytes
+          - alert: LonghornDiskSchedulingHeadroomLow
+            expr: longhorn:disk_scheduled_to_free_ratio > 0.75
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
+              description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (docs/REBUILD.md)."
+              runbook_url: "https://runbook.bismigel.dev"
+          - alert: LonghornDiskSchedulingOverCommitted
+            expr: longhorn:disk_scheduled_to_free_ratio > 0.95
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} is fully committed ({{ humanizePercentage $value }} of free space claimed)"
+              description: "There is no room for another replica of any size on this disk. Rebuilds targeting it will fail over or stay Pending."
+          # The invariant the 2026-10-30 cleanup argues for: replicas belong on the
+          # dedicated partitions, not on the filesystem holding etcd and the
+          # container image store. `default-disk-*` is the disk Longhorn auto-creates
+          # at /var/lib/longhorn, i.e. inside the OS filesystem; its capacity is that
+          # filesystem's size, so this ratio is "share of / given to Longhorn".
+          - alert: LonghornDataOnRootFilesystem
+            expr: |
+              longhorn_disk_usage_bytes{disk=~"default-disk-.*"}
+                / longhorn_disk_capacity_bytes{disk=~"default-disk-.*"} > 0.15
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn is using {{ humanizePercentage $value }} of the OS filesystem on {{ $labels.node }}"
+              description: "Replicas on the root filesystem compete with etcd fsync and the containerd image store; a full / there does not degrade volumes, it loses the control plane. Register a dedicated partition as the Longhorn disk and let these rebuild onto it."
+              runbook_url: "https://runbook.bismigel.dev"
           - alert: LonghornScrapeFailing
             expr: up{job="longhorn"} == 0
             for: 10m
