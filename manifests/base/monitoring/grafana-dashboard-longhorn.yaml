@@ -125,7 +125,7 @@ data:
           "id": 10,
           "type": "stat",
           "title": "Longhorn on OS filesystems",
-          "description": "Bytes Longhorn holds in default-disk-* disks, which are directories inside / on each node. Should be zero: that filesystem carries etcd and the image store, so filling it loses the control plane instead of degrading a volume. LonghornDataOnRootFilesystem fires above 15%.",
+          "description": "Bytes Longhorn holds in default-disk-* disks, which are directories inside / on each node. Not zero today - all three nodes run replicas there, which is the standing decision in NEXT-STEPS.md - and this panel is what replaced the alert that could only ever be red: it rises here so the ratio rules above can stay quiet until the headroom is actually being spent. and the image store, so filling it loses the control plane instead of degrading a volume. LonghornDataOnRootFilesystem fires above 15%.",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "gridPos": {"h": 5, "w": 8, "x": 8, "y": 22},
           "targets": [{"refId": "A", "expr": "sum(longhorn_disk_usage_bytes{disk=~\"default-disk-.*\"})", "instant": true}],
