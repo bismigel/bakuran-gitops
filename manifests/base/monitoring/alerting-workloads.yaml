@@ -216,17 +216,32 @@ data:
             expr: |
               longhorn:disk_scheduled_bytes
                 / on (node, disk_path) group_left () longhorn:disk_free_bytes
+          # Thresholds are set for how sparse replicas behave, not for tidy-looking
+          # numbers. Longhorn reserves *provisioned* size: sitaw-amd promises 48G on
+          # its root disk with 7.3G actually written, so ~0.85 means "more provisioned
+          # than filled", which is normal here. Measured 2026-10-30 before choosing
+          # these: disks over 0.75 = 2, over 0.9 = 0, highest = 0.849. The incident
+          # this replaces had 120MiB of room against 45G promised (~0.997), so 0.9
+          # still catches it.
+          #
+          # What makes a high ratio dangerous is that a *rebuild* has to fit: the
+          # largest volume is 32.2G. While a dedicated disk can take the replica this
+          # costs nothing; it costs redundancy only when the pressured disk is the last
+          # candidate.
           - alert: LonghornDiskSchedulingHeadroomLow
-            expr: longhorn:disk_scheduled_to_free_ratio > 0.75
-            for: 30m
+            expr: longhorn:disk_scheduled_to_free_ratio > 0.9
+            for: 1h
             labels:
               severity: warning
             annotations:
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
               description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (docs/REBUILD.md)."
               runbook_url: "https://runbook.bismigel.dev"
+          # > 1 means more bytes are promised to replicas than exist free on the
+          # filesystem: the next rebuild larger than the shortfall cannot be placed and
+          # stays Pending. That is the state that costs redundancy.
           - alert: LonghornDiskSchedulingOverCommitted
-            expr: longhorn:disk_scheduled_to_free_ratio > 0.95
+            expr: longhorn:disk_scheduled_to_free_ratio > 1
             for: 10m
             labels:
               severity: critical
@@ -238,17 +253,17 @@ data:
           # container image store. `default-disk-*` is the disk Longhorn auto-creates
           # at /var/lib/longhorn, i.e. inside the OS filesystem; its capacity is that
           # filesystem's size, so this ratio is "share of / given to Longhorn".
-          - alert: LonghornDataOnRootFilesystem
-            expr: |
-              longhorn_disk_usage_bytes{disk=~"default-disk-.*"}
-                / longhorn_disk_capacity_bytes{disk=~"default-disk-.*"} > 0.15
-            for: 1h
-            labels:
-              severity: warning
-            annotations:
-              summary: "Longhorn is using {{ humanizePercentage $value }} of the OS filesystem on {{ $labels.node }}"
-              description: "Replicas on the root filesystem compete with etcd fsync and the containerd image store; a full / there does not degrade volumes, it loses the control plane. Register a dedicated partition as the Longhorn disk and let these rebuild onto it."
-              runbook_url: "https://runbook.bismigel.dev"
+          # REMOVED as an alert 2026-10-30, kept as the "Longhorn on OS filesystems"
+          # dashboard panel. It fired on all three nodes the moment it was deployed,
+          # because all three genuinely keep replicas under /var/lib/longhorn - a
+          # structural fact that no amount of alerting changes, and one that would have
+          # paged forever until someone drained the disks. An invariant that is
+          # permanently true is a gauge, not an alert: what needs to reach a human is
+          # the point at which the situation costs redundancy, which is what the two
+          # ratio rules above measure. The migration decision is tracked in
+          # homelab-context/NEXT-STEPS.md. (The orphaned `description:` that used to
+          # follow this comment was part of the deleted alert - promtool rejected the
+          # file with "mapping key description already defined".)
           - alert: LonghornScrapeFailing
             expr: up{job="longhorn"} == 0
             for: 10m
