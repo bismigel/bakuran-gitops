@@ -216,17 +216,31 @@ data:
             expr: |
               longhorn:disk_scheduled_bytes
                 / on (node, disk_path) group_left () longhorn:disk_free_bytes
+          # Thresholds are set so a healthy-but-SPARSE disk stays quiet. Replicas are
+          # sparse files: sitaw-amd promised 48G against 7.3G actually written, so a
+          # ratio near 0.85 means "more provisioned than filled" - normal here, and not
+          # what this rule is for. The incident it exists for had 120MiB of room
+          # against 45G promised, a ratio of ~0.997, so 0.9 still catches it while the
+          # two highest disks (0.849 and 0.809 on 2026-10-30) stay silent.
+          #
+          # What makes a high ratio dangerous is that a *rebuild* must fit: the largest
+          # volume is 32.2G. When a dedicated disk can take the replica it does not
+          # matter; when the pressured disk is the last candidate it costs redundancy.
           - alert: LonghornDiskSchedulingHeadroomLow
-            expr: longhorn:disk_scheduled_to_free_ratio > 0.75
-            for: 30m
+            expr: longhorn:disk_scheduled_to_free_ratio > 0.9
+            for: 1h
             labels:
               severity: warning
             annotations:
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
               description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (docs/REBUILD.md)."
               runbook_url: "https://runbook.bismigel.dev"
+          # > 1 means more bytes are promised to replicas than exist free on the
+          # filesystem: the next rebuild of any volume larger than the shortfall cannot
+          # be placed there and stays Pending. That is the state that actually costs
+          # redundancy, so it is the critical one.
           - alert: LonghornDiskSchedulingOverCommitted
-            expr: longhorn:disk_scheduled_to_free_ratio > 0.95
+            expr: longhorn:disk_scheduled_to_free_ratio > 1
             for: 10m
             labels:
               severity: critical
