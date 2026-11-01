@@ -232,10 +232,21 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: longhorn
+  # NOT longhorn, deliberately. Prometheus is the thing that reports storage
+  # incidents, so its TSDB must not live on the storage it reports on. On 2026-11-01
+  # a Longhorn manager failure marked replicas failed, the prometheus-data volume went
+  # with them, and Prometheus restarted mid-outage at 06:53:42 - the monitoring that
+  # was supposed to explain the outage was itself a casualty of it.
+  #
+  # local-path trades replication for independence: the PV is pinned to whichever node
+  # the pod first schedules on, and if that node dies the metric history goes with it.
+  # That is the right trade - metrics are regenerable, and a monitor that disappears
+  # with the thing it monitors is worthless. Owner agreed to lose the history
+  # (2026-11-01).
+  storageClassName: local-path
   resources:
     requests:
-      storage: 2Gi
+      storage: 8Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
