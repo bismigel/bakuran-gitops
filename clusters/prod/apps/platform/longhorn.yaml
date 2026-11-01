@@ -19,8 +19,18 @@ spec:
         longhornManager: { resources: { requests: { cpu: 20m, memory: 128Mi } } }
         longhornUI: { resources: { requests: { cpu: 10m, memory: 32Mi } } }
         defaultSettings:
-          # Two replicas so a volume survives losing one node.
-          defaultReplicaCount: 2
+          # Three, not two. The rule is about how many nodes can *hold* replicas, not how
+          # many are schedulable today: with 2 replicas on a 3-node cluster Longhorn is free
+          # to place both on whichever two nodes it likes, so "survives losing one node" is
+          # only true for the node that happens to have no replica.
+          # Longhorn's guidance: "if you have three or more nodes for storage, use 3"
+          # (longhorn.io/docs/1.9.0/references/settings/).
+          # 2026-11-01: jellyfin-config, bazarr-config and lazylibrarian-config had both
+          # replicas on .80 + .82; .82's manager exited fatally and marked its replicas
+          # failed and they were deleted; .80 then lost power - three volumes faulted with
+          # their only copy on an absent node. A third replica on .81 would have kept every
+          # pod startable.
+          defaultReplicaCount: 3
         # The chart's pre-upgrade Job is a Helm hook that ArgoCD runs on first
         # install before longhorn-service-account exists -> disable it.
         preUpgradeChecker:
@@ -29,9 +39,12 @@ spec:
           # Don't make Longhorn the cluster default; existing PVCs pin
           # storageClassName explicitly and we migrate deliberately.
           defaultClass: false
-          # StorageClass replica count (chart defaults to 3; we have 2
-          # schedulable nodes, so 2 avoids a permanently-degraded replica).
-          defaultClassReplicaCount: 2
+          # Must match defaultReplicaCount, or a PVC created through the StorageClass gets
+          # different redundancy from one created through the UI. The old comment reasoned
+          # from "2 schedulable nodes"; adding .80 and retiring .83 changed that and the
+          # setting did not follow. Config volumes are 1-8GiB claims holding under 1GiB, so a
+          # third replica costs a few hundred MiB and buys the whole property.
+          defaultClassReplicaCount: 3
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
