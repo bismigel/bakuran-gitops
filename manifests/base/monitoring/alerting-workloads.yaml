@@ -108,6 +108,46 @@ data:
               summary: "cAdvisor scrape failing on {{ $labels.instance }}"
               description: "No container CPU/memory data from this node. Container panels and the workload rules above are blind until this recovers."
 
+      # The alerting path. Everything above assumes a notification leaves the cluster; on
+      # 2026-11-01 that assumption was untestable because Alertmanager was not scraped at
+      # all. These make delivery itself a signal.
+      - name: alerting-path
+        rules:
+          - alert: AlertmanagerNotificationFailing
+            # Not `> 0` on the counter: a couple of failures sit in the total forever.
+            # Rate over 15m, so a single failure inside the window still trips it.
+            expr: increase(alertmanager_notifications_failed_total[15m]) > 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Alertmanager cannot deliver via {{ $labels.integration }} ({{ $labels.reason }})"
+              description: "Alerts are firing but the notification is not leaving the cluster. Telegram is the only channel - check the bot-token secret and chat_id, then `curl <am>/api/v2/status`."
+          - alert: AlertmanagerNotReceivingAlerts
+            # Prometheus firing while Alertmanager hears nothing is exactly the 2026-11-01
+            # shape: the alert existed, the notification path did not.
+            expr: |
+              absent(up{job="alertmanager"} == 1)
+              or
+              (sum(increase(alertmanager_alerts_received_total[30m])) == 0
+                and sum(ALERTS{alertstate="firing"}) > 0)
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Alertmanager is not receiving alerts while Prometheus is firing"
+              description: "Either Alertmanager is down (its scrape target is absent) or nothing is reaching it while {{ $value }} alerts are firing in Prometheus."
+          - alert: Watchdog
+            # A dead-man's switch. It always fires, so it is only useful as a heartbeat:
+            # if the Telegram heartbeat stops arriving, the pipeline is dead even though
+            # nothing is shouting. repeat_interval is 4h, so it lands a few times a day.
+            expr: vector(1)
+            labels:
+              severity: none
+              watchdog: "true"
+            annotations:
+              summary: "Alerting pipeline heartbeat"
+              description: "This alert always fires. Its only job is to prove Prometheus, Alertmanager and Telegram are still connected end to end. If these stop arriving, alerting is dead."
       - name: longhorn
         rules:
           # longhorn_volume_robustness is an enum-style metric: one series per
