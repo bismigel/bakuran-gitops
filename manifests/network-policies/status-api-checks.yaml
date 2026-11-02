@@ -169,3 +169,27 @@ spec:
 #
 # forgejo had no policy before, so status-api could already reach it once its own
 # EGRESS was allowed. Allowing egress was the fix; restricting ingress was the bug.
+---
+# Prometheus scrapes the checks on the metrics port.
+#
+# This rule was accidentally deleted by #339: that edit sliced from the `forgejo`
+# block to end-of-file to remove one policy, and this one was appended after it. The
+# result was StatusApiNotScraped + two TargetDown within minutes — which is the pairing
+# working exactly as intended: the series vanished and the absence alert said so.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-metrics
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app: status-api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - { protocol: TCP, port: 9091 }
