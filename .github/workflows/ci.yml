@@ -40,6 +40,15 @@ jobs:
       - name: Prometheus rule validation
         run: .github/scripts/check-prometheus-rules.sh
 
+      # Two documents with the same kind/namespace/name are not "an extra rule":
+      # the API server keeps the last one and the file still reads as if both apply.
+      # That is how the qBittorrent ingress policy vanished when a second
+      # `allow-status-api` was added for SABnzbd (2026-11-02) - the file looked
+      # correct, the cluster had one policy, and status-api's qBittorrent check
+      # timed out with nothing to point at.
+      - name: No duplicate kind/namespace/name
+        run: .github/scripts/check-duplicate-objects.sh
+
       # Every overlay must actually RENDER. Linting raw YAML cannot catch the bugs
       # that actually reached the cluster this week: a kustomization-level
       # `namespace:` that rewrote kube-vip out of kube-system, `commonLabels`
