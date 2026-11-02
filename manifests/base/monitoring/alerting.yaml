@@ -478,6 +478,15 @@ data:
           - 'alertname="KubeDeploymentReplicasMismatch"'
         equal: [namespace, deployment]
 
+      # If node-exporter itself is down its filesystem series vanish, and
+      # BackupMountMissing would then fire for a cause it cannot see. TargetDown
+      # names the actual fault (the scrape), so it wins for the same instance.
+      - source_matchers:
+          - 'alertname="TargetDown"'
+        target_matchers:
+          - 'alertname="BackupMountMissing"'
+        equal: [instance]
+
       # Over-committed is the escalated form of headroom-low, for the same disk.
       - source_matchers:
           - 'alertname="LonghornDiskSchedulingOverCommitted"'
