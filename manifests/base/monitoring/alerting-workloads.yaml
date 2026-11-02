@@ -25,6 +25,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is using {{ printf \"%.2f\" $value }} cores"
               description: "Sustained above 0.8 core for 20 minutes. Either genuine load or a spin loop — check the Containers dashboard."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containerhighcpu"
           - alert: ContainerCPUThrottled
             # Only evaluate containers that are running right now. Without this
             # join, a batch pod that throttled for its 90 seconds of life keeps
@@ -41,6 +42,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ humanizePercentage $value }} of periods"
               description: "The container is hitting its CPU limit. Raise the limit or find what is spinning."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containercputhrottled"
           - alert: ContainerMemoryNearLimit
             expr: |
                 max by (namespace, pod, container) (container_memory_working_set_bytes{container!="", container!="POD"})
@@ -51,6 +53,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] at {{ humanizePercentage $value }} of its memory limit"
               description: "Above 90% of the container memory limit for 10 minutes — OOMKill is next."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containermemorynearlimit"
           # A pod that cannot start is silent: it is not crash-looping, it is not
           # failing probes, it just exists. On 2026-10-28 a bad nodeSelector +
           # hostPath type=Directory combination would have looked exactly like
@@ -64,6 +67,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} Pending for 15m"
               description: "Scheduling or mount failure. Check events: a hostPath type=Directory that does not exist on the selected node, an unschedulable nodeSelector, or a PVC that never bound."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podstuckpending"
           - alert: PodContainerConfigError
             expr: |
               kube_pod_container_status_waiting_reason{reason=~"CreateContainerConfigError|CreateContainerError"} == 1
@@ -72,6 +76,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} cannot create its container ({{ $labels.reason }})"
               description: "Usually a missing Secret/ConfigMap key, or a hostPath that does not exist on this node."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podcontainerconfigerror"
           - alert: PodRestartingOften
             # A node reboot restarts every DaemonSet and kubelet-adjacent pod on
             # it, which trips this rule for an hour afterwards - 13 false alarms
@@ -99,6 +104,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] restarted {{ printf \"%.0f\" $value }} times in the last hour"
               description: "Crash loop or a failing probe. Check `kubectl describe pod` and the previous container log. Restarts caused by a node reboot are suppressed for 1h."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podrestartingoften"
           - alert: CAdvisorScrapeFailing
             expr: up{job="kubelet-cadvisor"} == 0
             for: 10m
@@ -107,7 +113,7 @@ data:
             annotations:
               summary: "cAdvisor scrape failing on {{ $labels.instance }}"
               description: "No container CPU/memory data from this node. Container panels and the workload rules above are blind until this recovers."
-
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#cadvisorscrapefailing"
       # The alerting path. Everything above assumes a notification leaves the cluster; on
       # 2026-11-01 that assumption was untestable because Alertmanager was not scraped at
       # all. These make delivery itself a signal.
@@ -123,6 +129,7 @@ data:
             annotations:
               summary: "Alertmanager cannot deliver via {{ $labels.integration }} ({{ $labels.reason }})"
               description: "Alerts are firing but the notification is not leaving the cluster. Telegram is the only channel - check the bot-token secret and chat_id, then `curl <am>/api/v2/status`."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#alertmanagernotificationfailing"
           - alert: AlertmanagerNotReceivingAlerts
             # Prometheus firing while Alertmanager hears nothing is exactly the 2026-11-01
             # shape: the alert existed, the notification path did not.
@@ -137,6 +144,7 @@ data:
             annotations:
               summary: "Alertmanager is not receiving alerts while Prometheus is firing"
               description: "Either Alertmanager is down (its scrape target is absent) or nothing is reaching it while {{ $value }} alerts are firing in Prometheus."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#alertmanagernotreceivingalerts"
           - alert: Watchdog
             # A dead-man's switch. It always fires, so it is only useful as a heartbeat:
             # if the Telegram heartbeat stops arriving, the pipeline is dead even though
@@ -148,6 +156,7 @@ data:
             annotations:
               summary: "Alerting pipeline heartbeat"
               description: "This alert always fires. Its only job is to prove Prometheus, Alertmanager and Telegram are still connected end to end. If these stop arriving, alerting is dead."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#watchdog"
       - name: longhorn
         rules:
           # longhorn_volume_robustness is an enum-style metric: one series per
@@ -163,6 +172,7 @@ data:
             annotations:
               summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.volume }}) is DEGRADED"
               description: "A replica is gone or rebuilding. Tolerated, but do not lose a second one."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumedegraded"
           - alert: LonghornVolumeFaulted
             expr: longhorn_volume_robustness{state="faulted"} == 1
             for: 2m
@@ -171,6 +181,7 @@ data:
             annotations:
               summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.volume }}) is FAULTED"
               description: "Data unavailable to the workload using this PVC."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumefaulted"
           - alert: LonghornVolumeUnknown
             expr: longhorn_volume_robustness{state="unknown"} == 1
             for: 10m
@@ -179,6 +190,7 @@ data:
             annotations:
               summary: "Longhorn volume {{ $labels.pvc }} robustness is UNKNOWN"
               description: "Longhorn cannot determine replica health — check the volume in the Longhorn UI."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumeunknown"
           - alert: LonghornNodeStorageLow
             expr: |
               sum by (node) (longhorn_node_storage_usage_bytes)
@@ -189,6 +201,7 @@ data:
             annotations:
               summary: "Longhorn storage on {{ $labels.node }} is {{ humanizePercentage $value }} full"
               description: "Once a Longhorn node fills, replicas cannot rebuild and new PVCs stay Pending."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornnodestoragelow"
           - alert: LonghornDiskStorageLow
             expr: longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes > 0.9
             for: 15m
@@ -196,6 +209,7 @@ data:
               severity: warning
             annotations:
               summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }} full"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskstoragelow"
           # --- per-disk scheduling headroom (2026-10-30) ---------------------
           # LonghornDiskStorageLow above compares *usage*, which was blind to the
           # failure that actually happened: sitaw-amd's /var/lib/longhorn held 45G
@@ -276,7 +290,7 @@ data:
             annotations:
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
               description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (docs/REBUILD.md)."
-              runbook_url: "https://runbook.bismigel.dev"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
           # > 1 means more bytes are promised to replicas than exist free on the
           # filesystem: the next rebuild larger than the shortfall cannot be placed and
           # stays Pending. That is the state that costs redundancy.
@@ -288,6 +302,7 @@ data:
             annotations:
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} is fully committed ({{ humanizePercentage $value }} of free space claimed)"
               description: "There is no room for another replica of any size on this disk. Rebuilds targeting it will fail over or stay Pending."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingovercommitted"
           # The invariant the 2026-10-30 cleanup argues for: replicas belong on the
           # dedicated partitions, not on the filesystem holding etcd and the
           # container image store. `default-disk-*` is the disk Longhorn auto-creates
@@ -312,7 +327,7 @@ data:
             annotations:
               summary: "Longhorn metrics scrape failing on {{ $labels.instance }}"
               description: "Volume robustness rules are blind while this target is down."
-
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornscrapefailing"
       # status-api answers "does each service actually work", which is a different
       # question from "is its pod up". These two alerts are the whole point of it:
       # one for a failing check, one for the checker going quiet.
@@ -331,6 +346,7 @@ data:
                 Ready — the qBittorrent password and the empty Jellyfin library on
                 2026-11-02 were both invisible to pod status. Open /api/detail (basic
                 auth) for the error.
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#statusapicheckfailing"
           - alert: StatusApiNotScraped
             expr: absent(status_api_check_ok)
             for: 15m
@@ -343,6 +359,7 @@ data:
                 or a network policy is broken. This is the alert that stops "no news"
                 from reading as "no problems" — a dead checker and a healthy estate
                 look identical from the outside.
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#statusapinotscraped"
       - name: deployments
         rules:
           # Restart-count alerts alone are not enough. A Deployment can be
@@ -359,6 +376,7 @@ data:
             annotations:
               summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout is stalled"
               description: "Progressing=False for 15 minutes: the new ReplicaSet is not becoming Ready and the previous one is still serving. Check `kubectl -n <ns> rollout status deploy/<name>` and the new pod's events — a bad template, an unschedulable pod, or a pod that cannot reach the API."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#deploymentrolloutstalled"
           - alert: DeploymentReplicasUnavailable
             expr: kube_deployment_status_replicas_unavailable > 0
             for: 15m
@@ -367,7 +385,7 @@ data:
             annotations:
               summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ printf \"%.0f\" $value }} unavailable replicas"
               description: "Desired replicas that are not available for 15 minutes. Overlaps DeploymentRolloutStalled when the cause is a ReplicaSet that never becomes Ready; fires alone when pods cannot be scheduled at all."
-
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#deploymentreplicasunavailable"
       - name: argocd-redis
         rules:
           - alert: ArgoCDRedisHAPodNotReady
@@ -378,6 +396,7 @@ data:
             annotations:
               summary: "ArgoCD Redis HA pod {{ $labels.pod }} is not ready"
               description: "A Redis/sentinel pod has been NotReady for 5 minutes. Sentinel quorum and ArgoCD cache availability may be degraded."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishapodnotready"
           - alert: ArgoCDRedisHAEndpointsLow
             expr: kube_endpoint_address_available{namespace="argocd",endpoint=~"argocd-redis-ha(-haproxy)?"} < 3
             for: 5m
@@ -386,6 +405,7 @@ data:
             annotations:
               summary: "ArgoCD Redis HA service {{ $labels.endpoint }} has {{ $value }}/3 endpoints"
               description: "Redis or HAProxy discovery is degraded. Check pod readiness, announce Services and sentinel logs."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishaendpointslow"
           - alert: ArgoCDRedisHARestartingOften
             expr: increase(kube_pod_container_status_restarts_total{namespace="argocd",pod=~"argocd-redis-ha-server-[0-9]+"}[1h]) > 2
             for: 5m
@@ -394,3 +414,4 @@ data:
             annotations:
               summary: "ArgoCD Redis HA pod {{ $labels.pod }} is restarting"
               description: "More than two restarts in an hour. Check sentinel CPU, quorum and the pod logs."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredisharestartingoften"

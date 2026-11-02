@@ -15,6 +15,7 @@ data:
             labels: { severity: critical }
             annotations:
               summary: "node-exporter down on {{ $labels.instance }}"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#nodedown"
           - alert: TargetDown
             # kubelet-cadvisor and longhorn have their own scrape-failure
             # alerts (they say what you are now blind to), so exclude them
@@ -24,6 +25,7 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "target {{ $labels.job }}/{{ $labels.instance }} down"
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#targetdown"
           - alert: DiskFillingUp
             # /mnt/media is excluded here: the media pool is a mergerfs union of
             # four branches across two hosts, so it gets its own pair of alerts.
@@ -32,6 +34,7 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "disk {{ $labels.mountpoint }} on {{ $labels.instance }} >85% full"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#diskfillingup"
           - alert: RootFilesystemDaysToFull
             # The root filesystem on the cluster nodes carries etcd, k3s state and
             # the containerd image store (21-29G of images per node on 2026-10-30),
@@ -47,12 +50,14 @@ data:
             annotations:
               summary: "root filesystem on {{ $labels.instance }} projected to fill within 7 days"
               description: "Image store and k3s state are growing faster than they are being reclaimed. `k3s crictl rmi --prune` and `nix-collect-garbage --delete-older-than 14d` usually recover 15-20G; etcd does not survive a full /."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#rootfilesystemdaystofull"
           - alert: HostMemoryHigh
             expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
             for: 15m
             labels: { severity: warning }
             annotations:
               summary: "memory on {{ $labels.instance }} >90%"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#hostmemoryhigh"
           # Media pool (/mnt/media on calamansi-intel): the whole media stack and
           # every *arr import dies when this fills, so warn early and loud.
           #
@@ -80,7 +85,7 @@ data:
             annotations:
               summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} projected to fill within 7 days"
               description: "At the current 6h trend this filesystem runs out inside a week. Rebalance, tighten acquisition sizes, or add capacity."
-              runbook_url: "https://runbook.bismigel.dev"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapooldaystofull"
           # --- WireGuard (ProtonVPN) on the media node -------------------
           # 2026-10-25: the tunnel died with "packets sent, 0 bytes received"
           # (stale endpoint IP) and took the whole media stack with it. Nothing
@@ -95,7 +100,7 @@ data:
             annotations:
               summary: "WireGuard {{ $labels.iface }} on {{ $labels.instance }} has not handshaked in 5m"
               description: "Packets may still be leaving with no reply - check `wg show {{ $labels.iface }}` and the endpoint IP in the host config."
-              runbook_url: "https://runbook.bismigel.dev"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardnohandshake"
           # A handshake is not proof of a working tunnel. This is the alert that
           # was missing on 2026-10-25: a stale private key handshook happily and
           # blackholed everything, and only handshake-based alerts existed.
@@ -106,6 +111,7 @@ data:
             annotations:
               summary: "{{ $labels.instance }}: WireGuard up but no data path"
               description: "Handshake may be fine; traffic is not leaving. Compare the key on the interface with SOPS before touching it (NETWORK.md 8.2)."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardnoegress"
           # Restarting wg-quick is the operation that strands .81. A restart that
           # "succeeds" leaves no other trace, so surface it even when nothing broke.
           - alert: WireGuardRestarted
@@ -114,6 +120,7 @@ data:
             annotations:
               summary: "wg-quick-{{ $labels.iface }} restarted on {{ $labels.instance }}"
               description: "A wg-quick restart has taken this node off the network before (NETWORK.md 7.1). Confirm egress and LAN reachability."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardrestarted"
           - alert: WireGuardMetricsMissing
             expr: absent(wireguard_latest_handshake_seconds)
             for: 20m
@@ -121,6 +128,7 @@ data:
             annotations:
               summary: "No WireGuard metrics at all"
               description: "Either the textfile timer on the media node is not running or node-exporter is not scraping /var/lib/node-exporter/textfile."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardmetricsmissing"
           - alert: StrayCNIAddress
             # A host interface holding an address inside the pod CIDR is an
             # address the IPAM will happily hand to a pod. On 2026-10-26 a pod got
@@ -136,6 +144,7 @@ data:
             annotations:
               summary: "{{ $labels.instance }} had a non-Cilium interface inside the pod CIDR (removed by cni-stray-sweep)"
               description: "Pods can be allocated an address the node itself owns, which makes them unreachable while they look scheduled. Check which interface was removed in the host journal (tag cni-stray-sweep)."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#straycniaddress"
           - alert: StrayCNIMetricsMissing
             # Same lesson as WireGuardMetricsMissing: a monitor whose metric never
             # arrives is not a monitor. The sweep runs hourly; 90m of silence
@@ -146,6 +155,7 @@ data:
             annotations:
               summary: "homelab_stray_cni_* metrics absent - cni-stray-sweep is not reporting"
               description: "Check the timer on the hosts (systemctl list-timers cni-stray-sweep) and that /var/lib/node-exporter/textfile/stray-cni.prom exists and is world-readable."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#straycnimetricsmissing"
           - alert: MediaPoolFillingUp
             expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 85
             for: 30m
@@ -153,7 +163,7 @@ data:
             annotations:
               summary: "media pool (/mnt/media) >85% full"
               description: "{{ $value }}% used — reclaim space (arr cleanup) or add a disk before imports start failing."
-              runbook_url: "https://runbook.bismigel.dev"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolfillingup"
           - alert: MediaPoolCritical
             expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 92
             for: 15m
@@ -161,6 +171,7 @@ data:
             annotations:
               summary: "media pool (/mnt/media) >92% full — downloads/imports will fail"
               description: "{{ $value }}% used on the media library, now served from .82 over NFS (1.9 TB btrfs). Reclaim with *arr cleanup; growing it means a bigger disk on .82, not another branch."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolcritical"
           # NOTE: BackupFailed alerts are *pushed* to Alertmanager by the systemd
           # OnFailure hooks (see modules/backup*.nix), so there's no rule for them.
       - name: etcd
@@ -174,30 +185,35 @@ data:
             labels: { severity: critical }
             annotations:
               summary: "etcd {{ $labels.instance }} has no leader"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdnoleader"
           - alert: EtcdMemberUnreachable
             expr: count(etcd_server_has_leader) < 3
             for: 10m
             labels: { severity: warning }
             annotations:
               summary: "only {{ $value }}/3 etcd members are reporting metrics"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdmemberunreachable"
           - alert: EtcdQuorumAtRisk
             expr: sum(etcd_server_has_leader) < 2
             for: 5m
             labels: { severity: critical }
             annotations:
               summary: "etcd quorum lost or at risk ({{ $value }}/3 leaders)"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdquorumatrisk"
           - alert: EtcdHighFsyncLatency
             expr: histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) by (le)) > 0.5
             for: 10m
             labels: { severity: warning }
             annotations:
               summary: "etcd WAL fsync p99 > 500ms — disk is the bottleneck"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdhighfsynclatency"
           - alert: EtcdDbSizeNearQuota
             expr: max(etcd_mvcc_db_total_size_in_bytes) > 1.5e9
             for: 10m
             labels: { severity: warning }
             annotations:
               summary: "etcd DB > 1.5GiB (2GiB quota) — compact/defrag or raise the quota"
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcddbsizenearquota"
       - name: cloudflare
         rules:
           # Cloudflare edge health from the REST-only exporter. Free-plan zones
@@ -208,36 +224,42 @@ data:
             labels: { severity: critical }
             annotations:
               summary: "Cloudflare tunnel {{ $labels.tunnel }} is {{ $labels.status }}"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflaretunneldown"
           - alert: CloudflareTunnelSingleConnector
             expr: cloudflare_tunnel_connectors < 2
             for: 15m
             labels: { severity: warning }
             annotations:
               summary: "cloudflare tunnel {{ $labels.tunnel }} has {{ $value }} connector(s), edge HA is degraded"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflaretunnelsingleconnector"
           - alert: CloudflareZoneNotActive
             expr: cloudflare_zone_up == 0
             for: 10m
             labels: { severity: critical }
             annotations:
               summary: "zone {{ $labels.zone }} is not active in Cloudflare"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarezonenotactive"
           - alert: CloudflareZonePaused
             expr: cloudflare_zone_paused == 1
             for: 10m
             labels: { severity: warning }
             annotations:
               summary: "zone {{ $labels.zone }} is paused, traffic bypasses Cloudflare"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarezonepaused"
           - alert: CloudflareCertificateInactive
             expr: cloudflare_zone_certificate_active == 0
             for: 30m
             labels: { severity: warning }
             annotations:
               summary: "universal certificate for {{ $labels.zone }} is {{ $labels.status }}"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarecertificateinactive"
           - alert: CloudflareExporterStale
             expr: time() - cloudflare_export_timestamp_seconds > 600
             for: 10m
             labels: { severity: warning }
             annotations:
               summary: "cloudflare edge exporter has not refreshed in 10m: token expired or API unreachable"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterstale"
       - name: argocd
         rules:
           - alert: ArgoCDAppOutOfSync
@@ -246,6 +268,7 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdappoutofsync"
           # Component health, not app health. Without this, ArgoCD can be
           # cluster-wide single-node (every replica on one host) and nothing
           # notices: the apps still report Synced/Healthy until that node dies.
@@ -257,12 +280,14 @@ data:
             labels: { severity: critical }
             annotations:
               summary: "ArgoCD {{ $labels.deployment }}{{ $labels.statefulset }} has no ready replica"
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdcomponentdown"
           - alert: ArgoCDAppUnhealthy
             expr: argocd_app_info{health_status=~"Degraded|Missing|Unknown"} == 1
             for: 15m
             labels: { severity: warning }
             annotations:
               summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdappunhealthy"
       - name: workloads
         rules:
           # On 2026-10-26 the public site ran at 1 of 2 ready replicas for minutes
@@ -277,6 +302,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarted {{ $value | printf \"%.0f\" }} times in 15m"
               description: "Find the cause before deleting the pod: a crash loop with a clean exit is usually something killing it (probe, OOM, unreachable address)."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#kubepodcrashlooping"
           - alert: KubeDeploymentReplicasMismatch
             expr: |
               (kube_deployment_spec_replicas - kube_deployment_status_replicas_ready) > 0
@@ -286,6 +312,7 @@ data:
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.deployment }} is {{ $value | printf \"%.0f\" }} replica(s) short of desired"
               description: "Ten minutes is longer than a rollout: either a pod cannot become ready or the rollout is stuck. Check pod events for probe failures."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#kubedeploymentreplicasmismatch"
       - name: media
         rules:
           # Jellyfin uses strategy Recreate (RWO config PVC), so any roll kills
@@ -316,7 +343,7 @@ data:
             annotations:
               summary: "CronJob failed: {{ $labels.namespace }}/{{ $labels.job_name }}"
               description: "A scheduled job's last run failed. Read its logs; it clears when the next run succeeds."
-
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#cronjobfailed"
           # The rule above cannot see a job that is still RETRYING: kube_job_status_failed
           # stays 0 until the Job gives up. On 2026-10-30 immich-login-watch failed every
           # minute for ~20 minutes and nothing fired - by the time the Job would have been
@@ -348,7 +375,7 @@ data:
             annotations:
               summary: "Job pods failing: {{ $labels.namespace }}/{{ $labels.owner_name }}"
               description: "Containers in this Job's pods terminated with an error and are being retried. CronJobFailed only fires once the Job gives up, so this is the earlier signal. Logs: kubectl -n {{ $labels.namespace }} logs job/{{ $labels.owner_name }}."
-
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#jobpodsfailing"
   slo.yml: |
     groups:
       - name: slo
@@ -369,6 +396,7 @@ data:
             labels: { severity: warning }
             annotations:
               summary: "public probe {{ $labels.instance }} is down"
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicprobedown"
           - alert: PublicSLOFastBurn
             # Two windows, deliberately. The 1h window proves the burn is not a
             # single scrape hiccup; the 5m window proves it is still happening
@@ -381,6 +409,7 @@ data:
             annotations:
               summary: "public SLO fast burn: {{ $labels.instance }} 1h availability {{ $value | humanizePercentage }}"
               description: "Below 99% over the last hour and still failing at the last scrape. Error budget is going fast."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicslofastburn"
           - alert: PublicSLOSlowBurn
             # The 6h window is the trend, the 1h window is the history, and
             # the 5m window proves it is still happening. A resolved
@@ -392,6 +421,7 @@ data:
             annotations:
               summary: "public SLO slow burn: {{ $labels.instance }} 6h availability {{ $value | humanizePercentage }}"
               description: "Under the 99.5% objective across 6h and 1h, and still failing in the last 5m. A historic blip alone no longer fires this."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicsloslowburn"
 ---
 # Alertmanager
 apiVersion: v1
