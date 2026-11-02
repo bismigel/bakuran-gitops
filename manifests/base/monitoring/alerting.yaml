@@ -160,7 +160,7 @@ data:
             labels: { severity: critical }
             annotations:
               summary: "media pool (/mnt/media) >92% full — downloads/imports will fail"
-                description: "{{ $value }}% used on the media library, now served from .82 over NFS (1.9 TB btrfs). Reclaim with *arr cleanup; growing it means a bigger disk on .82, not another branch."
+              description: "{{ $value }}% used on the media library, now served from .82 over NFS (1.9 TB btrfs). Reclaim with *arr cleanup; growing it means a bigger disk on .82, not another branch."
           # NOTE: BackupFailed alerts are *pushed* to Alertmanager by the systemd
           # OnFailure hooks (see modules/backup*.nix), so there's no rule for them.
       - name: etcd
