@@ -16,3 +16,14 @@ spec:
         - ports:
             - port: "8096"
               protocol: TCP
+    # The clients VLAN (Wi-Fi: phones, TVs). Without this, Jellyfin answered the
+    # LAN and the cluster and nothing else: TVs and phones could not stream at
+    # all, and it looked like the router's VLAN exception was broken (2026-11-02).
+    # These clients cannot complete a Cloudflare Access challenge, which is the
+    # stated reason the media UIs are LAN-reachable at all.
+    - fromCIDR:
+        - 192.168.20.0/24
+      toPorts:
+        - ports:
+            - port: "8096"
+              protocol: TCP
