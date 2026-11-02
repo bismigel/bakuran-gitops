@@ -1,0 +1,104 @@
+# Alert rules for the three devices that are not Kubernetes objects.
+#
+# Separate ConfigMap, same reason as workloads: adding a group should be a
+# readable diff. monitoring.yaml projects this into /etc/prometheus/rules.
+#
+# Every alert carries a runbook_url. The runbook page documents each alert by
+# name — an alert with no procedure is a page that trains people to ignore pages.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules-network-devices
+  namespace: monitoring
+data:
+  network-devices.yml: |
+    groups:
+      - name: network-devices
+        rules:
+          - alert: NetworkDeviceUnreachable
+            expr: netdev_up == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.target }} does not answer on its management port"
+              description: >-
+                The {{ $labels.target }} stopped answering TCP on its management port for 5 minutes.
+                Router (.1) also takes DNS, DHCP and the internet with it; switch (.3) takes every
+                wired host including the cluster; AP (.2) takes only Wi-Fi.
+              runbook_url: https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#networkdeviceunreachable
+
+          - alert: WanUnreachable
+            expr: netdev_wan_up == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "No internet through the router"
+              description: >-
+                A TCP connect from inside the cluster to a public resolver fails. Either the ISP
+                link, the router's NAT/routing, or the gateway itself is down — check the router
+                before anything else.
+              runbook_url: https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#wanunreachable
+
+          - alert: RouterResolverDown
+            expr: netdev_dns_up == 0
+            for: 3m
+            labels:
+              severity: critical
+            annotations:
+              summary: "192.168.2.1 is not answering DNS"
+              description: >-
+                A real A query to the router's Unbound resolver failed or returned an error.
+                Everything the LAN resolves depends on this — adblock, internal names, and pods
+                (CoreDNS forwards here). Expect "connected, no internet" symptoms everywhere.
+              runbook_url: https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#routerresolverdown
+
+          - alert: NetworkDeviceTlsExpiringSoon
+            expr: netdev_tls_days_left < 21 and netdev_tls_days_left > 0
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.target }} management certificate expires in {{ printf \"%.0f\" $value }} days"
+              description: >-
+                The self-signed certificate on the device's HTTPS UI is about to expire. Browsers
+                will start refusing the UI, which is how a device becomes unmanageable at the worst
+                moment.
+              runbook_url: https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#networkdevicetlsexpiringsoon
+
+          - alert: RouterInterfaceErrors
+            expr: increase(opnsense_interface_rx_errors[15m]) + increase(opnsense_interface_tx_errors[15m]) > 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Interface {{ $labels.iface }} on the router is reporting errors"
+              description: >-
+                Counters on {{ $labels.iface }} incremented. On a wired NIC this is usually the
+                cable, the port, or duplex negotiation — not the ISP.
+              runbook_url: https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#routerinterfaceerrors
+
+          - alert: RouterPfStateTableHigh
+            expr: opnsense_pf_states_current / opnsense_pf_states_limit > 0.9
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "pf state table is over 90% full"
+              description: >-
+                New connections will start failing once the table fills. Usually a scanner, a
+                broken client opening connections, or a too-small table for the workload.
+              runbook_url: https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#routerpfstatetablehigh
+
+          - alert: RouterMemoryHigh
+            expr: opnsense_memory_used_bytes / opnsense_memory_total_bytes > 0.9
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Router memory above 90%"
+              description: >-
+                16 GB on the OptiPlex, so this means something is leaking (often Unbound with an
+                oversized blocklist) rather than genuine pressure.
+              runbook_url: https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#routermemoryhigh

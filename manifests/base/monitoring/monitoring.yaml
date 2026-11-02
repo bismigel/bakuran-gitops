@@ -333,6 +333,7 @@ spec:
             sources:
               - configMap: { name: prometheus-rules }
               - configMap: { name: prometheus-rules-workloads }
+              - configMap: { name: prometheus-rules-network-devices }
         - name: storage
           persistentVolumeClaim:
             claimName: prometheus-data
@@ -516,6 +517,10 @@ spec:
               - configMap: { name: grafana-dashboard-cilium }
               - configMap: { name: grafana-dashboard-containers }
               - configMap: { name: grafana-dashboard-longhorn }
+              # grafana-dashboard-network has existed since 2026-10-25 but was never listed
+              # here, so it never reached Grafana. Found by the 2026-11-01 gap audit.
+              - configMap: { name: grafana-dashboard-network }
+              - configMap: { name: grafana-dashboard-network-devices }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
