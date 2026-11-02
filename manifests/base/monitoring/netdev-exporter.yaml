@@ -76,13 +76,39 @@ data:
         return ms
 
     def tls_days(host):
+        """Days until the management certificate expires.
+
+        getpeercert() returns {} when verification is disabled, so the DER is parsed
+        directly: the validity dates are UTCTime (13 chars, YYMMDDHHMMSSZ) or
+        GeneralizedTime (15, YYYYMMDDHHMMSSZ). The *later* of the two is notAfter.
+        """
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         with socket.create_connection((host, 443), timeout=4) as s:
             with ctx.wrap_socket(s) as ss:
-                cert = ss.getpeercert()
-                return (ssl.cert_time_to_seconds(cert["notAfter"]) - time.time()) / 86400
+                der = ss.getpeercert(binary_form=True)
+        best = None
+        for tag, ln in ((b"\x17", 13), (b"\x18", 15)):
+            i = 0
+            while True:
+                i = der.find(tag, i)
+                if i < 0:
+                    break
+                raw = der[i+2:i+2+ln]
+                if len(raw) == ln and raw[-1:] == b"Z" and raw[:-1].isdigit():
+                    if ln == 13:  # UTCTime: YY -> 19YY/20YY
+                        yy = int(raw[:2])
+                        year = 2000 + yy if yy < 50 else 1900 + yy
+                        iso = f"{year}{raw[2:].decode()}"
+                    else:
+                        iso = raw[:-1].decode()
+                    best = max(best or "", iso)
+                i += 1 + ln
+        if not best:
+            raise ValueError("no validity dates in certificate")
+        t = time.strptime(best, "%Y%m%d%H%M%S")
+        return (time.mktime(t) - time.mktime(time.gmtime())) / 86400
 
     def dns_probe():
         """A tiny A query to the router's resolver — proves Unbound answers."""
@@ -97,7 +123,8 @@ data:
         data, _ = s.recvfrom(512)
         ms = (time.monotonic() - t) * 1000
         s.close()
-        return (1 if struct.unpack(">H", data[6:8])[0] & 0x000F == 0 else 0), ms
+        rcode = struct.unpack(">H", data[6:8])[0] & 0x000F
+        return (1 if rcode == 0 else 0), ms
 
     def collect():
         lines = []
