@@ -26,6 +26,27 @@ data:
             annotations:
               summary: "target {{ $labels.job }}/{{ $labels.instance }} down"
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#targetdown"
+          # A backup disk that has fallen off the bus is indistinguishable from one
+          # that needs no work: the mirror timer is weekly, the unit only exits 1 if
+          # it *runs*, and the empty mountpoint becomes a directory on the root disk.
+          # On 2026-11-02 a USB hub dropped both disks three times in 25 minutes
+          # (21:55, 22:15, 22:17); nothing noticed, and the offline copy on the stick
+          # had been five days stale before anyone looked at it.
+          #
+          # absent() rather than a threshold: the series disappears when nothing is
+          # mounted, so there is no value to compare. Exact matchers are kept as
+          # labels, which is why the summary can name the mount.
+          - alert: BackupMountMissing
+            expr: |
+              absent(node_filesystem_size_bytes{mountpoint="/mnt/backup-sd", instance="192.168.2.82:9100"}) == 1
+              or
+              absent(node_filesystem_size_bytes{mountpoint="/mnt/backup-usb", instance="192.168.2.82:9100"}) == 1
+            for: 20m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.mountpoint }} on sitaw-amd is not mounted"
+              description: "No filesystem series for this mount, so nothing is mounted there (or the node-exporter is gone, which TargetDown covers). Until it comes back, writes aimed at the backup path land on the root filesystem, and the weekly mirror/off-site copy does nothing and reports success."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#backupmountmissing"
           - alert: DiskFillingUp
             # /mnt/media is excluded here: the media pool is a mergerfs union of
             # four branches across two hosts, so it gets its own pair of alerts.
