@@ -64,7 +64,8 @@ spec:
                   for h in bismigel.dev www.bismigel.dev ciceley.cc www.ciceley.cc \
                            miguelarbis.dev www.miguelarbis.dev status.bismigel.dev \
                            jellyfin.bismigel.dev immich.bismigel.dev kavita.bismigel.dev \
-                           audiobookshelf.bismigel.dev karakeep.bismigel.dev; do
+                           audiobookshelf.bismigel.dev karakeep.bismigel.dev \
+                           git.bismigel.dev; do
                     check ingress-nginx-controller.ingress-nginx.svc.cluster.local "$h" public
                   done
 
@@ -73,8 +74,7 @@ spec:
                            prowlarr.bismigel.dev bazarr.bismigel.dev qbittorrent.bismigel.dev \
                            sabnzbd.bismigel.dev grafana.bismigel.dev prometheus.bismigel.dev \
                            longhorn.bismigel.dev homepage.bismigel.dev agent.bismigel.dev \
-                           lazylibrarian.bismigel.dev runbook.bismigel.dev private.bismigel.dev \
-                           git.bismigel.dev; do
+                           lazylibrarian.bismigel.dev runbook.bismigel.dev private.bismigel.dev; do
                     check ingress-nginx-admin-controller.ingress-nginx-admin.svc.cluster.local "$h" admin
                   done
 
