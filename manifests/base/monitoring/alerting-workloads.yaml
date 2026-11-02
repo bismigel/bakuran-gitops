@@ -313,6 +313,36 @@ data:
               summary: "Longhorn metrics scrape failing on {{ $labels.instance }}"
               description: "Volume robustness rules are blind while this target is down."
 
+      # status-api answers "does each service actually work", which is a different
+      # question from "is its pod up". These two alerts are the whole point of it:
+      # one for a failing check, one for the checker going quiet.
+      - name: status-api
+        rules:
+          - alert: StatusApiCheckFailing
+            expr: status_api_check_ok == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.check }} fails its functional check"
+              description: >-
+                status-api's check for {{ $labels.check }} has failed for 10 minutes.
+                These checks look at what the service does, not whether its pod is
+                Ready — the qBittorrent password and the empty Jellyfin library on
+                2026-11-02 were both invisible to pod status. Open /api/detail (basic
+                auth) for the error.
+          - alert: StatusApiNotScraped
+            expr: absent(status_api_check_ok)
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: "status-api reports nothing at all"
+              description: >-
+                No status_api_check_ok series for 15 minutes: the checker, its scrape
+                or a network policy is broken. This is the alert that stops "no news"
+                from reading as "no problems" — a dead checker and a healthy estate
+                look identical from the outside.
       - name: deployments
         rules:
           # Restart-count alerts alone are not enough. A Deployment can be
