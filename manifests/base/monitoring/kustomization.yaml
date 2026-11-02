@@ -27,6 +27,7 @@ resources:
   - grafana-dashboard-slo.yaml
   - grafana-dashboard-storage.yaml
   - immich-login-watch.yaml
+  - forgejo-mirror-check.yaml
   - ingress-host-check.yaml
   - jellyfin-bitrate.yaml
   - jellyfin-login-watch.yaml
