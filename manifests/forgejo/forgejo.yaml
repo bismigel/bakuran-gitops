@@ -9,6 +9,17 @@
 # Bitwarden Secrets Manager (keys `forgejo-secret-key`, `forgejo-admin`,
 # `forgejo-api-token`). The GitHub mirror credential is NOT here either — it lives
 # in Forgejo's own database, encrypted with the secret key below.
+#
+# WHAT THE MIRROR CREDENTIAL IS (decision 2026-11-01): the operator's GitHub CLI
+# OAuth token (`gho_…`, scopes repo/workflow/gist/read:org), reused deliberately
+# instead of minting a fine-grained PAT. Consequences to keep in mind:
+#   * it can WRITE to every GitHub repo, so Forgejo's blast radius includes
+#     pushing to `main` — the rule we care about most;
+#   * logging out of `gh` (or revoking it in GitHub settings) silently stops all
+#     36 mirrors — the freshness alert will fire ~72h later, which is the
+#     detection path;
+#   * replacing it later requires updating each mirror's stored auth, so treat
+#     this as a known, bounded risk rather than an oversight.
 apiVersion: v1
 kind: Namespace
 metadata:
