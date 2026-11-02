@@ -104,8 +104,6 @@ spec:
                 readOnlyRootFilesystem: true
                 runAsNonRoot: true
                 runAsUser: 65534
-                seccompProfile:
-                  type: RuntimeDefault
                 capabilities: { drop: ["ALL"] }
           volumes:
             - name: token
