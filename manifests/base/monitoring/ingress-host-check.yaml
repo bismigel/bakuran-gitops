@@ -16,6 +16,16 @@
 # Alerts are pushed the same way the other one-shot watchers do it: a single
 # resolved-by-expiry alert per failing hostname, so a flapping check does not
 # page repeatedly.
+#
+# EXIT CODE CONTRACT (2026-11-02): this job exits 0 when it *ran* - even if it
+# found broken hostnames, because those are already delivered to Alertmanager as
+# IngressHostBroken. It exits non-zero only when it could not deliver them.
+#
+# Why: before this, two broken apps (sabnzbd, audiobookshelf) made the job fail
+# every 5 minutes forever, which raised CronJobFailed + JobPodsFailing *on top of*
+# the two real alerts - six alerts about two known problems. A monitor that reports
+# its findings through its own crash status duplicates every finding and trains
+# people to ignore the job alerts.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -43,7 +53,8 @@ spec:
                   set -u
                   AM="http://alertmanager.monitoring.svc:9093/api/v2/alerts"
                   HOST="$(cat /proc/sys/kernel/hostname)"
-                  fail=0
+                  fail=0       # hostnames that did not answer (reported to Alertmanager)
+                  pushfail=0   # alert deliveries that failed (the only real job failure)
 
                   check() { # <ingress-service> <hostname> <class>
                     svc="$1"; h="$2"; cls="$3"
@@ -54,7 +65,7 @@ spec:
                         fail=$((fail+1))
                         curl -s -m 10 -X POST -H 'Content-Type: application/json' \
                           -d "[{\"labels\":{\"alertname\":\"IngressHostBroken\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"host\":\"$h\",\"http_code\":\"$code\"},\"annotations\":{\"summary\":\"$h returns $code through the ingress\",\"description\":\"404 means no Ingress matched (class/controller wiring); 5xx means the backend is broken. Auto-resolves in ~5 min if the next check passes.\"}}]" \
-                          "$AM" || true
+                          "$AM" || pushfail=$((pushfail+1))
                         ;;
                       *) echo "ok   $h [$cls] -> $code" ;;
                     esac
@@ -78,8 +89,9 @@ spec:
                     check ingress-nginx-admin-controller.ingress-nginx-admin.svc.cluster.local "$h" admin
                   done
 
-                  echo "failures: $fail"
-                  [ "$fail" -eq 0 ]
+                  echo "failures: $fail (reported), delivery failures: $pushfail"
+                  # Non-zero only if we could not report the findings.
+                  [ "$pushfail" -eq 0 ]
               resources:
                 requests: { cpu: 10m, memory: 32Mi }
                 limits: { memory: 96Mi }
