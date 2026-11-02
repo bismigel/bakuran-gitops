@@ -1,0 +1,263 @@
+# Network-device monitoring: router, switch and access point.
+#
+# Why: those three devices had *no* metrics at all. The router's WAN gateway
+# monitoring is disabled (dpinger off), the switch and AP were only ever checked
+# by hand from a laptop, and every question about them ("is the uplink flapping?",
+# "is the AP slow because of Ethernet or Wi-Fi?") needed someone to ssh in.
+#
+# What it measures, and what it deliberately does not:
+#   * reachability + TCP connect time for .1 (router), .3 (switch), .2 (AP)
+#   * HTTPS status and TLS certificate expiry for the two that serve a UI
+#   * WAN liveness through a TCP connect to a public resolver (privilege-free;
+#     ICMP would need CAP_NET_RAW, and dpinger is the router's own job)
+#   * a real DNS query to 192.168.2.1, so the adblocking resolver is monitored
+#     as a service rather than only as a host
+#   * OPNsense API: per-interface counters, memory, pf state table, DHCP leases,
+#     and gateway loss/delay *when dpinger is enabled* (it currently is not, so
+#     those series are simply absent rather than lying with zeros)
+#
+# The AP is the honest limitation: standalone EAP firmware exposes no metrics
+# endpoint, so it is probed from outside. Nothing here pretends otherwise.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: netdev-exporter
+  namespace: monitoring
+data:
+  exporter.py: |
+    #!/usr/bin/env python3
+    """Prometheus exporter for the three non-Kubernetes network devices.
+
+    stdlib only. Each collect() is wrapped: one dead device must not blank the
+    whole exposition, otherwise an AP outage would also hide the router.
+    """
+    import json, os, socket, ssl, struct, threading, time, urllib.request
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    OPNSENSE = os.environ.get("OPNSENSE_URL", "https://192.168.2.1")
+    KEY = os.environ.get("OPNSENSE_KEY", "")
+    SECRET = os.environ.get("OPNSENSE_SECRET", "")
+    CACHE = {}
+    LOCK = threading.Lock()
+
+    TARGETS = {"router": ("192.168.2.1", 443), "switch": ("192.168.2.3", 22),
+               "ap": ("192.168.2.2", 443)}
+    HTTPS = {"router": "https://192.168.2.1/", "switch": "https://192.168.2.3/",
+             "ap": "https://192.168.2.2/"}
+    WAN_PROBE = ("1.1.1.1", 443)
+
+    def out(lines, name, kind, help_text, value, labels=None):
+        if name not in CACHE:
+            lines.append(f"# HELP {name} {help_text}")
+            lines.append(f"# TYPE {name} {kind}")
+            CACHE[name] = True
+        lab = ""
+        if labels:
+            lab = "{" + ",".join(f'{k}="{v}"' for k, v in labels.items()) + "}"
+        lines.append(f"{name}{lab} {value}")
+
+    def opn(path, body=None):
+        data = json.dumps(body if body is not None else {}).encode()
+        req = urllib.request.Request(OPNSENSE + path, data=data, method="POST")
+        req.add_header("Content-Type", "application/json")
+        import base64
+        req.add_header("Authorization", "Basic " + base64.b64encode(f"{KEY}:{SECRET}".encode()).decode())
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(req, timeout=8, context=ctx) as r:
+            return json.load(r)
+
+    def tcp_ms(host, port):
+        t = time.monotonic()
+        s = socket.create_connection((host, port), timeout=4)
+        ms = (time.monotonic() - t) * 1000
+        s.close()
+        return ms
+
+    def tls_days(host):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with socket.create_connection((host, 443), timeout=4) as s:
+            with ctx.wrap_socket(s) as ss:
+                cert = ss.getpeercert()
+                return (ssl.cert_time_to_seconds(cert["notAfter"]) - time.time()) / 86400
+
+    def dns_probe():
+        """A tiny A query to the router's resolver — proves Unbound answers."""
+        q = struct.pack(">HHHHHH", 0x1234, 0x0100, 1, 0, 0, 0)
+        for part in "kavita.bismigel.dev".split("."):
+            q += bytes([len(part)]) + part.encode()
+        q += b"\x00" + struct.pack(">HH", 1, 1)
+        t = time.monotonic()
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(4)
+        s.sendto(q, ("192.168.2.1", 53))
+        data, _ = s.recvfrom(512)
+        ms = (time.monotonic() - t) * 1000
+        s.close()
+        return (1 if struct.unpack(">H", data[6:8])[0] & 0x000F == 0 else 0), ms
+
+    def collect():
+        lines = []
+        # --- reachability of the three devices ---
+        for name, (host, port) in TARGETS.items():
+            try:
+                ms = tcp_ms(host, port)
+                out(lines, "netdev_up", "gauge", "device answers on its management port", 1, {"target": name})
+                out(lines, "netdev_tcp_ms", "gauge", "TCP connect time in ms", round(ms, 1), {"target": name})
+            except Exception:
+                out(lines, "netdev_up", "gauge", "device answers on its management port", 0, {"target": name})
+            # HTTPS + certificate (router and AP; switch also serves HTTPS on 443)
+            try:
+                ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+                with urllib.request.urlopen(HTTPS[name], timeout=5, context=ctx) as r:
+                    out(lines, "netdev_https_status", "gauge", "HTTPS status class (200 ok)", r.status, {"target": name})
+                out(lines, "netdev_tls_days_left", "gauge", "days until the management certificate expires",
+                    round(tls_days(host), 1), {"target": name})
+            except Exception:
+                pass
+
+        # --- WAN liveness, measured from the cluster's side of the router ---
+        try:
+            ms = tcp_ms(*WAN_PROBE)
+            out(lines, "netdev_wan_up", "gauge", "internet reachable through the router", 1)
+            out(lines, "netdev_wan_tcp_ms", "gauge", "TCP connect time to a public resolver, ms", round(ms, 1))
+        except Exception:
+            out(lines, "netdev_wan_up", "gauge", "internet reachable through the router", 0)
+
+        # --- the resolver is a service, not just a host ---
+        try:
+            ok, ms = dns_probe()
+            out(lines, "netdev_dns_up", "gauge", "router resolver answers a real query", ok)
+            out(lines, "netdev_dns_query_ms", "gauge", "resolver latency for one A query, ms", round(ms, 1))
+        except Exception:
+            out(lines, "netdev_dns_up", "gauge", "router resolver answers a real query", 0)
+
+        # --- OPNsense counts ---
+        try:
+            stats = opn("/api/diagnostics/interface/getInterfaceStatistics")
+            for label, s in (stats.get("statistics") or {}).items():
+                iface = s.get("name", label)
+                for key, metric, kind in (
+                    ("received-bytes", "opnsense_interface_rx_bytes", "counter"),
+                    ("sent-bytes", "opnsense_interface_tx_bytes", "counter"),
+                    ("received-errors", "opnsense_interface_rx_errors", "counter"),
+                    ("sent-errors", "opnsense_interface_tx_errors", "counter"),
+                    ("received-packets", "opnsense_interface_rx_packets", "counter"),
+                    ("sent-packets", "opnsense_interface_tx_packets", "counter"),
+                ):
+                    if s.get(key) is not None:
+                        out(lines, metric, kind, f"OPNsense {key}", int(s[key]), {"iface": iface})
+        except Exception:
+            pass
+        try:
+            r = opn("/api/diagnostics/system/systemResources").get("memory", {})
+            out(lines, "opnsense_memory_used_bytes", "gauge", "router memory in use", int(r.get("used", 0)))
+            out(lines, "opnsense_memory_total_bytes", "gauge", "router memory total", int(r.get("total", 0)))
+        except Exception:
+            pass
+        try:
+            f = opn("/api/diagnostics/firewall/pf_states")
+            out(lines, "opnsense_pf_states_current", "gauge", "pf state table entries", int(f.get("current", 0)))
+            out(lines, "opnsense_pf_states_limit", "gauge", "pf state table limit", int(f.get("limit", 0)))
+        except Exception:
+            pass
+        try:
+            leases = opn("/api/kea/leases4/search").get("rows", [])
+            out(lines, "opnsense_dhcp_leases", "gauge", "active Kea DHCPv4 leases", len(leases))
+        except Exception:
+            pass
+        # Only present when dpinger is enabled (System > Gateways > WAN_DHCP).
+        try:
+            for g in opn("/api/routes/gateway/status").get("items", []):
+                for field, metric in (("loss", "opnsense_gateway_loss_percent"), ("delay", "opnsense_gateway_delay_ms")):
+                    v = g.get(field)
+                    if v not in (None, "~", ""):
+                        out(lines, metric, "gauge", f"gateway {field} (dpinger)", float(str(v).rstrip("%ms")), {"gateway": g.get("name", "?")})
+        except Exception:
+            pass
+        return lines
+
+    def refresh():
+        global CACHE
+        while True:
+            try:
+                lines = collect()
+                with LOCK:
+                    CACHE = lines
+            except Exception as e:
+                print("collect failed:", e, flush=True)
+            time.sleep(30)
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path != "/metrics":
+                self.send_response(404); self.end_headers(); return
+            with LOCK:
+                body = ("\n".join(CACHE) + "\n").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        def log_message(self, *a):
+            pass
+
+    if __name__ == "__main__":
+        threading.Thread(target=refresh, daemon=True).start()
+        time.sleep(2)  # first snapshot before the first scrape
+        HTTPServer(("0.0.0.0", 9190), Handler).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netdev-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: netdev-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: netdev-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: netdev-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9190"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: exporter
+          image: python:3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4
+          command: ["python", "/app/exporter.py"]
+          envFrom:
+            - secretRef:
+                name: opnsense-api
+          env:
+            - { name: OPNSENSE_URL, value: "https://192.168.2.1" }
+          ports:
+            - { name: metrics, containerPort: 9190 }
+          readinessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 20m, memory: 48Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: script, mountPath: /app }
+      volumes:
+        - name: script
+          configMap:
+            name: netdev-exporter
