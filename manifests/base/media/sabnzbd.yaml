@@ -109,7 +109,14 @@ spec:
             periodSeconds: 15
           resources:
             requests: { memory: 256Mi, cpu: 50m }
-            limits: { memory: 1Gi }
+            # 1Gi was not enough: on 2026-11-03 the container was OOMKilled (exit
+            # 137) mid-unpack of a BluRay rar and entered CrashLoopBackOff, which
+            # the *arrs saw as "SABnzbd unavailable" and reported as a download
+            # client failure. Post-processing is the memory-hungry part, not
+            # downloading. 2Gi costs nothing on a 16GiB node and covers a normal
+            # unpack; the alternative is tuning SABnzbd's article cache down, which
+            # trades the same memory for slower downloads.
+            limits: { memory: 2Gi }
       volumes:
         - name: config
           persistentVolumeClaim:
