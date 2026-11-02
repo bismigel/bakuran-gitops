@@ -1,0 +1,179 @@
+# NetworkPolicy for status-api's checks.
+#
+# status-api is the one workload that must reach services in five other namespaces:
+# that is the whole point of it (it proves each service actually works, not just that
+# its pod is up). Every namespace in this estate is default-deny in both directions,
+# so without these rules all seven checks time out — which is exactly what happened
+# on the first deploy (2026-11-02).
+#
+# Scope is deliberately narrow:
+#   * source is the status-api pods only (namespace + podSelector in the same `from`
+#     entry means AND, not "any pod in apps")
+#   * each rule names the single port the check uses
+#   * nothing here grants access to a database, an SMB share or the media library —
+#     only the HTTP ports the checks read
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: status-api-egress-checks
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app: status-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: books
+          podSelector:
+            matchLabels:
+              app: kavita
+      ports:
+        - { protocol: TCP, port: 5000 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: media
+          podSelector:
+            matchExpressions:
+              - { key: app, operator: In, values: [radarr, sonarr, prowlarr] }
+      ports:
+        - { protocol: TCP, port: 7878 }
+        - { protocol: TCP, port: 8989 }
+        - { protocol: TCP, port: 9696 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: downloads
+          podSelector:
+            matchLabels:
+              app: qbittorrent
+      ports:
+        - { protocol: TCP, port: 8080 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+          podSelector:
+            matchLabels:
+              app: jellyfin
+      ports:
+        - { protocol: TCP, port: 8096 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: forgejo
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: forgejo
+      ports:
+        - { protocol: TCP, port: 3000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-status-api
+  namespace: books
+spec:
+  podSelector:
+    matchLabels:
+      app: kavita
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apps
+          podSelector:
+            matchLabels:
+              app: status-api
+      ports:
+        - { protocol: TCP, port: 5000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-status-api
+  namespace: media
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: [radarr, sonarr, prowlarr] }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apps
+          podSelector:
+            matchLabels:
+              app: status-api
+      ports:
+        - { protocol: TCP, port: 7878 }
+        - { protocol: TCP, port: 8989 }
+        - { protocol: TCP, port: 9696 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-status-api
+  namespace: downloads
+spec:
+  podSelector:
+    matchLabels:
+      app: qbittorrent
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apps
+          podSelector:
+            matchLabels:
+              app: status-api
+      ports:
+        - { protocol: TCP, port: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-status-api
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: jellyfin
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apps
+          podSelector:
+            matchLabels:
+              app: status-api
+      ports:
+        - { protocol: TCP, port: 8096 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-status-api
+  namespace: forgejo
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apps
+          podSelector:
+            matchLabels:
+              app: status-api
+      ports:
+        - { protocol: TCP, port: 3000 }
