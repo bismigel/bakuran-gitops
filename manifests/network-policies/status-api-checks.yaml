@@ -45,24 +45,13 @@ spec:
         - { protocol: TCP, port: 7878 }
         - { protocol: TCP, port: 8989 }
         - { protocol: TCP, port: 9696 }
-    # downloads serves two things on port 8080; qBittorrent and SABnzbd are separate
-    # pods with separate labels, so they need separate `to` entries to stay narrow.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: downloads
           podSelector:
-            matchLabels:
-              app: qbittorrent
-      ports:
-        - { protocol: TCP, port: 8080 }
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: downloads
-          podSelector:
-            matchLabels:
-              app: sabnzbd
+            matchExpressions:
+              - { key: app, operator: In, values: [qbittorrent, sabnzbd] }
       ports:
         - { protocol: TCP, port: 8080 }
     - to:
@@ -134,30 +123,11 @@ metadata:
   name: allow-status-api
   namespace: downloads
 spec:
+  # Two pods, one port. They must share ONE policy: a second policy with the same
+  # name in the same namespace does not add a rule, it replaces the first one.
   podSelector:
-    matchLabels:
-      app: qbittorrent
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: apps
-          podSelector:
-            matchLabels:
-              app: status-api
-      ports:
-        - { protocol: TCP, port: 8080 }
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-status-api
-  namespace: downloads
-spec:
-  podSelector:
-    matchLabels:
-      app: sabnzbd
+    matchExpressions:
+      - { key: app, operator: In, values: [qbittorrent, sabnzbd] }
   policyTypes: [Ingress]
   ingress:
     - from:
