@@ -5,15 +5,34 @@
 # Mirrors are created through the API after the first sync — see
 # homelab-context NETWORK.md / ROUTER.md notes and the runbook entry.
 #
-# Secrets are NOT in git: the Deployment reads `forgejo-secrets`, which holds
-#   GITEA__security__SECRET_KEY  — random, encrypts mirror credentials at rest
-#   GITEA__database__PASSWD      — unused with sqlite, kept for a future switch
-# The GitHub mirror credential lives in Forgejo's own database (encrypted),
-# never here.
+# Secrets are NOT in git. `forgejo-secrets` is rendered by External Secrets from
+# Bitwarden Secrets Manager (keys `forgejo-secret-key`, `forgejo-admin`,
+# `forgejo-api-token`). The GitHub mirror credential is NOT here either — it lives
+# in Forgejo's own database, encrypted with the secret key below.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: forgejo
+---
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: forgejo-secrets
+  namespace: forgejo
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: forgejo-secrets
+    creationPolicy: Owner
+    template:
+      data:
+        GITEA__security__SECRET_KEY: "{{ .secret_key }}"
+        FORGEJO_ADMIN_PASSWORD: "{{ .admin_password }}"
+  data:
+    - { secretKey: secret_key, remoteRef: { key: forgejo-secret-key } }
+    - { secretKey: admin_password, remoteRef: { key: forgejo-admin } }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
