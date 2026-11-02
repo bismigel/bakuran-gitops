@@ -159,42 +159,13 @@ spec:
       ports:
         - { protocol: TCP, port: 8096 }
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-status-api
-  namespace: forgejo
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: apps
-          podSelector:
-            matchLabels:
-              app: status-api
-      ports:
-        - { protocol: TCP, port: 3000 }
----
-# Prometheus scrapes the checks on the metrics port. Without this the target exists
-# and immediately goes down ("context deadline exceeded"), which looks exactly like a
-# broken exporter — the app was serving /metrics the whole time (verified 2026-11-02).
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-prometheus-metrics
-  namespace: apps
-spec:
-  podSelector:
-    matchLabels:
-      app: status-api
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring
-      ports:
-        - { protocol: TCP, port: 9091 }
+# NOTE: no ingress policy for the forgejo namespace, deliberately.
+#
+# #336 added one here with `podSelector: {}`, which does not "add an allow" — it
+# switches every pod it selects to deny-by-default for that direction. The mirror
+# check (a CronJob in `monitoring`) lost access, its CronJob went Degraded, the
+# `monitoring` ArgoCD app went Degraded with it, and homelab-smoke started failing
+# with "apps not Synced+Healthy" — a three-hop cascade from one well-meant rule.
+#
+# forgejo had no policy before, so status-api could already reach it once its own
+# EGRESS was allowed. Allowing egress was the fix; restricting ingress was the bug.
