@@ -47,8 +47,16 @@ spec:
       labels:
         app.kubernetes.io/name: forgejo
     spec:
+      # Forgejo refuses to run its CLI as root ("Forgejo is not supposed to be run
+      # as root"), and there is no reason for the server to have uid 0. Run as the
+      # image's own `git` user; the volume is chowned to match.
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: forgejo
           # Pinned by digest: CI fails on a floating tag.
@@ -79,6 +87,9 @@ spec:
             - { name: GITEA__mirror__MIN_INTERVAL, value: 10m0s }
             - { name: GITEA__repository__DEFAULT_PRIVATE, value: private }
             - { name: GITEA__log__LEVEL, value: Info }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           envFrom:
             - secretRef:
                 name: forgejo-secrets
