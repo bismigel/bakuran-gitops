@@ -100,7 +100,7 @@ data:
                     if ln == 13:  # UTCTime: YY -> 19YY/20YY
                         yy = int(raw[:2])
                         year = 2000 + yy if yy < 50 else 1900 + yy
-                        iso = f"{year}{raw[2:].decode()}"
+                        iso = f"{year}{raw[2:-1].decode()}"   # drop the trailing Z
                     else:
                         iso = raw[:-1].decode()
                     best = max(best or "", iso)
@@ -123,7 +123,9 @@ data:
         data, _ = s.recvfrom(512)
         ms = (time.monotonic() - t) * 1000
         s.close()
-        rcode = struct.unpack(">H", data[6:8])[0] & 0x000F
+        # DNS header: ID(0:2) FLAGS(2:4) QDCOUNT(4:6) ANCOUNT(6:8) ...
+        # RCODE is the low nibble of FLAGS - reading ANCOUNT here was the bug.
+        rcode = struct.unpack(">H", data[2:4])[0] & 0x000F
         return (1 if rcode == 0 else 0), ms
 
     def collect():
