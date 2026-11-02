@@ -177,3 +177,24 @@ spec:
               app: status-api
       ports:
         - { protocol: TCP, port: 3000 }
+---
+# Prometheus scrapes the checks on the metrics port. Without this the target exists
+# and immediately goes down ("context deadline exceeded"), which looks exactly like a
+# broken exporter — the app was serving /metrics the whole time (verified 2026-11-02).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-metrics
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app: status-api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - { protocol: TCP, port: 9091 }
