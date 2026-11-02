@@ -118,6 +118,10 @@ data:
         - Status:
             href: https://status.bismigel.dev
             description: Public status page
+        - Forgejo:
+            href: https://git.bismigel.dev
+            description: Local mirror of the GitHub repos
+            icon: forgejo
   kubernetes.yaml: |
     mode: cluster
     ingress: true
@@ -142,6 +146,9 @@ data:
           dateStyle: long
   bookmarks.yaml: |
     - Repos:
+        - Forgejo (local mirror):
+            - abbr: FJ
+              href: https://git.bismigel.dev
         - bakuran-gitops:
             - abbr: BG
               href: https://github.com/bismigel/bakuran-gitops
@@ -177,6 +184,15 @@ data:
             - abbr: BW
               href: https://vault.bitwarden.com
     - Docs:
+        - Runbook:
+            - abbr: RB
+              href: https://runbook.bismigel.dev
+        - Technical reference:
+            - abbr: TR
+              href: https://bismigel.dev/projects/bakuran-homelab/
+        - Forgejo docs:
+            - abbr: FJ
+              href: https://forgejo.org/docs/latest/
         - NixOS packages:
             - abbr: NX
               href: https://search.nixos.org/packages
