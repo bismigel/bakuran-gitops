@@ -56,30 +56,16 @@ data:
           # Media pool (/mnt/media on calamansi-intel): the whole media stack and
           # every *arr import dies when this fills, so warn early and loud.
           #
+          # HISTORICAL (the union is gone as of 2026-11-02; /mnt/media is NFS from
+          # .82). Kept because it explains why the media alerts are layered - the
+          # pool view alone hid a full branch. The branch-level rules are deleted.
+          #
           # WARNING: the *union* is the wrong fault domain on its own. mergerfs
           # (category.create=epmfs) only writes into branches that already hold
           # the library directory, and each branch has its own 4G minfreespace.
           # 2026-10-24: /mnt/media read 71% while media-sda was at 99% and every
           # create under /books,/tv,/movies failed with ENOSPC. So the pool
           # alerts below stay, but the per-branch ones are the real signal.
-          - alert: MediaBranchFillingUp
-            expr: (1 - node_filesystem_avail_bytes{mountpoint=~"/mnt/media-(sda|nvme)"} / node_filesystem_size_bytes{mountpoint=~"/mnt/media-(sda|nvme)"}) * 100 > 85
-            for: 30m
-            labels: { severity: warning }
-            annotations:
-              summary: "media branch {{ $labels.mountpoint }} on {{ $labels.instance }} >85% full"
-              description: "{{ $value | printf \"%.0f\" }}% used on one mergerfs branch. The pool union hides this; run a rebalance (RUNBOOK: 'LazyLibrarian is not downloading' step 7) before it hits 4G free."
-              runbook_url: "https://runbook.bismigel.dev"
-          - alert: MediaBranchCritical
-            # 4G minfreespace on a 234G branch is ~98%, so 93% leaves ~16G of
-            # headroom for an import to finish rather than fail midway.
-            expr: (1 - node_filesystem_avail_bytes{mountpoint=~"/mnt/media-(sda|nvme)"} / node_filesystem_size_bytes{mountpoint=~"/mnt/media-(sda|nvme)"}) * 100 > 93
-            for: 15m
-            labels: { severity: critical }
-            annotations:
-              summary: "media branch {{ $labels.mountpoint }} on {{ $labels.instance }} >93% — imports will start failing"
-              description: "mergerfs refuses creates on a branch under minfreespace (4G) even when the pool reports free space. Rebalance or free space now."
-              runbook_url: "https://runbook.bismigel.dev"
           - alert: MediaPoolDaysToFull
             # % full cannot tell "stable at 90%" from "dead in two days".
             # Two guards, both learned the hard way: the 6h window fired on the
@@ -174,7 +160,7 @@ data:
             labels: { severity: critical }
             annotations:
               summary: "media pool (/mnt/media) >92% full — downloads/imports will fail"
-              description: "{{ $value }}% used on the mergerfs pool."
+                description: "{{ $value }}% used on the media library, now served from .82 over NFS (1.9 TB btrfs). Reclaim with *arr cleanup; growing it means a bigger disk on .82, not another branch."
           # NOTE: BackupFailed alerts are *pushed* to Alertmanager by the systemd
           # OnFailure hooks (see modules/backup*.nix), so there's no rule for them.
       - name: etcd
@@ -304,23 +290,6 @@ data:
         rules:
           # Jellyfin uses strategy Recreate (RWO config PVC), so any roll kills
           # active streams. Catches real downtime irrespective of pod churn.
-          - alert: JellyfinNotRunning
-            expr: sum(kube_pod_container_status_running{namespace="default",pod=~"jellyfin-.*"}) < 1
-            for: 5m
-            labels: { severity: warning }
-            annotations:
-              summary: "Jellyfin has no running container"
-              description: "Deployment strategy is Recreate, so a rollout drops live streams; check whether a roll is in progress before assuming a crash."
-      - name: cronjobs
-        rules:
-          # A failed Job object persists forever and `kube_job_status_failed` stays
-          # 1, so "any failed job of a CronJob" is a poor signal: on 2026-10-29 it
-          # fired for the rest of the day on failures from the rolling restart,
-          # though every CronJob had caught up within minutes.
-          #
-          # Condition: the failure is STILL the latest outcome - exclude a failed
-          # job whose start time is older than the CronJob's last success. Note
-          # `unless on(...)`, not `and ... group_left` (a parse error).
           - alert: CronJobFailed
             expr: |
               (
@@ -458,6 +427,33 @@ data:
           - 'alertname="SmokeTestFailed"'
         # No `equal:` - the pushed alert carries only instance+unit, so there is no
         # shared label to match on and `equal` would never inhibit.
+
+      # ---- the same condition, said twice (2026-11-02 audit) ----
+      # A Job owned by a CronJob raised BOTH of these for the same event: 3 + 3
+      # notifications for three failed runs. The CronJob alert names the owner a
+      # human acts on, so it wins; the pod-level one still speaks for one-shot Jobs.
+      - source_matchers:
+          - 'alertname="CronJobFailed"'
+        target_matchers:
+          - 'alertname="JobPodsFailing"'
+        equal: [namespace, owner_name]
+
+      # DeploymentReplicasUnavailable and KubeDeploymentReplicasMismatch describe the
+      # same thing ("spec.replicas - ready > 0") at different granularity, and both
+      # fired for sabnzbd/audiobookshelf. Keep the one whose message says what to
+      # check; silence the arithmetic duplicate.
+      - source_matchers:
+          - 'alertname="DeploymentReplicasUnavailable"'
+        target_matchers:
+          - 'alertname="KubeDeploymentReplicasMismatch"'
+        equal: [namespace, deployment]
+
+      # Over-committed is the escalated form of headroom-low, for the same disk.
+      - source_matchers:
+          - 'alertname="LonghornDiskSchedulingOverCommitted"'
+        target_matchers:
+          - 'alertname="LonghornDiskSchedulingHeadroomLow"'
+        equal: [node, disk_path]
     receivers:
       - name: telegram
         telegram_configs:
