@@ -1,6 +1,8 @@
-# Dashboard for the three non-Kubernetes devices: router, switch, access point.
-# Mounted via the projected volume in monitoring.yaml — a ConfigMap that is not listed
-# there never reaches Grafana (grafana-dashboard-network was in exactly that state).
+# Router, switch and access point — the three devices that are not Kubernetes objects.
+#
+# Layout rule learned the hard way (2026-11-01): one subject, one panel. The first
+# version had a stat *and* a graph for WAN, and again for the resolver, which reads as
+# duplicated panels even though every query was distinct.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,11 +28,11 @@ data:
       "panels": [
         {
           "type": "stat",
-          "title": "Device up",
+          "title": "Health (1 = up)",
           "gridPos": {
             "x": 0,
             "y": 0,
-            "w": 8,
+            "w": 12,
             "h": 4
           },
           "datasource": {
@@ -39,7 +41,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "none"
+              "unit": "short"
             },
             "overrides": []
           },
@@ -61,82 +63,20 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               }
-            }
-          ]
-        },
-        {
-          "type": "stat",
-          "title": "WAN reachable",
-          "gridPos": {
-            "x": 8,
-            "y": 0,
-            "w": 4,
-            "h": 4
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none"
             },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ]
-            },
-            "colorMode": "background",
-            "graphMode": "none"
-          },
-          "targets": [
             {
               "expr": "netdev_wan_up",
               "legendFormat": "wan",
-              "refId": "A",
+              "refId": "B",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
               }
-            }
-          ]
-        },
-        {
-          "type": "stat",
-          "title": "Resolver answers",
-          "gridPos": {
-            "x": 12,
-            "y": 0,
-            "w": 4,
-            "h": 4
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none"
             },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ]
-            },
-            "colorMode": "background",
-            "graphMode": "none"
-          },
-          "targets": [
             {
               "expr": "netdev_dns_up",
               "legendFormat": "dns",
-              "refId": "A",
+              "refId": "C",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
@@ -146,11 +86,11 @@ data:
         },
         {
           "type": "stat",
-          "title": "Management cert (days)",
+          "title": "Management certificate",
           "gridPos": {
-            "x": 16,
+            "x": 12,
             "y": 0,
-            "w": 8,
+            "w": 12,
             "h": 4
           },
           "datasource": {
@@ -159,7 +99,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "none"
+              "unit": "d"
             },
             "overrides": []
           },
@@ -186,7 +126,7 @@ data:
         },
         {
           "type": "timeseries",
-          "title": "TCP connect to management port",
+          "title": "Device management latency (TCP connect, ms)",
           "gridPos": {
             "x": 0,
             "y": 4,
@@ -217,7 +157,7 @@ data:
         },
         {
           "type": "timeseries",
-          "title": "WAN latency (TCP to 1.1.1.1:443)",
+          "title": "WAN and resolver latency (ms)",
           "gridPos": {
             "x": 12,
             "y": 4,
@@ -237,39 +177,17 @@ data:
           "targets": [
             {
               "expr": "netdev_wan_tcp_ms",
-              "legendFormat": "wan",
+              "legendFormat": "WAN",
               "refId": "A",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
               }
-            }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "Resolver latency (A query)",
-          "gridPos": {
-            "x": 0,
-            "y": 12,
-            "w": 12,
-            "h": 7
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "ms"
             },
-            "overrides": []
-          },
-          "targets": [
             {
               "expr": "netdev_dns_query_ms",
-              "legendFormat": "dns",
-              "refId": "A",
+              "legendFormat": "resolver",
+              "refId": "B",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
@@ -281,7 +199,7 @@ data:
           "type": "timeseries",
           "title": "Router interface throughput",
           "gridPos": {
-            "x": 12,
+            "x": 0,
             "y": 12,
             "w": 12,
             "h": 7
@@ -321,8 +239,8 @@ data:
           "type": "timeseries",
           "title": "Router interface errors",
           "gridPos": {
-            "x": 0,
-            "y": 19,
+            "x": 12,
+            "y": 12,
             "w": 12,
             "h": 7
           },
@@ -339,7 +257,7 @@ data:
           "targets": [
             {
               "expr": "rate(opnsense_interface_rx_errors[15m])",
-              "legendFormat": "{{iface}} rx errors",
+              "legendFormat": "{{iface}} rx",
               "refId": "A",
               "datasource": {
                 "type": "prometheus",
@@ -348,7 +266,7 @@ data:
             },
             {
               "expr": "rate(opnsense_interface_tx_errors[15m])",
-              "legendFormat": "{{iface}} tx errors",
+              "legendFormat": "{{iface}} tx",
               "refId": "B",
               "datasource": {
                 "type": "prometheus",
@@ -359,11 +277,11 @@ data:
         },
         {
           "type": "stat",
-          "title": "pf states",
+          "title": "pf state table",
           "gridPos": {
-            "x": 12,
+            "x": 0,
             "y": 19,
-            "w": 6,
+            "w": 8,
             "h": 7
           },
           "datasource": {
@@ -372,7 +290,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "none"
+              "unit": "short"
             },
             "overrides": []
           },
@@ -410,9 +328,9 @@ data:
           "type": "stat",
           "title": "Router memory",
           "gridPos": {
-            "x": 18,
+            "x": 8,
             "y": 19,
-            "w": 6,
+            "w": 8,
             "h": 7
           },
           "datasource": {
@@ -456,12 +374,52 @@ data:
           ]
         },
         {
+          "type": "stat",
+          "title": "DHCP leases",
+          "gridPos": {
+            "x": 16,
+            "y": 19,
+            "w": 8,
+            "h": 7
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "background",
+            "graphMode": "none"
+          },
+          "targets": [
+            {
+              "expr": "opnsense_dhcp_leases",
+              "legendFormat": "in use",
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        },
+        {
           "type": "timeseries",
-          "title": "Gateway loss / delay (needs dpinger)",
+          "title": "Gateway loss / delay (present only when dpinger is enabled)",
           "gridPos": {
             "x": 0,
             "y": 26,
-            "w": 12,
+            "w": 24,
             "h": 7
           },
           "datasource": {
@@ -488,37 +446,6 @@ data:
               "expr": "opnsense_gateway_delay_ms",
               "legendFormat": "{{gateway}} delay ms",
               "refId": "B",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              }
-            }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "DHCP leases in use",
-          "gridPos": {
-            "x": 12,
-            "y": 26,
-            "w": 12,
-            "h": 7
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "targets": [
-            {
-              "expr": "opnsense_dhcp_leases",
-              "legendFormat": "leases",
-              "refId": "A",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
