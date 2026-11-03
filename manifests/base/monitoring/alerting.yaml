@@ -40,11 +40,11 @@ data:
             expr: |
               absent(node_filesystem_size_bytes{mountpoint="/mnt/backup-sd", instance="192.168.2.82:9100"}) == 1
               or
-              absent(node_filesystem_size_bytes{mountpoint="/mnt/backup-usb", instance="192.168.2.82:9100"}) == 1
+              absent(node_filesystem_size_bytes{mountpoint="/mnt/data", instance="192.168.2.80:9100"}) == 1
             for: 20m
             labels: { severity: warning }
             annotations:
-              summary: "{{ $labels.mountpoint }} on sitaw-amd is not mounted"
+              summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} is not mounted"
               description: "No filesystem series for this mount, so nothing is mounted there (or the node-exporter is gone, which TargetDown covers). Until it comes back, writes aimed at the backup path land on the root filesystem, and the weekly mirror/off-site copy does nothing and reports success."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#backupmountmissing"
           - alert: DiskFillingUp
