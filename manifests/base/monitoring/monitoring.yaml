@@ -174,7 +174,12 @@ data:
         static_configs:
           - targets:
               - https://bismigel.dev/
-              - https://status.bismigel.dev/
+              # /healthz, not /: the page returns 503 whenever any functional check
+            # fails, so probing it made a media outage look like "edge unreachable"
+            # (2026-11-02 19:04-20:33: radarr/sonarr clients down, PublicProbeDown
+            # fired). Reachability and function are different questions and now have
+            # different signals - StatusApiCheckFailing covers the second.
+            - https://status.bismigel.dev/healthz
               - https://ciceley.cc/
               - https://jellyfin.bismigel.dev/
               - https://immich.bismigel.dev/api/server/ping
