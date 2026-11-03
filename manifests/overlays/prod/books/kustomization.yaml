@@ -27,13 +27,11 @@ resources:
   - kavita-secrets.yaml
   # ...and LazyLibrarian's four, for the same reason.
   - lazylibrarian-secrets.yaml
-  # Ciceley's password from Bitwarden - HELD BACK (2026-10-29) until the key
-  # `kavita-ciceley-password` exists in the BWS project. While it is missing, ESO
-  # reports SecretSyncedError and ArgoCD counts that as unhealthy, which leaves
-  # `books` Degraded and trips the smoke test (and therefore an alert) every 15
-  # minutes. Enable the line below as soon as the key is in Bitwarden - the
-  # bootstrap hook already handles her password and no-ops without it.
-  # - kavita-ciceley-password.yaml
+  # Ciceley's password from Bitwarden. Was held back from 2026-10-29 because the
+  # key `kavita-ciceley-password` did not exist in the BWS project; it does now
+  # (2026-11-03), so ESO keeps her account password synced from the vault. The
+  # bootstrap hook already handles it and no-ops when the secret is absent.
+  - kavita-ciceley-password.yaml
 patches:
   - target:
       kind: Deployment
