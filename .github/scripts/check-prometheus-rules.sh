@@ -33,3 +33,12 @@ if [ "${#files[@]}" -eq 0 ]; then
 fi
 
 promtool check rules "${files[@]}"
+
+# The scrape config is a second embedded document, and it is the one that broke on
+# 2026-11-02: a target went in two spaces short, the whole prometheus.yml stopped parsing,
+# and Prometheus crashlooped (exit 2) while `yq` on the *outer* ConfigMap was perfectly
+# happy. Rules were validated; the rest of the config was not.
+scrape=$(mktemp)
+yq eval -r '.data."prometheus.yml" // ""' manifests/base/monitoring/monitoring.yaml > "$scrape"
+[ -s "$scrape" ] || { echo "no prometheus.yml in monitoring.yaml — renamed?"; exit 1; }
+promtool check config "$scrape"
