@@ -283,6 +283,19 @@ data:
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterstale"
       - name: argocd
         rules:
+          # ArgoCD's own health, asked the only way that catches "up but blind": if the
+          # controller stops exporting app metrics, every rule below it (Unhealthy,
+          # OutOfSync) simply stops firing - a green page with no coverage. TargetDown
+          # covers an exporter that is gone; this covers the metrics disappearing for any
+          # other reason and says what is now unmonitored.
+          - alert: ArgoCDMetricsMissing
+            expr: absent(argocd_app_info) == 1
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "ArgoCD is exporting no application metrics"
+              description: "argocd_app_info is gone, so ArgoCDAppUnhealthy, ArgoCDAppOutOfSync and the sync-failure rules are all blind until it returns: a broken vault-style green. Either the application controller is not running or its metrics endpoint stopped being scraped. Check the argocd namespace before trusting any ArgoCD dashboard."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdmetricsmissing"
           - alert: ArgoCDAppOutOfSync
             expr: argocd_app_info{sync_status!="Synced"} == 1
             for: 15m
