@@ -40,7 +40,7 @@ data:
             expr: |
               absent(node_filesystem_size_bytes{mountpoint="/mnt/backup-sd", instance="192.168.2.82:9100"}) == 1
               or
-              absent(node_filesystem_size_bytes{mountpoint="/mnt/data", instance="192.168.2.80:9100"}) == 1
+              absent(node_filesystem_size_bytes{mountpoint="/mnt/media-nvme", instance="192.168.2.82:9100"}) == 1
             for: 20m
             labels: { severity: warning }
             annotations:
