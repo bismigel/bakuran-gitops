@@ -66,15 +66,20 @@ spec:
                   # abort (found by testing the failure path, 2026-11-04).
                   CHAT_ID=${CHAT_ID:-607008268}
 
-                  # Watchdog fires by construction. A count of 1 proves rules are being
-                  # evaluated right now; an empty vector or a failed request does not.
-                  body=$(curl -fsS -m 5 'http://prometheus.monitoring.svc:9090/api/v1/query?query=count(ALERTS%7Balertname%3D%22Watchdog%22%7D)' 2>/dev/null) || body=""
-                  case "$body" in
-                    *'"value":'*',"1"]'*) echo "ok: watchdog firing, evaluation alive"; exit 0 ;;
-                  esac
+                  # Watchdog fires by construction. A count of 1 from ANY live instance
+                  # proves rules are being evaluated right now. Two instances means "the
+                  # primary is down" is a dashboard problem, not an alerting one - so this
+                  # must not alarm when only prometheus-alerting is left standing.
+                  for url in http://prometheus.monitoring.svc:9090 http://prometheus-alerting.monitoring.svc:9090; do
+                    body=$(curl -fsS -m 5 "$url/api/v1/query?query=count(ALERTS%7Balertname%3D%22Watchdog%22%7D)" 2>/dev/null) || body=""
+                    case "$body" in
+                      *'"value":'*',"1"]'*) echo "ok: watchdog firing at $url"; exit 0 ;;
+                    esac
+                    last="${url}: ${body:-no response}"
+                  done
 
                   ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                  echo "ALARM: no Watchdog from Prometheus at $ts (response: ${body:-none})"
+                  echo "ALARM: no Watchdog from either instance at $ts (last: $last)"
 
                   # 1. straight to Telegram - bypasses Prometheus and Alertmanager entirely
                   if [ -r "$TOKEN_FILE" ]; then

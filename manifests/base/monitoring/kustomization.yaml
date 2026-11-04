@@ -17,6 +17,7 @@ resources:
   - alerting-workloads.yaml
   - alerting.yaml
   - prometheus-watchdog.yaml
+  - prometheus-alerting.yaml
   - blackbox-exporter.yaml
   - cloudflare-edge-exporter.yaml
   - etcd-metrics-proxy.yaml
