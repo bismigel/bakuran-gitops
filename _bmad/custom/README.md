@@ -5,3 +5,5 @@ file here only to change *how an agent behaves* — facts about the cluster belo
 `homelab-context`'s reference docs, and decisions belong in its `docs/decisions/`.
 
 `*.user.toml` is personal and ignored.
+
+Deeper context for this project stays in `homelab-context`; nothing here duplicates it.
