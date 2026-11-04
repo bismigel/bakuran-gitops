@@ -1,0 +1,33 @@
+name: runbook-links
+
+# Every alert carries a `runbook_url`, and that is what a woken-up human clicks first. The
+# link is a string typed by hand: a renamed heading in `bismigel-site` or a typo'd anchor
+# breaks it silently. The only check used to live in `homelab-context`, which cannot gate a
+# pull request here — so the 71st alert could arrive dead and nothing would fail.
+#
+# `bismigel-site` is public, so this needs no token, no secret and no cluster access.
+#
+# Story 7.2 in homelab-context: "a new-alert checklist that names the runbook anchor before
+# the rule merges". The checklist is the failure message at the bottom of a broken run.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  runbook-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the runbook pages (public repo, anonymous)
+        uses: actions/checkout@v4
+        with:
+          repository: bismigel/bismigel-site
+          path: site
+          fetch-depth: 1
+
+      - name: Every runbook_url resolves to a page and an anchor
+        run: python3 scripts/check-runbook-links.py --gitops . --site site
