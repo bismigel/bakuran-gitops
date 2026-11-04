@@ -15,6 +15,20 @@ The Cloudflare edge (tunnel/DNS/Access) is **not** in this repo — it is owned 
 
 There is **no CI deploy step** — changing this repo *is* deploying (ArgoCD pulls).
 
+<!-- bmad:context -->
+Planning for this repo runs through BMad: the plan lives in `_bmad-output/` (initiative → epic →
+stories), the agent configuration in `_bmad/`. Rules that hold in every session:
+
+- **Facts live elsewhere.** Cluster facts — addressing, storage, node inventory, what is broken
+  right now — are in `homelab-context` (`NETWORK.md`, `STORAGE.md`, `STATE.md`, `ops/*`). Read them
+  there; do not add a copy to this repo.
+- **Why a thing is shaped this way** is in `homelab-context/docs/decisions/` (ADRs). If a change
+  reverses one, say which.
+- **A story is done when its `verify:` was run**, not when the PR merged. Record the evidence in
+  the ticket.
+- **Verify before asserting**, with a command; a check that cannot fail is not a check.
+<!-- /bmad:context -->
+
 ## Golden rules
 
 1. **Do not put application source, Dockerfiles, or plaintext secrets here.**
