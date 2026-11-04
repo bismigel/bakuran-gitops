@@ -39,6 +39,12 @@ spec:
       initContainers:
         - name: seed-config
           image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+          # A reference of the form repo:tag@digest parses with a digest and NO tag, so
+          # Kubernetes defaults imagePullPolicy to Always - it asks the registry even though
+          # the image is cached. Pinned init containers must say IfNotPresent explicitly.
+          # (2026-11-03: the four media apps were stuck in ImagePullBackOff on this one line,
+          # with .81 unable to reach Docker Hub.)
+          imagePullPolicy: IfNotPresent
           env:
             - name: USENET_USER
               valueFrom:
