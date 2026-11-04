@@ -1,0 +1,73 @@
+# PodDisruptionBudgets for the ArgoCD components that are not covered by the chart.
+#
+# Why these exist here and not in `values.yaml`: the `argo-cd` chart (10.10.5) exposes
+# `pdb` for server, repoServer, controller, applicationSet, dex, redis and notifications —
+# but its `redis-ha` subchart exposes none, and this release uses redis-ha. So the four
+# below are applied as plain objects by ArgoCD instead, which also means **no `helm upgrade`
+# is needed** to get them: the last one rolled redis-ha into new pod IPs and left HAProxy
+# pointing at the old ones, and every git-backed app went Unknown for ~90 minutes (story
+# 6.4). Declaring PDBs separately avoids repeating that to acquire a PDB.
+#
+# What must not happen later: enabling `controller.pdb.enabled` or `applicationSet.pdb.enabled`
+# in `values.yaml` as well. Two PDBs selecting the same pods do not conflict at the API level
+# — both are enforced — but the tighter one silently wins and the next reader has two places
+# to look. Pick one home; this file is it for as long as redis-ha is pinned to the chart's
+# unexposed subchart.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: argocd-application-controller
+  namespace: argocd
+spec:
+  # 2 replicas, active/standby. Draining both does not lose data, but it stops every
+  # reconcile in the estate until one comes back — during exactly the maintenance window
+  # in which the drain is happening.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/name: argocd-application-controller
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: argocd-applicationset-controller
+  namespace: argocd
+spec:
+  # 2 replicas, leader-elected. Same reasoning: cheap to protect, and the ApplicationSets
+  # are how the per-cluster roots are generated.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/name: argocd-applicationset-controller
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: argocd-redis-ha-server
+  namespace: argocd
+spec:
+  # **2, never 1.** Three replicas, sentinel quorum is 2 of 3. `minAvailable: 1` would let a
+  # single drain evict two replicas — losing quorum — so a PDB set to 1 here is worse than
+  # shipping no PDB at all. This is the one budget in the estate where the obvious value is
+  # the wrong one.
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: redis-ha
+      release: argocd
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: argocd-redis-ha-haproxy
+  namespace: argocd
+spec:
+  # 3 replicas fronting the sentinel set. One may go; two would take repo-server's cache
+  # away from every git-backed Application, which is the failure mode of story 6.4.
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: redis-ha-haproxy
+      release: argocd
