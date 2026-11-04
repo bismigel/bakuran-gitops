@@ -1,8 +1,0 @@
-# Epics in build order. Shape follows the BMad ticket tree; `verify` is what the epic is judged by.
-[[epic]]
-id = "1"
-slug = "argocd-eviction"
-title = "A node drain cannot take ArgoCD below one replica"
-status = "built"
-file = "epic-argocd-eviction/epic-argocd-eviction.md"
-verify = "kubectl -n argocd get pdb shows both budgets at minAvailable 1, and the replicas sit on different nodes"

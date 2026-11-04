@@ -7,7 +7,7 @@
 [core]
 project_name = "bakuran-gitops"
 output_folder = "_bmad-output"
-active_initiative = "initiative-argocd-resilience"
+active_initiative = ""
 user_name = "Bismigel"
 communication_language = "English"
 document_output_language = "English"

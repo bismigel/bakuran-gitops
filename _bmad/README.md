@@ -4,10 +4,16 @@ This repo is a **BMad project at pilot scope**: the planning artifacts are here,
 That is deliberate — see "Why the tooling is absent" below.
 
 Per the framework, `{project-root}` is the nearest folder containing `_bmad/`, which is what this
-file establishes for `bakuran-gitops`. The work plan lives in [`_bmad-output/`](../_bmad-output).
+file establishes for `bakuran-gitops`.
+
+**There is no ticket store here, on purpose.** Work is planned once, in `homelab-context`, because
+a change that spans `.81`'s host config, the manifests and the runbook is one piece of work — not
+three tickets in three repos that cannot see each other. Each story there names the repository it
+lands in with a `repo:` field, and `homelab-context/scripts/check-bmad.py` validates that. What
+lives here is the configuration that makes skills work in this directory.
 
 ```
-config.toml    base layer: project_name, output_folder, active_initiative (folder name!)
+config.toml    base layer: project_name, output_folder; active_initiative is empty (no store)
 custom/        team overrides (committed); *.user.toml is personal and ignored
 scripts/       the three resolvers a skill's activation step calls
 ```
