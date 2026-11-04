@@ -263,7 +263,7 @@ spec:
             - { name: skills, mountPath: /skills, readOnly: true }
       containers:
         - name: hermes
-          image: nousresearch/hermes-agent:stable@sha256:36099926da316742423544e055d4734777105ffe6341873af5459b957d0c2919
+          image: nousresearch/hermes-agent:stable@sha256:e6d81ae52ebf6a43efa529701405509f20054ba818f179ddd748bed4f8af584c
           workingDir: /opt/data
           args: ["gateway", "run"]
           ports:

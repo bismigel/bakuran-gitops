@@ -56,7 +56,7 @@ spec:
       serviceAccountName: kubernetes-mcp
       containers:
         - name: kubernetes-mcp
-          image: ghcr.io/containers/kubernetes-mcp-server:latest@sha256:c9ac9acb2c6d7bdfa821240eeb42ad1b60de14b08f3094ecf13b63f7c1eb48c0
+          image: ghcr.io/containers/kubernetes-mcp-server:latest@sha256:15a8324ec137b9aa48708aa46a8c18c0fb189c414379f8b6d4e9b151c35b4af7
           imagePullPolicy: IfNotPresent
           args: ["--config", "/etc/kubernetes-mcp-server/config.toml"]
           ports:
