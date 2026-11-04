@@ -52,7 +52,7 @@ spec:
                     topologyKey: kubernetes.io/hostname
           containers:
             - name: check
-              image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f6a69
+              image: curlimages/curl:8.11.1@sha256:sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
               env:
                 - name: CHAT_ID
                   value: "607008268"
@@ -99,6 +99,15 @@ spec:
                 - name: telegram
                   mountPath: /etc/alertmanager-telegram
                   readOnly: true
+              securityContext:
+                # The monitoring namespace audits against Pod Security "restricted" and the
+                # first version of this job was flagged for all four fields. A curl in a
+                # namespace that reports on everything else should not be the exception.
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 1000
+                capabilities: { drop: ["ALL"] }
+                seccompProfile: { type: RuntimeDefault }
               resources:
                 requests: { memory: 16Mi, cpu: 5m }
                 limits: { memory: 64Mi }
