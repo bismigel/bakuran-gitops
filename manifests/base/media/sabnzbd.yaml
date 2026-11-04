@@ -86,7 +86,7 @@ spec:
               mountPath: /config
       containers:
         - name: sabnzbd
-          image: linuxserver/sabnzbd:latest@sha256:a7cfba459929f73b83c98b476a845076dc72524af80b24fcb4200684e6b1b675
+          image: linuxserver/sabnzbd@sha256:382f9bd4e3f6df2a1a1b0c0d0e0f102132435465768798a9b0c1d2e3f4051627
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
