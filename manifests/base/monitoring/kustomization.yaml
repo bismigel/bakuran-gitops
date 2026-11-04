@@ -16,6 +16,7 @@ resources:
   - grafana-dashboard-network-devices.yaml
   - alerting-workloads.yaml
   - alerting.yaml
+  - prometheus-watchdog.yaml
   - blackbox-exporter.yaml
   - cloudflare-edge-exporter.yaml
   - etcd-metrics-proxy.yaml
