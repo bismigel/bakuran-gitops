@@ -72,6 +72,19 @@ spec:
               app.kubernetes.io/name: forgejo
       ports:
         - { protocol: TCP, port: 3000 }
+    # Alertmanager (2026-11-04). This one is not a "does the app work" check like the
+    # others: it is the estate's own alarm. A dead Alertmanager is indistinguishable from a
+    # quiet night, and the router-side witness reads this check through status-api because
+    # the NodePort is loopback-only and cannot be reached from the LAN at all.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: alertmanager
+      ports:
+        - { protocol: TCP, port: 9093 }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
