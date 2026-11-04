@@ -567,6 +567,15 @@ spec:
       labels: { app: alertmanager }
     spec:
       securityContext: { runAsUser: 65534, runAsGroup: 65534 }
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: ["calamansi-intel"]
       containers:
         - name: alertmanager
           image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
