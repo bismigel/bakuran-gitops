@@ -419,6 +419,21 @@ data:
           #
           # `> 900` on a */2 schedule is three missed runs; a brand-new CronJob has no
           # last-successful timestamp at all, which is why this is time()-based rather than absent().
+          # The one monitor whose subject is outside the cluster. Its own liveness used to be a
+          # weekly Telegram message and a human noticing the absence; the router now POSTs to
+          # status-api every five minutes and this fires at twelve missed beats. Critical on
+          # purpose: if this is down, nothing else in this file can page anyone about a total
+          # cluster loss.
+          - alert: RouterHeartbeatStale
+            expr: |
+              time() - router_heartbeat_last_seen_timestamp_seconds > 3600
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "the router's out-of-cluster witness has not reported for an hour"
+              description: "homelab-heartbeat.sh on the OPNsense router has not reached /api/heartbeat in 12 runs. The switch that reports a total cluster loss may itself be dead. Check: ssh root@192.168.2.1 'tail -20 /var/log/homelab-heartbeat.log'."
+              runbook_url: "https://runbook.bismigel.dev/runbook/15-alerts/#the-witness-outside-the-cluster-routerheartbeatstale"
           - alert: PrometheusWatchdogStale
             expr: |
               time() - kube_cronjob_status_last_successful_time{cronjob="prometheus-watchdog"} > 900
