@@ -410,6 +410,25 @@ data:
               summary: "Job pods failing: {{ $labels.namespace }}/{{ $labels.owner_name }}"
               description: "Containers in this Job's pods terminated with an error and are being retried. CronJobFailed only fires once the Job gives up, so this is the earlier signal. Logs: kubectl -n {{ $labels.namespace }} logs job/{{ $labels.owner_name }}."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#jobpodsfailing"
+          # The witness needs a witness. prometheus-watchdog is what notices when Prometheus
+          # stops evaluating: its TSDB is on local-path, so losing that node means the pod cannot
+          # start anywhere, no rule fires, and the pager goes quiet - silence that looks like health.
+          # If the CronJob itself stops running, that protection is gone and nothing says so, because
+          # everything that could notice lives inside Prometheus. This is the cheap half-answer:
+          # make the job's own silence loud while Prometheus is still alive.
+          #
+          # `> 900` on a */2 schedule is three missed runs; a brand-new CronJob has no
+          # last-successful timestamp at all, which is why this is time()-based rather than absent().
+          - alert: PrometheusWatchdogStale
+            expr: |
+              time() - kube_cronjob_status_last_successful_time{cronjob="prometheus-watchdog"} > 900
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "prometheus-watchdog has not succeeded in 15+ minutes"
+              description: "The dead-man switch for Prometheus is not running, so a silent Prometheus would now go unreported. Logs: kubectl -n monitoring logs -l app=prometheus-watchdog --tail=50."
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#prometheuswatchdogstale"
   slo.yml: |
     groups:
       - name: slo

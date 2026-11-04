@@ -1,0 +1,108 @@
+# The alerter cannot report its own death, so something outside it has to.
+#
+# Prometheus evaluates every rule, and its TSDB is on local-path *deliberately*
+# (see the PVC comment: it must not live on the storage it reports on). The cost of
+# that decision is documented as "lose the history" - but it was never just the
+# history. If patola-thinkcentre dies, the pod cannot start anywhere else because its
+# volume is pinned there, so there is NO rule evaluation at all: every alert stops,
+# including NodeDown, and the pager simply goes quiet. Silence looks exactly like
+# "nothing is wrong", which is the worst failure mode in this estate (2026-11-04).
+#
+# So: every 2 minutes, ask Prometheus for its Watchdog count. Watchdog is a rule that
+# is always firing by construction, so "count == 1" is the cheapest possible proof
+# that evaluation is alive. If it is not, this posts *straight to Telegram* - not
+# through Prometheus and not through Alertmanager - so a dead pager cannot hide a dead
+# monitor. It also POSTs an alert to both Alertmanager replicas so the incident shows
+# up in the normal channel when that path is healthy.
+#
+# What this does NOT cover: the whole cluster being unreachable (the CronJob runs
+# inside it) and the CronJob itself breaking. Closing that needs a witness outside the
+# cluster - a Cloudflare Worker or healthchecks.io ping - which is a separate decision.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: prometheus-watchdog
+  namespace: monitoring
+spec:
+  schedule: "*/2 * * * *"          # two missed runs = 4 minutes of silence, then a message
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 60
+      template:
+        metadata:
+          labels:
+            app: prometheus-watchdog
+        spec:
+          restartPolicy: Never
+          # The witness must not live inside the failure domain it reports on: prefer a
+          # node that is not running Prometheus, so losing that node leaves this alive.
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        app: prometheus
+                    topologyKey: kubernetes.io/hostname
+          containers:
+            - name: check
+              image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f6a69
+              env:
+                - name: CHAT_ID
+                  value: "607008268"
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -u
+                  TOKEN_FILE=/etc/alertmanager-telegram/bot-token
+                  # Defaulted, not just supplied by the env: under `set -u` a missing
+                  # CHAT_ID aborts the notify step, which is the one step that must never
+                  # abort (found by testing the failure path, 2026-11-04).
+                  CHAT_ID=${CHAT_ID:-607008268}
+
+                  # Watchdog fires by construction. A count of 1 proves rules are being
+                  # evaluated right now; an empty vector or a failed request does not.
+                  body=$(curl -fsS -m 5 'http://prometheus.monitoring.svc:9090/api/v1/query?query=count(ALERTS%7Balertname%3D%22Watchdog%22%7D)' 2>/dev/null) || body=""
+                  case "$body" in
+                    *'"value":'*',"1"]'*) echo "ok: watchdog firing, evaluation alive"; exit 0 ;;
+                  esac
+
+                  ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  echo "ALARM: no Watchdog from Prometheus at $ts (response: ${body:-none})"
+
+                  # 1. straight to Telegram - bypasses Prometheus and Alertmanager entirely
+                  if [ -r "$TOKEN_FILE" ]; then
+                    code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+                      -X POST "https://api.telegram.org/bot$(cat "$TOKEN_FILE")/sendMessage" \
+                      --data-urlencode "chat_id=$CHAT_ID" \
+                      --data-urlencode "text=🔇 Prometheus is not evaluating ($ts). Every alert is silent — node loss, crashloop or a bad config. Check: kubectl -n monitoring get pods" 2>/dev/null) || code=000
+                    echo "telegram: HTTP $code"
+                  else
+                    echo "telegram: token file missing"
+                  fi
+
+                  # 2. and into the normal channel, so it is visible where people look
+                  alert='[{"labels":{"alertname":"PrometheusNotEvaluating","severity":"critical","job":"prometheus"},"annotations":{"summary":"Prometheus is not evaluating rules (Watchdog is not firing)","runbook_url":"https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors#prometheusnotevaluating"}}]'
+                  for am in alertmanager-0 alertmanager-1; do
+                    curl -fsS -m 5 -X POST "http://$am.alertmanager-headless.monitoring.svc:9093/api/v2/alerts" \
+                      -H 'Content-Type: application/json' --data "$alert" >/dev/null 2>&1 \
+                      && echo "posted to $am" || echo "could not post to $am"
+                  done
+                  exit 1
+              volumeMounts:
+                - name: telegram
+                  mountPath: /etc/alertmanager-telegram
+                  readOnly: true
+              resources:
+                requests: { memory: 16Mi, cpu: 5m }
+                limits: { memory: 64Mi }
+          volumes:
+            - name: telegram
+              secret:
+                secretName: alertmanager-telegram
