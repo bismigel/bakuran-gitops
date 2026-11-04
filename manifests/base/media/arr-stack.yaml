@@ -193,7 +193,7 @@ spec:
               mountPath: /config
       containers:
         - name: sonarr
-          image: linuxserver/sonarr:latest@sha256:386c962ee6e260e3a5656b25df2ed056bcc9b6410e197d075f9547fd14c23bca
+          image: linuxserver/sonarr@sha256:0deb8db6c839ac475e9cd86277712772c40ba7f929a003d7e1de36c4b666bc13
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8989
@@ -283,7 +283,7 @@ spec:
               mountPath: /config
       containers:
         - name: radarr
-          image: linuxserver/radarr:latest@sha256:ade5937813c6ae415b29db729386e53fea3ecf067a019849bafbe2d2a6ec02ba
+          image: linuxserver/radarr@sha256:cfbc4fa09dc9d78f7cedc898f4ec48c6277cacedc523c4e159db6ff1c741959c
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 7878
@@ -366,7 +366,7 @@ spec:
               mountPath: /config
       containers:
         - name: bazarr
-          image: linuxserver/bazarr:latest@sha256:7ef0e58216900dbce30b123e0eb65f5cb30e36f126de9474acdd2022fb069c54
+          image: linuxserver/bazarr@sha256:fb0437897eaa7f96cf6ac42f795f8dcc208d34ec969eac5d366454e767304eb9
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6767
