@@ -28,6 +28,22 @@ controller:
       memory: 1Gi
 server:
   replicas: 2
+  # A drain must never take both replicas: with no PDB the eviction API may remove them in
+  # one drain, taking down the API the estate is managed through at the exact moment someone
+  # is draining a node (found by audit, 2026-11-04).
+  pdb:
+    enabled: true
+    minAvailable: 1
+  # Required, not preferred. homelab-context ADR-0008: placement is a preference unless
+  # correctness demands a pin; two ArgoCD servers on one node is one server with extra steps.
+  # Until now the spread was luck (kubectl get pods -o wide, 2026-11-04).
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: server
+          topologyKey: kubernetes.io/hostname
   resources:
     requests:
       cpu: 100m
@@ -43,6 +59,16 @@ server:
     tls: false
 repoServer:
   replicas: 2
+  pdb:
+    enabled: true
+    minAvailable: 1
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: repo-server
+          topologyKey: kubernetes.io/hostname
   resources:
     requests:
       cpu: 100m

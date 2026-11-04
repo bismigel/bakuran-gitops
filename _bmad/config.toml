@@ -1,0 +1,13 @@
+# BMad central config — BASE layer. Resolution: this file, then _bmad/custom/config.toml
+# (team), then _bmad/custom/config.user.toml (personal). Later layers win per key.
+#
+# `active_initiative` is the FOLDER name under output_folder (initiative-<slug>), not the slug —
+# the resolver compares it against directory names, and the skill's prose reads as though the slug
+# would do. See homelab-context ADR-0009 and scripts/check-bmad.py there.
+[core]
+project_name = "bakuran-gitops"
+output_folder = "_bmad-output"
+active_initiative = "initiative-argocd-resilience"
+user_name = "Bismigel"
+communication_language = "English"
+document_output_language = "English"
