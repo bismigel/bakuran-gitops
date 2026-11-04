@@ -30,9 +30,16 @@ spec:
       data:
         GITEA__security__SECRET_KEY: "{{ .secret_key }}"
         FORGEJO_ADMIN_PASSWORD: "{{ .admin_password }}"
+        # A scoped API token (write:issue, read:repository) for tooling that must not hold the
+        # admin password: `homelab-context/scripts/board-sync.sh` collects `/approve` decisions
+        # from the issue board into the ticket store. Until 2026-11-04 that script minted a
+        # token from the admin password on every run and revoked it afterwards, because
+        # Bitwarden was locked and the token had nowhere to live. It lives here now.
+        FORGEJO_API_TOKEN: "{{ .api_token }}"
   data:
     - { secretKey: secret_key, remoteRef: { key: forgejo-secret-key } }
     - { secretKey: admin_password, remoteRef: { key: forgejo-admin } }
+    - { secretKey: api_token, remoteRef: { key: forgejo-api-token } }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
