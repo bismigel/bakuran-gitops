@@ -553,13 +553,23 @@ spec:
     - secretKey: token
       remoteRef: { key: telegram-bot-token }
 ---
+# Two replicas with gossip, not one. On 2026-11-03 the single Alertmanager sat on the node
+# whose egress is the WireGuard tunnel; when the tunnel died its Telegram POSTs timed out and
+# the estate went mute with every alert still firing. A StatefulSet (not a Deployment) because
+# gossip peers need stable names: alertmanager-0/1 are resolvable at
+# alertmanager-N.alertmanager-headless.monitoring.svc.cluster.local forever.
+#
+# Silences and the notification log replicate over gossip, so the per-pod emptyDir is enough -
+# losing a pod loses nothing that matters. Both replicas carry the same config, so either can
+# send the notification; silence and dedupe state is shared.
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: alertmanager
   namespace: monitoring
 spec:
-  replicas: 1
+  serviceName: alertmanager-headless
+  replicas: 2
   selector:
     matchLabels: { app: alertmanager }
   template:
@@ -582,9 +592,19 @@ spec:
           args:
             - '--config.file=/etc/alertmanager/alertmanager.yml'
             - '--storage.path=/alertmanager'
+            - '--cluster.listen-address=0.0.0.0:9094'
+            - '--cluster.advertise-address=$(POD_IP):9094'
+            - '--cluster.peer=alertmanager-0.alertmanager-headless.monitoring.svc.cluster.local:9094'
+            - '--cluster.peer=alertmanager-1.alertmanager-headless.monitoring.svc.cluster.local:9094'
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef: { fieldPath: status.podIP }
           ports:
             - containerPort: 9093
               name: web
+            - containerPort: 9094
+              name: cluster
           volumeMounts:
             - { name: config, mountPath: /etc/alertmanager }
             - { name: secret, mountPath: /etc/alertmanager/secret, readOnly: true }
@@ -599,6 +619,31 @@ spec:
           secret: { secretName: alertmanager-telegram }
         - name: data
           emptyDir: {}
+---
+# Stable per-replica DNS and the gossip endpoint. Headless, so each pod gets its own A record.
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-headless
+  namespace: monitoring
+spec:
+  clusterIP: None
+  selector: { app: alertmanager }
+  ports:
+    - name: cluster
+      port: 9094
+      targetPort: 9094
+---
+# A drain may take one replica; it must never take both and silence the pager.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: alertmanager }
 ---
 apiVersion: v1
 kind: Service
