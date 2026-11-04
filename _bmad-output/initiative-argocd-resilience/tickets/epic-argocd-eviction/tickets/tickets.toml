@@ -1,0 +1,17 @@
+# Stories for epic 1. `verify` is run before a story is marked done; `evidence` records the result.
+
+[[story]]
+id = "1.1"
+title = "Guard argocd-server and repo-server with PodDisruptionBudgets"
+status = "built"
+verify = "kubectl -n argocd get pdb → two budgets, minAvailable 1, ALLOWED DISRUPTIONS 1"
+evidence = "2026-11-04 helm upgrade: argocd-repo-server and argocd-server both render minAvailable:1 and report ALLOWED DISRUPTIONS 1"
+
+[[story]]
+id = "1.2"
+title = "Make the two-replica spread a declaration, not a coincidence"
+status = "built"
+after = ["1.1"]
+verify = "kubectl -n argocd get pods -o custom-columns=NODE:.spec.nodeName shows server and repo-server each on two different nodes after a rollout"
+evidence = "2026-11-04 after rollout: repo-server on calamansi-intel + patola-thinkcentre, server on patola-thinkcentre + calamansi-intel"
+note = "Required anti-affinity costs one thing: with two nodes down, the second replica stays Pending. Accepted — quorum is already lost in that case, and homelab-context ADR-0008 allows a pin where correctness demands it."
