@@ -112,6 +112,16 @@ jobs:
       - name: Image digests
         run: .github/scripts/check-image-digests.sh .
 
+      # The check above validates the SHAPE of a digest. A well-formed but wrong one
+      # passes it and only fails at pull time as ImagePullBackOff - which on a node whose
+      # only egress is the tunnel is indistinguishable from a network outage. Three times
+      # in one night (2026-11-03/04) a digest was edited by hand and broke: padded out from
+      # a 12-char imageID, mistyped by one character, and prefixed `sha256:sha256:`.
+      # The registry is the only authority on whether a digest exists, so ask it:
+      # HEAD /v2/<repo>/manifests/<digest>, where 404 is the only hard failure.
+      - name: Image digests exist
+        run: python3 .github/scripts/verify-image-digests.py .
+
       # Policy on the RENDERED manifests, encoding mistakes this lab actually made.
       - name: Manifest policy (conftest/OPA)
         run: |
