@@ -94,10 +94,26 @@ spec:
             # --- no SSH listener: git over HTTPS only, so nothing new to expose ---
             - { name: GITEA__server__DISABLE_SSH, value: "true" }
             - { name: GITEA__server__START_SSH_SERVER, value: "false" }
-            # --- storage: SQLite is deliberate; the estate's rule is small
-            #     critical data on Longhorn, and 36 repos of git objects are small ---
-            - { name: GITEA__database__DB_TYPE, value: sqlite3 }
-            - { name: GITEA__database__PATH, value: /data/gitea/gitea.db }
+            # --- database: Postgres, since 2026-11-05 (epic 8, story 8.1) ---
+            #
+            # It was SQLite deliberately: small, critical data on Longhorn, 36 repos of git objects
+            # are small. That reasoning was about *durability*, and it still holds — Longhorn gives
+            # the file three replicas. What it could never give was a second writer, so Forgejo could
+            # not have a second replica, and a single Deployment is not HA whatever its storage does.
+            #
+            # The cutover kept the data: `forgejo dump -d postgres` emitted a 3.97 MB Postgres-dialect
+            # SQL dump, which was imported into `forgejo-postgres` **before** this change, and the
+            # counts matched exactly (34 issues, 36 repos, 1 user, 3 tokens). The SQLite file is still
+            # at /data/gitea/gitea.db on the PVC — untouched, as the fallback, not deleted.
+            - { name: GITEA__database__DB_TYPE, value: postgres }
+            - { name: GITEA__database__HOST, value: "forgejo-postgres:5432" }
+            - { name: GITEA__database__NAME, value: forgejo }
+            - { name: GITEA__database__USER, value: forgejo }
+            - { name: GITEA__database__SSL_MODE, value: disable }
+            # Sessions go to the database, not to files. This is not needed at one replica and is
+            # exactly what breaks at two: file-based sessions are per-pod, so a second replica would
+            # log users out alternately depending on which pod answered.
+            - { name: GITEA__session__PROVIDER, value: db }
             # --- closed by default ---
             - { name: GITEA__security__INSTALL_LOCK, value: "true" }
             - { name: GITEA__service__DISABLE_REGISTRATION, value: "true" }
@@ -108,6 +124,9 @@ spec:
             - { name: GITEA__mirror__MIN_INTERVAL, value: 10m0s }
             - { name: GITEA__repository__DEFAULT_PRIVATE, value: private }
             - { name: GITEA__log__LEVEL, value: Info }
+            - name: GITEA__database__PASSWD
+              valueFrom:
+                secretKeyRef: { name: forgejo-db, key: POSTGRES_PASSWORD }
           envFrom:
             - secretRef:
                 name: forgejo-secrets
