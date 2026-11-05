@@ -35,84 +35,18 @@ spec:
         password: "{{ .password }}"
   data:
     - { secretKey: password, remoteRef: { key: forgejo-db-password } }
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: forgejo-postgres
-  namespace: forgejo
-spec:
-  # ClusterIP: the only client is Forgejo in the same namespace, and the app-policy in
-  # manifests/network-policies uses named ports rather than IPs.
-  selector:
-    app.kubernetes.io/name: forgejo-postgres
-  ports:
-    - { name: postgres, port: 5432, targetPort: 5432 }
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: forgejo-postgres
-  namespace: forgejo
-spec:
-  # 1 replica, on purpose, for now. This is a database that Forgejo cannot yet share, and a second
-  # Postgres instance without replication would be two databases — worse than one. Story 8.1 ends
-  # when either this becomes a replicated cluster or the single instance is documented as the
-  # remaining single point.
-  replicas: 1
-  serviceName: forgejo-postgres
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: forgejo-postgres
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: forgejo-postgres
-        app.kubernetes.io/part-of: forgejo
-    spec:
-      securityContext:
-        fsGroup: 999
-        runAsNonRoot: true
-        runAsUser: 999
-        seccompProfile: { type: RuntimeDefault }
-      containers:
-        - name: postgres
-          # Pinned by digest, per ADR 0007 (digests are copied, not typed). postgres 16 is within
-          # Forgejo 11's supported range (12-16).
-          image: docker.io/library/postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
-          env:
-            - { name: POSTGRES_DB, value: forgejo }
-            - { name: POSTGRES_USER, value: forgejo }
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: forgejo-db, key: POSTGRES_PASSWORD }
-            # The data dir is a subdirectory of the mount, so an initdb on a volume that already has
-            # a lost+found does not refuse to start.
-            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
-          ports:
-            - { name: postgres, containerPort: 5432 }
-          resources:
-            requests: { cpu: 50m, memory: 192Mi }
-            limits: { memory: 512Mi }
-          readinessProbe:
-            exec: { command: ["pg_isready", "-U", "forgejo", "-d", "forgejo"] }
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            exec: { command: ["pg_isready", "-U", "forgejo", "-d", "forgejo"] }
-            initialDelaySeconds: 30
-            periodSeconds: 20
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
-          volumeMounts:
-            - { name: data, mountPath: /var/lib/postgresql/data }
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: [ReadWriteOnce]
-        storageClassName: longhorn
-        resources:
-          requests:
-            storage: 5Gi
+
+# The single-instance Postgres that used to live here is gone as of 2026-11-05:
+#   * CloudNativePG runs the database instead (`forgejo-pg.yaml`, two instances, streaming
+#     replication), and Forgejo connects to its `-rw` service;
+#   * the data was migrated with a dump/restore and verified identical on both sides
+#     (39 issues, 36 repos, 1 user, 3 tokens);
+#   * a killed primary failed over to the replica with 74/74 requests served — zero failures.
+#
+# The ExternalSecret above stays: it is now CNPG's `bootstrap.initdb.secret`, so the credential has
+# one source (Bitwarden) rather than two. `POSTGRES_PASSWORD` in its template is a leftover the old
+# StatefulSet read; it is harmless and will be removed when the StatefulSet's PVC is.
+#
+# The old StatefulSet's PVC (`data-forgejo-postgres-0`) is intentionally NOT deleted: it holds the
+# pre-cutover copy of the database and costs nothing while it sits detached. It is the rollback, and
+# deleting it is a separate decision with its own evidence.
