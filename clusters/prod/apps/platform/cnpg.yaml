@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnpg
+  namespace: argocd
+  annotations:
+    # Wave 0: the operator has to be running before any Cluster CR is applied, and before the
+    # forgejo Application (wave 1) switches its database to one of those clusters.
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: prod
+  source:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: cloudnative-pg
+    targetRevision: 0.29.1          # ships operator 1.30.1 (2026-09-23)
+    helm:
+      values: |
+        # Requests only, like the rest of this estate's platform components.
+        resources:
+          requests: { cpu: 20m, memory: 128Mi }
+          limits: { memory: 256Mi }
+        # No Grafana dashboards: this chart would pull a second chart from a third-party repo
+        # and the existing Longhorn/ArgoCD dashboards are hand-declared. Monitoring comes from
+        # the operator's own metrics endpoint, scraped below by the ServiceMonitor the chart
+        # creates only if `monitoring` is on — so it is off, and Prometheus scrapes the
+        # operator's Service directly (see manifests/base/monitoring/alerting-workloads.yaml).
+        monitoring:
+          grafanaDashboard:
+            create: false
+          podMonitor:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # CRDs plus webhooks exceed the annotation limit, exactly like Longhorn's.
+      - ServerSideApply=true

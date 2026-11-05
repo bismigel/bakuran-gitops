@@ -1,0 +1,57 @@
+# Forgejo's database as a CloudNativePG cluster — two instances, one primary and one streaming
+# replica, so losing the node that holds the primary is a failover rather than a restart.
+#
+# Story 8.5. 8.1 left `forgejo-postgres` as a single StatefulSet: durable on Longhorn (3 replicas),
+# but a node loss meant a restart (~1 minute) and not a failover. This is that gap.
+#
+# The old StatefulSet and its PVC are NOT touched here. The cutover order is deliberate:
+#   1. this cluster comes up empty and healthy (two instances, replication working)
+#   2. the existing database is dumped and restored into it
+#   3. Forgejo's env is pointed at the `-rw` service, and only then
+#   4. the old StatefulSet is removed from git — last, once the new one is serving
+# Taking them in any other order means a period where the data exists in neither place.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: forgejo-pg
+  namespace: forgejo
+spec:
+  instances: 2
+  # Postgres 16 to match what Forgejo runs against today (and Forgejo 11 supports 12-16). Pinned by
+  # digest, per ADR 0007 — the CNPG images carry their own minor version.
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.10@sha256:6287f6497c8c7495305900b79b7aa8d0c9515fa9d3614eff81650068f4d9bacf
+  primaryUpdateStrategy: unsupervised
+
+  storage:
+    storageClass: longhorn
+    size: 5Gi
+
+  # The bootstrap database and owner are the ones Forgejo already uses, and the password comes from
+  # the same Secret the old StatefulSet used — so the cutover is a change of host, not of credentials.
+  bootstrap:
+    initdb:
+      database: forgejo
+      owner: forgejo
+      secret:
+        name: forgejo-db
+
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 768Mi }
+
+  # One replica of Postgres on Longhorn is fine; the point of this cluster is the *second instance*,
+  # which is Postgres streaming replication, not storage replication.
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "128MB"
+
+  monitoring:
+    enablePodMonitor: true
+
+  # Keep two instances apart on purpose (ADR 0008): a primary and a replica on the same node is one
+  # instance with extra steps.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
