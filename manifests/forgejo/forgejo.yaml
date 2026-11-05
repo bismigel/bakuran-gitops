@@ -148,14 +148,33 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+          # A killed replica took the *surviving* one down with it for 17 seconds (measured
+          # 2026-11-05, 45 one-second probes: 200,200,…,000 ×17,…,200). The cause was the default
+          # `timeoutSeconds: 1` on a probe that touches `/api/healthz` while `/data` is an NFS mount:
+          # when the dead pod's mount was torn down, the live pod's probe timed out once, the kubelet
+          # killed it, and both replicas restarted together — a two-replica service with a
+          # one-replica failure mode.
           readinessProbe:
             httpGet: { path: /api/healthz, port: http }
             initialDelaySeconds: 10
-            periodSeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           livenessProbe:
             httpGet: { path: /api/healthz, port: http }
             initialDelaySeconds: 60
             periodSeconds: 30
+            # Five seconds, not one: a liveness probe is for "this process is wedged", not for
+            # "the network blipped for a moment". Being killed by a transient is worse than being
+            # restarted late.
+            timeoutSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              # Let the endpoint be removed before the process exits, so in-flight requests go to
+              # the other replica instead of a socket that is closing.
+              exec: { command: ["sh", "-c", "sleep 5"] }
+          terminationGracePeriodSeconds: 30
           resources:
             requests:
               cpu: 100m
