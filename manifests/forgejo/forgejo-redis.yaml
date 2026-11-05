@@ -1,0 +1,62 @@
+# Valkey for Forgejo's queues and cache — required for a second replica, not a nice-to-have.
+#
+# With RWX storage and Postgres done, the second pod still crash-looped:
+#
+#   Failed to create queue "notification-service": unable to lock level db at
+#   /data/gitea/queues/common: resource temporarily unavailable
+#
+# Forgejo's default queue backend is a LevelDB **directory**, which admits exactly one writer no
+# matter how many nodes can mount it. Shared storage solves the mount, not the lock. Redis is the
+# backend that makes the queue a network service instead of a file.
+#
+# No persistence on purpose: this holds in-flight work items and cached entries. Losing them on a
+# restart costs a retried notification or a cold cache, and nothing is lost from the repositories,
+# the database or the attachments — those are the PVC and Postgres.
+apiVersion: v1
+kind: Service
+metadata:
+  name: forgejo-redis
+  namespace: forgejo
+spec:
+  selector:
+    app.kubernetes.io/name: forgejo-redis
+  ports:
+    - { name: redis, port: 6379, targetPort: 6379 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgejo-redis
+  namespace: forgejo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgejo-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgejo-redis
+        app.kubernetes.io/part-of: forgejo
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: valkey
+          # Same image the Immich stack already runs, pinned by digest (ADR 0007).
+          image: docker.io/valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+          args: ["--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+          ports:
+            - { name: redis, containerPort: 6379 }
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { memory: 192Mi }
+          readinessProbe:
+            exec: { command: ["valkey-cli", "ping"] }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
