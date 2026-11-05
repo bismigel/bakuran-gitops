@@ -24,7 +24,15 @@ spec:
     creationPolicy: Owner
     template:
       data:
+        # Two consumers, one password, and they disagree about the key names:
+        #   * the old StatefulSet reads `POSTGRES_PASSWORD` (postgres image convention)
+        #   * CloudNativePG's bootstrap reads `username` + `password` (its own convention)
+        # Rendering all three from one Bitwarden value keeps a single source of truth for the
+        # credential while the cutover is in progress. Once the StatefulSet is gone,
+        # POSTGRES_PASSWORD stops being read by anything.
         POSTGRES_PASSWORD: "{{ .password }}"
+        username: "forgejo"
+        password: "{{ .password }}"
   data:
     - { secretKey: password, remoteRef: { key: forgejo-db-password } }
 ---
