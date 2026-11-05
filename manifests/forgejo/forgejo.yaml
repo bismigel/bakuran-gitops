@@ -127,6 +127,14 @@ spec:
             # exactly what breaks at two: file-based sessions are per-pod, so a second replica would
             # log users out alternately depending on which pod answered.
             - { name: GITEA__session__PROVIDER, value: db }
+            # Queues and cache go to Valkey: the default queue backend is a LevelDB directory under
+            # /data, which is single-writer even on ReadWriteMany storage — the second replica died on
+            # `unable to lock level db … resource temporarily unavailable`. A file lock is not solved
+            # by a shared filesystem; it is solved by not using a file.
+            - { name: GITEA__queue__TYPE, value: redis }
+            - { name: GITEA__queue__CONN_STR, value: "redis://forgejo-redis:6379/0" }
+            - { name: GITEA__cache__ADAPTER, value: redis }
+            - { name: GITEA__cache__HOST, value: "redis://forgejo-redis:6379/1" }
             # --- closed by default ---
             - { name: GITEA__security__INSTALL_LOCK, value: "true" }
             - { name: GITEA__service__DISABLE_REGISTRATION, value: "true" }
