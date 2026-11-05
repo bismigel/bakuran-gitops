@@ -57,14 +57,20 @@ spec:
     limits: { memory: 1Gi }
 
   postgresql:
+    # The Immich image ships this at `/etc/postgresql/postgresql.conf` line 3, but CloudNativePG generates the
+    # configuration itself, so the file is not consulted. Without it the bootstrap dies at
+    # `ERROR: vchord must be loaded via shared_preload_libraries. (SQLSTATE XX000)`.
+    #
+    # This is a **dedicated field**, not a `parameters` entry: `parameters.shared_preload_libraries` is refused as
+    # "Can't set fixed configuration parameter" in this operator version, and the field's own description is
+    # "Lists of shared preload libraries to add to the default ones".
+    shared_preload_libraries:
+      - vchord
+      - vectors
+
     parameters:
       max_connections: "100"
       shared_buffers: "192MB"
-      # Copied from the image's own `/etc/postgresql/postgresql.conf` line 3 — the Immich build ships this
-      # setting, but CloudNativePG generates the configuration and passes its own values on the command line, so
-      # the file is not read for this. Without it the bootstrap dies at
-      # `ERROR: vchord must be loaded via shared_preload_libraries. (SQLSTATE XX000)`.
-      shared_preload_libraries: "vchord.so,vectors.so"
 
   affinity:
     enablePodAntiAffinity: true
