@@ -90,7 +90,7 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              app: forgejo
+              app.kubernetes.io/name: forgejo
       containers:
         - name: forgejo
           # Pinned by digest: CI fails on a floating tag.
@@ -188,7 +188,7 @@ spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: forgejo
+      app.kubernetes.io/name: forgejo
 
 ---
 apiVersion: v1
