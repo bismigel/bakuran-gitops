@@ -1,0 +1,62 @@
+# CloudNativePG needs egress the `immich` allowlist does not give it.
+#
+# `immich` is default-deny in both directions, and its allow-egress policy lists what the *app* needs:
+# the API server, DNS, the books stack, the LAN. The CNPG instances are a different workload in the same
+# namespace — and the instance manager talks to the API server (it reads its own Cluster object) before
+# it will initialise a database at all. Without this, the bootstrap dies with:
+#
+#   wait-for-get-cluster: dial tcp 10.43.0.1:443: i/o timeout
+#
+# which reads like a broken cluster and is really a missing rule. Forgejo's namespace has no policies, so
+# 8.5 never hit it.
+#
+# Scoped to the CNPG pods by label, and to the three things they need: the API server, DNS, and each
+# other (streaming replication).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cnpg-egress
+  namespace: immich
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: immich-pg
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: immich-pg
+---
+# And the ingress side of the same thing: the app has to reach the database, which the existing
+# allow-ingress policy does not cover for pods it did not name.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-immich-app-to-db
+  namespace: immich
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: immich-pg
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - { protocol: TCP, port: 5432 }
