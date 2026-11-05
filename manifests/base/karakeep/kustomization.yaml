@@ -1,0 +1,10 @@
+# Karakeep, cluster-agnostic.
+#
+# Nothing here is specific to this lab: no hostname, no overlay URLs, no node
+# placement. Those belong to an overlay, so a second cluster can run the same
+# definitions with different values instead of keeping its own approximation.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - karakeep.yaml
+  - networkpolicy.yaml
