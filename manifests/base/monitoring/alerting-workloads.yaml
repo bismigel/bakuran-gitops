@@ -282,8 +282,27 @@ data:
           # largest volume is 32.2G. While a dedicated disk can take the replica this
           # costs nothing; it costs redundancy only when the pressured disk is the last
           # candidate.
+          # The scheduling ratio above measures *promises*. This measures bytes, and it is what
+          # makes raising `storage-over-provisioning-percentage` safe: if the filesystems holding
+          # Longhorn disks really start filling, this fires long before a rebuild runs out of room.
+          - alert: LonghornDiskActualSpaceLow
+            expr: |
+              (node_filesystem_avail_bytes{mountpoint=~"/mnt/(data|longhorn|media-nvme)"}
+                / node_filesystem_size_bytes{mountpoint=~"/mnt/(data|longhorn|media-nvme)"}) < 0.15
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has {{ humanizePercentage $value }} of its space free"
+              description: "This is a filesystem holding Longhorn replicas, measured in actual bytes. Scheduling headroom is a promise; this is the disk."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
           - alert: LonghornDiskSchedulingHeadroomLow
-            expr: longhorn:disk_scheduled_to_free_ratio > 0.9
+            # The threshold tracks `storage-over-provisioning-percentage`, which is 200 since
+            # 2026-11-05: Longhorn will schedule up to twice the disk, so 0.9 of *free* space is no
+            # longer the boundary — 1.6 is 80 % of that allowance, and it still fires before
+            # scheduling is refused. If the over-provisioning value changes, this number moves with
+            # it; they are one decision in two places, which is why the link is written here.
+            expr: longhorn:disk_scheduled_to_free_ratio > 1.6
             for: 1h
             labels:
               severity: warning
@@ -291,11 +310,13 @@ data:
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
               description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (docs/REBUILD.md)."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
-          # > 1 means more bytes are promised to replicas than exist free on the
-          # filesystem: the next rebuild larger than the shortfall cannot be placed and
-          # stays Pending. That is the state that costs redundancy.
+          # Over-commitment is measured against the *over-provisioning allowance*, not against free
+          # bytes, since 2026-11-05 (`storage-over-provisioning-percentage: 200`). At that setting
+          # Longhorn will place replicas until promises reach twice the disk, so "promised > free"
+          # is normal and expected — 1.8 is 90 % of the allowance, which is the point at which the
+          # next rebuild genuinely cannot be placed.
           - alert: LonghornDiskSchedulingOverCommitted
-            expr: longhorn:disk_scheduled_to_free_ratio > 1
+            expr: longhorn:disk_scheduled_to_free_ratio > 1.8
             for: 10m
             labels:
               severity: critical

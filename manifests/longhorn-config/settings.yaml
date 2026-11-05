@@ -6,3 +6,22 @@ metadata:
   name: support-bundle-manager-image
   namespace: longhorn-system
 value: docker.io/longhornio/support-bundle-kit:v0.0.98
+---
+# Longhorn reserves *provisioned* size, not written bytes, and at 100 % it treats a 15 GiB PVC as
+# 15 GiB of disk even when 330 MiB is written. Measured 2026-11-05 across all volumes:
+#
+#   requested 123 GiB      actually used 9.2 GiB      <- 13x over-request
+#
+# That made `patola-thinkcentre:/mnt/data` look 97 % full (119 GiB scheduled of 135 GiB) while the
+# filesystem held 12 GiB, and blocked new replica scheduling for no physical reason. 200 % is the
+# setting Longhorn provides for exactly this: it says "requests are conservative, allow up to twice
+# the disk". Reverting is one value.
+#
+# It is only safe because a real-space alert exists as well (`LonghornDiskActualSpaceLow`, added in
+# the same change). Over-provisioning without a bytes-based alarm is how a filesystem fills silently.
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: storage-over-provisioning-percentage
+  namespace: longhorn-system
+value: "200"
