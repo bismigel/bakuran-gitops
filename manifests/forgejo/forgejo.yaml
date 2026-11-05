@@ -44,17 +44,11 @@ spec:
     - { secretKey: admin_password, remoteRef: { key: forgejo-admin } }
     - { secretKey: api_token, remoteRef: { key: forgejo-board-token } }
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: forgejo-data
-  namespace: forgejo
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
-  resources:
-    requests:
-      storage: 15Gi
+# `forgejo-data` (ReadWriteOnce, the sqlite era's volume) is no longer declared: `/data` moved to
+# `forgejo-data-rwx` when the second replica landed on 2026-11-05, and the sqlite database it held was
+# superseded by Postgres. Leaving the declaration here is what made ArgoCD *recreate* the volume after
+# it was deleted by hand — a GitOps system does exactly what the repository says, so removing a live
+# object without removing its declaration is a rename, not a deletion.
 ---
 apiVersion: apps/v1
 kind: Deployment
