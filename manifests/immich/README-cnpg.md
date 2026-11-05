@@ -38,6 +38,32 @@ checks a Service, not the API), which is why the pattern looked sufficient and i
 So the next attempt is a `CiliumNetworkPolicy` in `immich` granting the CNPG pods `toEntities:
 kube-apiserver` — a new CRD pattern in this repository, and one to declare once and reuse.
 
+## Second attempt, 2026-11-05: past the API, stopped at the user
+
+The `CiliumNetworkPolicy` fixed the first blocker — and it is worth recording that the policy *itself* was
+invalid at first (`toEntities: [kube-dns]` is rejected by this Cilium, so ArgoCD's sync failed and the object
+was never created; the symptom looked exactly like "the policy does not help"). Once valid, CNPG reached the
+API server immediately.
+
+Next failure, one layer further down:
+
+```
+initdb: could not look up effective user ID 26: user does not exist
+```
+
+Measured: the Immich image defines `postgres` at **UID 999**; CNPG's `initdb` expects the user it runs as
+(**26**, the Debian `postgres` uid its own images use). The Cluster CRD does not expose a way to override it
+— `kubectl explain cluster.postgresql.cnpg.io.spec` has no `securityContext`/`runAsUser` field.
+
+So the remaining work is an image, not a manifest: either
+1. a thin derived image `FROM ghcr.io/immich-app/postgres:…` that adds `postgres:x:26` to `/etc/passwd`, or
+2. a CNPG-compatible build of the same Postgres with `vchord` + `vector`, from the extensions' upstream
+   projects.
+
+Option 1 is smaller and keeps Immich's extension versions exactly, which is what a data-retaining migration
+wants. It needs an image build and a place to publish it — which this estate does not have for a one-off
+image, hence the open question rather than a half-done attempt.
+
 ## What is unchanged
 
 Nothing about Immich itself: `immich-postgres` still runs as a single StatefulSet, the app is untouched,
