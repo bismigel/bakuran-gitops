@@ -1,0 +1,110 @@
+# Postgres for Forgejo — the first half of story 8.1 (homelab-context epic 8).
+#
+# Why: Forgejo runs sqlite3 at /data/gitea/gitea.db, so it can only ever have one writer. A second
+# replica would corrupt the file, which makes the database — not the replica count — the blocker for
+# HA. This adds the database ahead of the cutover so the risky step later is a dump/restore onto
+# something already running, not a "create a database and migrate" performed in one breath.
+#
+# Deliberately NOT referenced by the forgejo Deployment yet: the app still points at sqlite, and
+# nothing consumes this. The cutover is its own reviewable change, with the dump already proven
+# (2026-11-05: 110 MB zip containing DB, repos and attachments, and the sqlite file itself is 4.7 MB).
+#
+# Sizing: the database is 4.7 MB. 5 GiB is not a capacity estimate, it is the smallest request that
+# leaves room for years of history plus vacuum headroom without anyone thinking about it again.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: forgejo-db
+  namespace: forgejo
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: forgejo-db
+    creationPolicy: Owner
+    template:
+      data:
+        POSTGRES_PASSWORD: "{{ .password }}"
+  data:
+    - { secretKey: password, remoteRef: { key: forgejo-db-password } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forgejo-postgres
+  namespace: forgejo
+spec:
+  # ClusterIP: the only client is Forgejo in the same namespace, and the app-policy in
+  # manifests/network-policies uses named ports rather than IPs.
+  selector:
+    app.kubernetes.io/name: forgejo-postgres
+  ports:
+    - { name: postgres, port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: forgejo-postgres
+  namespace: forgejo
+spec:
+  # 1 replica, on purpose, for now. This is a database that Forgejo cannot yet share, and a second
+  # Postgres instance without replication would be two databases — worse than one. Story 8.1 ends
+  # when either this becomes a replicated cluster or the single instance is documented as the
+  # remaining single point.
+  replicas: 1
+  serviceName: forgejo-postgres
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgejo-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgejo-postgres
+        app.kubernetes.io/part-of: forgejo
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: postgres
+          # Pinned by digest, per ADR 0007 (digests are copied, not typed). postgres 16 is within
+          # Forgejo 11's supported range (12-16).
+          image: docker.io/library/postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+          env:
+            - { name: POSTGRES_DB, value: forgejo }
+            - { name: POSTGRES_USER, value: forgejo }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: forgejo-db, key: POSTGRES_PASSWORD }
+            # The data dir is a subdirectory of the mount, so an initdb on a volume that already has
+            # a lost+found does not refuse to start.
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          ports:
+            - { name: postgres, containerPort: 5432 }
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { memory: 512Mi }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "forgejo", "-d", "forgejo"] }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "forgejo", "-d", "forgejo"] }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 5Gi
