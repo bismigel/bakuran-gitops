@@ -183,7 +183,15 @@ data:
               description: "Data unavailable to the workload using this PVC."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumefaulted"
           - alert: LonghornVolumeUnknown
-            expr: longhorn_volume_robustness{state="unknown"} == 1
+            # Only while attached. A *detached* volume reports robustness `unknown` as normal — it
+            # has no replicas running to be healthy or degraded — so the unqualified expression fires
+            # for every retained-but-unmounted PVC: a backup volume, a rollback copy, anything parked.
+            # Measured 2026-11-05: it fired for a detached 15 GiB volume sitting at 969 MiB with all
+            # three replicas present and healthy on disk. An alert that fires for a healthy parked
+            # volume is how people learn to skim this file.
+            expr: |
+              longhorn_volume_robustness{state="unknown"} == 1
+                and on (volume) longhorn_volume_state{state="attached"} == 1
             for: 10m
             labels:
               severity: warning
