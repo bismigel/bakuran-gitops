@@ -1,0 +1,52 @@
+# Pods in a default-deny namespace cannot reach the API server with a plain Kubernetes NetworkPolicy.
+#
+# Found on 2026-11-05 while putting Immich's database under CloudNativePG (story 8.2). The CNPG instance
+# manager reads its own `Cluster` object before it will initialise a database, and from `immich` — which is
+# default-deny in both directions — it failed with:
+#
+#   wait-for-get-cluster: Get "https://10.43.0.1:443/...": dial tcp 10.43.0.1:443: i/o timeout
+#
+# Two `NetworkPolicy` egress rules were added, the second listing the service CIDR, the API VIP and all three
+# node addresses on 443/6443. The pods were correctly selected by label. It still timed out.
+#
+# The reason is that the API server does not run as a pod — it is a **host-networking** process. Under Cilium,
+# "allowed to reach the API server" is the `kube-apiserver` *entity*, a separate policy decision from
+# pod-to-pod traffic, and `NetworkPolicy` has no way to name it. Every other namespace here that allows
+# `10.43.0.1/32:443` is a namespace whose pods were never actually using that path, so the pattern looked
+# sufficient and was not.
+#
+# How far this generalises: `forgejo` (8.5) never hit this because it has no NetworkPolicy at all. Any future
+# default-deny namespace that hosts a CNPG cluster, an operator, or anything that reads its own CRs needs this
+# same grant — which is why it is one file with a stated purpose rather than a stanza inside each namespace.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apiserver-egress
+  namespace: immich
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: immich-pg
+  egress:
+    # The API server, by identity rather than address.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+            - { port: "6443", protocol: TCP }
+    # DNS, also by identity: `kube-dns` covers both the resolver pods and the ClusterIP service.
+    - toEntities:
+        - kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+    # Streaming replication between the instances of the cluster.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: immich
+            cnpg.io/cluster: immich-pg
+      toPorts:
+        - ports:
+            - { port: "5432", protocol: TCP }
