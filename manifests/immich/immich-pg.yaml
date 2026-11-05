@@ -1,0 +1,67 @@
+# Immich's database as a CloudNativePG cluster — story 8.2, the one app where losing data is not acceptable.
+#
+# Still NOT wired to the app. The order is the point: healthy empty cluster, then the data, then the asset count
+# compared, then `DB_HOSTNAME`, then the old StatefulSet removed last.
+#
+# The image is ours, not upstream's, and that is deliberate (ADR 0010): CloudNativePG's `initdb` runs as uid 26
+# and resolves that uid through `/etc/passwd`, while Immich's image defines `postgres` at 999. The `Cluster` CRD
+# exposes no `securityContext`/`runAsUser` (`kubectl explain cluster.postgresql.cnpg.io.spec` has neither), so
+# the uid has to come from the image: `bismigel/immich-pg` is Immich's pinned build plus that one line, so every
+# extension (`vchord` 0.4.3, `vector` 0.8.1) stays exactly the pairing Immich wrote its indexes with. Rebuilding
+# Postgres with the extensions ourselves was rejected for exactly that reason — a wrong pairing corrupts vectors
+# silently, and this is the application where a lost photo is not acceptable.
+#
+# Two other constraints measured the hard way on 2026-11-05:
+#   * `network-policies/allow-apiserver-egress.yaml` must exist, or the instance manager cannot read its own
+#     `Cluster` object from this default-deny namespace (`dial tcp 10.43.0.1:443: i/o timeout`);
+#   * Postgres **14**, not 16 — a major-version jump is not part of making it HA.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: immich-pg
+  namespace: immich
+spec:
+  instances: 2
+  # `tag@digest`, never a bare digest: CNPG reads the tag to decide whether a change stays within one major
+  # version, and rejects a sha ("Can't use just the image sha as we can't detect upgrades") as well as a commit
+  # tag ("invalid version tag"). `14.19` is the server version of the pinned base; the digest decides what runs.
+  imageName: ghcr.io/bismigel/immich-pg:14.19@sha256:e1558fa6884d1b81f7d19b603af1a6d611c3ce49c8088a70c0d8d60e037cdeb7
+  imagePullSecrets:
+    - name: ghcr-secret
+  primaryUpdateStrategy: unsupervised
+
+  storage:
+    storageClass: longhorn
+    size: 10Gi
+
+  bootstrap:
+    initdb:
+      database: immich
+      owner: immich
+      secret:
+        name: immich-db
+      # The app role is a superuser today (`rolsuper = t`) because Immich creates its extensions at startup, and
+      # a CNPG bootstrap owner is not one. Creating them here keeps Immich's first migration from dying on
+      # `CREATE EXTENSION`.
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS vector CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS cube CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS unaccent CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "uuid-ossp" CASCADE;
+
+  resources:
+    requests: { cpu: 100m, memory: 384Mi }
+    limits: { memory: 1Gi }
+
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "192MB"
+
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
