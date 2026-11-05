@@ -222,11 +222,27 @@ metadata:
     # wins — and `vip_pool` is a single address on purpose so they cannot.
     kube-vip.io/loadbalancerIPs: "192.168.2.84"
 spec:
-  # LoadBalancer via kube-vip, on one address from `vip_pool`. Before this it was NodePort, whose
-  # LAN side is loopback-only by design, so the only LAN path was the hostPort on `.81` — an address
-  # that stops existing when the pod moves. The TV talks to `192.168.2.84:8096` now (and
-  # `jellyfin.lan` resolves there), so it survives the pod rescheduling.
-  type: LoadBalancer
+  # Back to NodePort: the kube-vip service VIP (192.168.2.84) was assigned and *did not serve TCP*,
+  # so it is not ready to be the TV's address. What was measured before reverting, in this order:
+  #
+  #   * VIP assigned by kube-vip, on `.80` (`svc_enable=true`, `vip_pool`, and the
+  #     `kube-vip.io/loadbalancerIPs` annotation the pool alone did not act on);
+  #   * ping to the VIP answers, TCP 8096 times out — from the router and from a workstation;
+  #   * every *cluster node* returns 200 to the same VIP, which proves nothing: their own IPVS
+  #     intercepts the address locally, so the ARP path a TV uses was never exercised;
+  #   * the kube-proxy rule counter for the VIP increments (10 -> 12 over two curls), so the SYN
+  #     does reach `.80` and is DNAT'd;
+  #   * `.80`'s firewall allows 8096 on `eno1`, `CILIUM_FORWARD` accepts, `ip_forward=1`, and the
+  #     pod answers `.80` directly (200);
+  #   * the `default` NetworkPolicy now allows the pod CIDR as well (the masquerade rewrites the
+  #     source to the node's `cilium_host` IP) — still a timeout;
+  #   * Cilium's drop monitor on the pod's node shows no drop for this flow.
+  #
+  # So the packet leaves `.80` correctly and something on the return path loses it. Until that is
+  # understood, the TV keeps the address it already has: the hostPort on the node Jellyfin runs on.
+  # The `kube-vip.io/loadbalancerIPs` annotation stays so the next attempt starts from the address
+  # rather than re-deriving it.
+  type: NodePort
   selector:
     app: jellyfin
   ports:
