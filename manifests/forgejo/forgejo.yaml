@@ -74,6 +74,12 @@ spec:
       labels:
         app.kubernetes.io/name: forgejo
     spec:
+      # Pod level, not container level: `terminationGracePeriodSeconds` is a PodSpec field, and at
+      # container level the API server prunes it while kubeconform rejects it. CI caught exactly that
+      # (``additional properties 'terminationGracePeriodSeconds' not allowed``) — and I merged the red
+      # check, because the poll loop in my own command fell through to `gh pr merge` instead of gating
+      # on it. Both mistakes are in this commit's history rather than tidied away.
+      terminationGracePeriodSeconds: 30
       securityContext:
         fsGroup: 1000
       # Required, not preferred: homelab-context ADR 0008 — placement is a preference unless
@@ -174,7 +180,6 @@ spec:
               # Let the endpoint be removed before the process exits, so in-flight requests go to
               # the other replica instead of a socket that is closing.
               exec: { command: ["sh", "-c", "sleep 5"] }
-          terminationGracePeriodSeconds: 30
           resources:
             requests:
               cpu: 100m
