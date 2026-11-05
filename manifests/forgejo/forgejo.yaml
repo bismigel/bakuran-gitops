@@ -64,9 +64,11 @@ metadata:
   labels:
     app.kubernetes.io/name: forgejo
 spec:
-  # Two replicas, possible only because the database is no longer SQLite (2026-11-05, story 8.1).
-  # Sessions live in the database too, so either pod can answer any request.
-  replicas: 2
+  # Back to ONE replica — not because the database blocks it (that is fixed) but because
+  # `/data` is a ReadWriteOnce volume: a second pod on another node cannot mount it and hangs in
+  # ContainerCreating, while its PDB reports zero allowed disruptions and blocks every node drain.
+  # Story 8.1's real remaining blocker is the storage access mode, recorded there.
+  replicas: 1
   # SQLite on a Longhorn volume: one writer, so never two pods.
   strategy:
     type: Recreate
@@ -163,19 +165,6 @@ spec:
           persistentVolumeClaim:
             claimName: forgejo-data
 
----
-# Same reasoning as the ingress controllers and ArgoCD: two replicas are not HA if one drain can take
-# both, and a PDB without a declared spread is a promise the scheduler may not keep.
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: forgejo
-  namespace: forgejo
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: forgejo
 
 ---
 apiVersion: v1
