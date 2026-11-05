@@ -33,11 +33,18 @@ spec:
         - kube-apiserver
       toPorts:
         - ports:
+            # 6443 is what `duwende-egress-kube-apiserver` uses and what works here; 443 is kept
+            # because that is the address the failing client dials (`10.43.0.1:443`).
             - { port: "443", protocol: TCP }
             - { port: "6443", protocol: TCP }
-    # DNS, also by identity: `kube-dns` covers both the resolver pods and the ClusterIP service.
-    - toEntities:
-        - kube-dns
+    # DNS by endpoint, not by entity: this Cilium's entity list does not include `kube-dns` — the CRD
+    # rejects the whole policy with `toEntities[0]: Unsupported value: "kube-dns"`, which is how the first
+    # version of this file failed *silently* from ArgoCD's point of view (sync error, object never created,
+    # and the symptom looked exactly like the policy not working).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
       toPorts:
         - ports:
             - { port: "53", protocol: UDP }
