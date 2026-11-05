@@ -214,6 +214,13 @@ kind: Service
 metadata:
   name: jellyfin
   namespace: default
+  annotations:
+    # Ask for the address explicitly instead of letting the pool allocate. `vip_pool` alone left the
+    # Service `<pending>` (kube-vip watched it and assigned nothing, logged no error), and an address
+    # that is chosen rather than discovered is what the TV's bookmarks and the Unbound override and
+    # the firewall rule all depend on. If this annotation and the pool ever disagree, the annotation
+    # wins — and `vip_pool` is a single address on purpose so they cannot.
+    kube-vip.io/loadbalancerIPs: "192.168.2.84"
 spec:
   # LoadBalancer via kube-vip, on one address from `vip_pool`. Before this it was NodePort, whose
   # LAN side is loopback-only by design, so the only LAN path was the hostPort on `.81` — an address
