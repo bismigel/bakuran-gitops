@@ -196,10 +196,18 @@ spec:
           hostPath:
             path: /var/cache/jellyfin
             type: DirectoryOrCreate
+        # NFS from the storage host, not a hostPath (story 8.3). `/mnt/media` used to exist only on
+        # `.81`, which made "pinned to .81" implicit — a pod scheduled elsewhere failed to mount
+        # rather than starting. Mounting the export directly means any node can serve the library,
+        # and `.82` now exports it to the LAN rather than `.81` alone (bakuran-infra#261).
+        #
+        # This only works because 8.4 put `mount.nfs` and `mount` on the FHS paths on every node;
+        # before that a pod-level NFS volume failed with `exit status 127`, which is why every other
+        # media mount in this estate is a hostPath.
         - name: media
-          hostPath:
+          nfs:
+            server: 192.168.2.82
             path: /mnt/media
-            type: Directory
 ---
 apiVersion: v1
 kind: Service
@@ -207,13 +215,16 @@ metadata:
   name: jellyfin
   namespace: default
 spec:
-  type: NodePort
+  # LoadBalancer via kube-vip, on one address from `vip_pool`. Before this it was NodePort, whose
+  # LAN side is loopback-only by design, so the only LAN path was the hostPort on `.81` — an address
+  # that stops existing when the pod moves. The TV talks to `192.168.2.84:8096` now (and
+  # `jellyfin.lan` resolves there), so it survives the pod rescheduling.
+  type: LoadBalancer
   selector:
     app: jellyfin
   ports:
     - port: 8096
       targetPort: 8096
-      nodePort: 30096
       name: http
     - port: 8920
       targetPort: 8920

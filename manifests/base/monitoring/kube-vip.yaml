@@ -99,8 +99,15 @@ spec:
             # enabled".
             - name: cp_enable
               value: "true"
+            # Service VIPs on, for one reason: Jellyfin (story 8.3). With a hostPort its LAN
+            # address *was* the node it happened to run on, so "make it reschedulable" and "keep
+            # the TV working" were in direct conflict. A LoadBalancer address that follows the pod
+            # resolves that, and `vip_pool` bounds it to one address so kube-vip cannot hand out
+            # anything else by accident.
             - name: svc_enable
-              value: "false"
+              value: "true"
+            - name: vip_pool
+              value: "192.168.2.84/32"
             - name: vip_leaderelection
               value: "true"
             # 15/10/2, not 5/3/1. kube-vip's leader-election client EXITS when it
