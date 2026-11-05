@@ -53,6 +53,13 @@ spec:
     name: bitwarden
   target:
     name: immich-db
+    # CloudNativePG's bootstrap reads `username` + `password`; the app reads `password` alone. Render
+    # both from the one Bitwarden value rather than copying the credential into a second Secret — the
+    # same fix Forgejo needed at 8.5, and the reason is the same: one password, two conventions.
+    template:
+      data:
+        password: "{{ .password }}"
+        username: "immich"
   data:
     - secretKey: password
       remoteRef:
