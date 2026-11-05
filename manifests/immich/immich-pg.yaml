@@ -60,6 +60,11 @@ spec:
     parameters:
       max_connections: "100"
       shared_buffers: "192MB"
+      # Copied from the image's own `/etc/postgresql/postgresql.conf` line 3 — the Immich build ships this
+      # setting, but CloudNativePG generates the configuration and passes its own values on the command line, so
+      # the file is not read for this. Without it the bootstrap dies at
+      # `ERROR: vchord must be loaded via shared_preload_libraries. (SQLSTATE XX000)`.
+      shared_preload_libraries: "vchord.so,vectors.so"
 
   affinity:
     enablePodAntiAffinity: true
