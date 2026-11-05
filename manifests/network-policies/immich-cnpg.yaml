@@ -23,11 +23,25 @@ spec:
       cnpg.io/cluster: immich-pg
   policyTypes: [Egress]
   egress:
+    # The API server, by every address it is reachable at. `10.43.0.1:443` alone was not enough: the
+    # bootstrap still timed out with that rule in place and the pods correctly selected, so the
+    # ClusterIP path is not the whole story — replies can arrive from a node address, and Cilium
+    # evaluates an allowlist per direction. Widened to the service CIDR, the API VIP, and the node
+    # addresses on 6443, which is everything "reach the API server" can mean here.
     - to:
         - ipBlock:
-            cidr: 10.43.0.1/32
+            cidr: 10.43.0.0/16
+        - ipBlock:
+            cidr: 192.168.2.100/32
+        - ipBlock:
+            cidr: 192.168.2.80/32
+        - ipBlock:
+            cidr: 192.168.2.81/32
+        - ipBlock:
+            cidr: 192.168.2.82/32
       ports:
         - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 6443 }
     - to:
         - namespaceSelector:
             matchLabels:
