@@ -64,7 +64,9 @@ metadata:
   labels:
     app.kubernetes.io/name: forgejo
 spec:
-  replicas: 1
+  # Two replicas, possible only because the database is no longer SQLite (2026-11-05, story 8.1).
+  # Sessions live in the database too, so either pod can answer any request.
+  replicas: 2
   # SQLite on a Longhorn volume: one writer, so never two pods.
   strategy:
     type: Recreate
@@ -78,6 +80,15 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
+      # Required, not preferred: homelab-context ADR 0008 — placement is a preference unless
+      # correctness demands a pin, and two Forgejo pods on one node is one pod with extra steps.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: forgejo
       containers:
         - name: forgejo
           # Pinned by digest: CI fails on a floating tag.
@@ -151,6 +162,21 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: forgejo-data
+
+---
+# Same reasoning as the ingress controllers and ArgoCD: two replicas are not HA if one drain can take
+# both, and a PDB without a declared spread is a promise the scheduler may not keep.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: forgejo
+  namespace: forgejo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: forgejo
+
 ---
 apiVersion: v1
 kind: Service
