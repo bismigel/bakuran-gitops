@@ -1,0 +1,25 @@
+# Forgejo's data directory on ReadWriteMany — the last piece of story 8.1.
+#
+# Why: `/data` holds the git repositories, attachments and LFS objects. On the old ReadWriteOnce
+# volume a second Forgejo pod could not mount it and hung in ContainerCreating, so the app could not
+# exceed one replica however good its database became.
+#
+# Longhorn serves RWX by exporting the volume over NFS from a `share-manager` pod, which needs the
+# *node* to mount NFS. That failed until 2026-11-05 with `mount failed: exit status 127`: NixOS ships
+# the helpers only in the system profile, and the FHS paths `mount`/`mount.nfs` (which a container's
+# `nsenter` resolves) did not exist. Fixed in bakuran-infra `modules/base.nix` by symlinking them;
+# verified across two nodes in both directions before this volume existed.
+#
+# Capacity: the data directory is 330 MiB (36 git mirrors + attachments). 15 GiB matches the volume
+# being replaced — small because the database is now Postgres and the git objects are text.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: forgejo-data-rwx
+  namespace: forgejo
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 15Gi
