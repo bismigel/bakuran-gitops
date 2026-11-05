@@ -15,6 +15,8 @@
 # `10.43.0.1/32:443` is a namespace whose pods were never actually using that path, so the pattern looked
 # sufficient and was not.
 #
+# The same namespace also has to admit the operator, which is the subject of the second document below.
+#
 # How far this generalises: `forgejo` (8.5) never hit this because it has no NetworkPolicy at all. Any future
 # default-deny namespace that hosts a CNPG cluster, an operator, or anything that reads its own CRs needs this
 # same grant — which is why it is one file with a stated purpose rather than a stanza inside each namespace.
@@ -57,3 +59,29 @@ spec:
       toPorts:
         - ports:
             - { port: "5432", protocol: TCP }
+
+---
+# The other half of the same problem, found straight after the first: with egress open, the instance bootstrapped —
+# and then the operator could not read it back, because the ingress allowlist in this namespace names only
+# same-namespace pods, ingress-nginx and monitoring. The cluster sat at `ready=1/1` reporting
+# "Instance Status Extraction Error: HTTP communication issue" while the primary itself was healthy.
+#
+# CloudNativePG's operator lives in `cnpg-system` and polls each instance's status endpoint on 8000.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cnpg-operator
+  namespace: immich
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: immich-pg
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            # 8000 is the instance manager's `/pgstatus`; 9187 is its metrics endpoint, which the monitoring
+            # namespace can already reach through `allow-ingress` and which this rule does not need to open.
+            - { port: "8000", protocol: TCP }
