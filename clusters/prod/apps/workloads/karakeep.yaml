@@ -1,3 +1,6 @@
+# Karakeep now renders from base + overlay, like media/books/monitoring: the
+# workload definition is cluster-agnostic, the hostname and the Ollama endpoint
+# are prod facts. See manifests/overlays/prod/karakeep.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -12,7 +15,7 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/karakeep
+    path: manifests/overlays/prod/karakeep
   destination:
     server: https://kubernetes.default.svc
     namespace: karakeep

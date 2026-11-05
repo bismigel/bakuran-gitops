@@ -1,0 +1,35 @@
+# Production facts for Karakeep.
+#
+# Three things differ from a bare base render, and all three are environment
+# facts rather than part of what Karakeep is:
+#
+#   * the public hostname (the Ingress) — staging has no tunnel entry;
+#   * NEXTAUTH_URL — Karakeep mints absolute links and auth callbacks from it, so
+#     it must name this cluster's hostname, not a placeholder;
+#   * OLLAMA_BASE_URL — the LAN Ollama box. A staging guest has no route to it.
+#
+# Everything else (images, probes, resources, PVC sizes, storage class) comes from
+# ../../../base/karakeep untouched. If staging ever runs Karakeep it adds its own
+# overlay that patches the storage class and omits the Ingress, the same way
+# overlays/staging/books does.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/karakeep
+  - ingress.yaml
+patches:
+  - target:
+      kind: Deployment
+      name: karakeep
+    patch: |-
+      # Indexed inserts, not appends: the live pod template has NEXTAUTH_URL at
+      # position 4 and OLLAMA_BASE_URL after the two secret refs. Appending them
+      # would reorder the env list, which Kubernetes reports as a spec change —
+      # with strategy: Recreate that is a needless restart of a stateful pod on
+      # the first sync of a refactor that is meant to change nothing.
+      - op: add
+        path: /spec/template/spec/containers/0/env/4
+        value: { name: NEXTAUTH_URL, value: "https://karakeep.bismigel.dev" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/7
+        value: { name: OLLAMA_BASE_URL, value: "http://192.168.2.12:11434" }

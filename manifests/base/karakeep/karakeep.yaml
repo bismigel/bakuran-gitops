@@ -2,8 +2,12 @@
 # Self-hosted stack per upstream compose: karakeep (web+jobs, SQLite), a headless
 # Chrome for archiving, and Meilisearch for full-text search.
 # AI: LOCAL Ollama only (no OPENAI_API_KEY): qwen3:8b for text, qwen3-vl:8b for images.
-# Served publicly (no Access) so the iOS/Android apps can reach it; Karakeep has
-# its own login (NextAuth).
+#
+# Cluster-agnostic on purpose. The public hostname, the NextAuth URL it must
+# generate links with, and the Ollama endpoint are environment facts, so they live
+# in manifests/overlays/<env>/karakeep — not here. Storage class stays in the base
+# for the same reason it does in manifests/base/books: every cluster can name one,
+# and an overlay that needs a different one patches it.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -79,13 +83,11 @@ spec:
             - { name: DISABLE_SIGNUPS, value: "true" }
             - { name: MEILI_ADDR, value: "http://meilisearch:7700" }
             - { name: BROWSER_WEB_URL, value: "http://chrome:9222" }
-            - { name: NEXTAUTH_URL, value: "https://karakeep.bismigel.dev" }
             - name: MEILI_MASTER_KEY
               valueFrom: { secretKeyRef: { name: karakeep-secrets, key: meili-master-key } }
             - name: NEXTAUTH_SECRET
               valueFrom: { secretKeyRef: { name: karakeep-secrets, key: nextauth-secret } }
             # --- AI: local Ollama (qwen) only ---
-            - { name: OLLAMA_BASE_URL, value: "http://192.168.2.12:11434" }
             - { name: INFERENCE_TEXT_MODEL, value: "qwen3:8b" }
             - { name: INFERENCE_IMAGE_MODEL, value: "qwen3-vl:8b" }
             - { name: INFERENCE_ENABLE_AUTO_TAGGING, value: "true" }
@@ -197,22 +199,3 @@ spec:
   selector: { app: meilisearch }
   ports:
     - { name: http, port: 7700, targetPort: 7700 }
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: karakeep
-  namespace: karakeep
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: karakeep.bismigel.dev
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: karakeep
-                port:
-                  number: 3000

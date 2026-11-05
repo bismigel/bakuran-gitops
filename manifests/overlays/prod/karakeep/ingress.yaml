@@ -1,0 +1,21 @@
+# Public hostname for Karakeep on the edge (`nginx` class = the public
+# controller that cloudflared points at). Kept out of the base because a second
+# cluster has no tunnel entry for it; there the overlay simply omits this file.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: karakeep
+  namespace: karakeep
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: karakeep.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 3000
