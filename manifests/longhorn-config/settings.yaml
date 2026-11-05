@@ -25,3 +25,19 @@ metadata:
   name: storage-over-provisioning-percentage
   namespace: longhorn-system
 value: "200"
+---
+# Replicas were placed as volumes were created, so the disks drifted apart: on 2026-11-05 the
+# promises were 122 GiB on `.81:/mnt/longhorn`, 111 GiB on `.80:/mnt/data` and 90 GiB on
+# `.82:/mnt/media-nvme`, with `.80` holding the smallest disk (135 GiB) closest to its limit.
+# Raising the over-provisioning allowance made that invisible rather than fixing it.
+#
+# `best-effort` lets Longhorn move replicas itself when a disk is out of balance with the others,
+# instead of leaving every future volume to land wherever the scheduler happens to look. It is
+# deliberately not `least-effort`: with three disks of very different sizes the point is to actually
+# balance, and a volume rebuild is cheap here (9 GiB of real data across all volumes).
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: replica-auto-balance
+  namespace: longhorn-system
+value: best-effort
