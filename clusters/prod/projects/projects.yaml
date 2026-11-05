@@ -45,6 +45,9 @@ spec:
     - https://kubernetes.github.io/ingress-nginx
     - https://open-telemetry.github.io/opentelemetry-helm-charts
     - https://sustainable-computing-io.github.io/kepler-helm-chart
+    # CloudNativePG, for Forgejo's database as a two-instance cluster (story 8.5). The operator is a
+    # cluster-wide controller, so its namespace is a real widening and is listed separately below.
+    - https://cloudnative-pg.github.io/charts
   # The `staging` namespace left this list on 2026-10-30 together with the
   # status-api-staging Application. That Application deployed a *staging*
   # overlay into *production* - a leftover from before the per-cluster roots -
@@ -68,6 +71,9 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: kepler}
     - {server: https://kubernetes.default.svc, namespace: kube-system}
     - {server: https://kubernetes.default.svc, namespace: longhorn-system}
+    # CNPG's operator namespace. It watches Cluster CRs in every namespace but runs here; adding the
+    # namespace is what the project model asks for, and it is the narrowest form of the grant.
+    - {server: https://kubernetes.default.svc, namespace: cnpg-system}
     - {server: https://kubernetes.default.svc, namespace: media}
     - {server: https://kubernetes.default.svc, namespace: monitoring}
     - {server: https://kubernetes.default.svc, namespace: observability}
