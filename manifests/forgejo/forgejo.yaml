@@ -119,7 +119,11 @@ spec:
             # counts matched exactly (34 issues, 36 repos, 1 user, 3 tokens). The SQLite file is still
             # at /data/gitea/gitea.db on the PVC — untouched, as the fallback, not deleted.
             - { name: GITEA__database__DB_TYPE, value: postgres }
-            - { name: GITEA__database__HOST, value: "forgejo-postgres:5432" }
+            # The CNPG cluster's read-write service, not the single StatefulSet: the service always
+            # points at whichever instance is primary, so a promotion is a DNS-level change Forgejo
+            # does not have to know about. Cut over 2026-11-05 after a dump/restore verified identical
+            # counts (39 issues, 36 repos, 1 user, 3 tokens) on both sides.
+            - { name: GITEA__database__HOST, value: "forgejo-pg-rw:5432" }
             - { name: GITEA__database__NAME, value: forgejo }
             - { name: GITEA__database__USER, value: forgejo }
             - { name: GITEA__database__SSL_MODE, value: disable }
