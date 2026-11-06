@@ -169,8 +169,17 @@ spec:
           env:
             # LAN URL clients should use. NOT the NodePort (30906/30096 is
             # loopback-only under the edge lock, so it's unreachable from the LAN).
+            #
+            # The **name**, not a node address (2026-11-05, story 8.3). This was `http://192.168.2.81:8096` — the media
+            # node — so a client that follows the advertised URL was sent to a machine that may not be running Jellyfin
+            # at all. Found by moving the pod to `.80` and reading `/System/Info/Public` back: the server reported
+            # `localAddress: http://192.168.2.81:8096` while listening on a different node, and `.81:8096` was returning
+            # nothing (its `hostPort` only exists on the node the pod is on).
+            #
+            # Hardcoding a node here would have made the rest of 8.3 pointless for exactly the clients the failover is
+            # for. `jellyfin.lan` resolves to the LoadBalancer address, which follows the pod.
             - name: JELLYFIN_PublishedServerUrl
-              value: "http://192.168.2.81:8096"
+              value: "http://jellyfin.lan:8096"
           resources:
             requests:
               memory: 512Mi
