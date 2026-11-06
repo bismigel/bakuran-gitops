@@ -1,0 +1,37 @@
+# The object store Immich's database backs up into, declared for the **Barman Cloud Plugin**.
+#
+# Why the plugin and not `spec.backup.barmanObjectStore` (which this repo tried first, on 2026-11-06): the native path
+# runs `barman-cloud-backup` **inside the Postgres container**, and Immich's image does not ship it.
+#
+#     exec: "barman-cloud-backup": executable file not found in $PATH      (Backup → phase: failed)
+#
+# Two ways out, and this is the second: add Python and `barman-cli-cloud` to our derived image, or move to the plugin,
+# which is what CloudNativePG tells you to do anyway — native barman support is **removed in 1.31.0** and this operator
+# is 1.30.1. The plugin also keeps our image honest: it stays "Immich's build plus uid 26", nothing else (ADR 0010).
+#
+# The plugin is v0.15.1, pinned, and needs cert-manager, which this cluster already runs.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: immich-r2
+  namespace: immich
+spec:
+  # Moves here from `Cluster.spec.backup.retentionPolicy` — in plugin mode retention belongs to the store.
+  retentionPolicy: "14d"
+  configuration:
+    destinationPath: "s3://homelab-backups/cnpg/immich"
+    endpointURL: "https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com"
+    s3Credentials:
+      accessKeyId:
+        name: immich-pg-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: immich-pg-backup
+        key: ACCESS_SECRET_KEY
+    # WAL is what makes point-in-time recovery possible; the base backups are the restore points it replays from.
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 2
