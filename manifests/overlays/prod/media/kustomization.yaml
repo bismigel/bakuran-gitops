@@ -28,6 +28,10 @@ patches:
         path: /spec/template/spec/nodeSelector
         value:
           homelab.io/media-pool: "true"
+  # TEMPORARY, 2026-11-05 — one rehearsal commit, reverted immediately after. `homelab.io/qsv` dropped so the pod
+  # can schedule on `patola-thinkcentre`, which has the pool but no QuickSync. This is the 8.3 claim being tested
+  # rather than asserted: that `jellyfin.lan` (now a kube-vip LoadBalancer address) still serves when the pod is not
+  # on `.81`. Nobody is watching (`ops/watching` = 0), so no one gets software transcoding by accident.
   - target:
       kind: Deployment
       name: jellyfin
@@ -36,4 +40,3 @@ patches:
         path: /spec/template/spec/nodeSelector
         value:
           homelab.io/media-pool: "true"
-          homelab.io/qsv: "true"
