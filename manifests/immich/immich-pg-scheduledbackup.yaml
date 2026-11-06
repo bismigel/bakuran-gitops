@@ -14,8 +14,16 @@ spec:
   backupOwnerReference: self
   cluster:
     name: immich-pg
-  # `plugin`, not the default `barmanObjectStore`: the native method needs a binary Immich's image does not have, and
-  # leaving this defaulted would have produced a scheduled backup that fails every night at 03:17 with a clear error
-  # nobody was watching for.
+  # `plugin`, not the default `barmanObjectStore`: the native method needs a binary Immich's image does not have.
   method: plugin
+  # And `method: plugin` **requires** this — the API rejects a plugin backup without it:
+  #
+  #   spec.pluginConfiguration: cannot be empty when the backup method is plugin
+  #
+  # Caught by trying a one-off backup first. Without that, this file would have looked correct, synced clean, and failed
+  # every night at 03:17 with a validation error — the `pg_dump`-reports-SKIP shape again, one day later.
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: immich-r2
   immediate: false
