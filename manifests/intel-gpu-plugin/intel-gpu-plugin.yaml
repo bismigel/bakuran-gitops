@@ -31,8 +31,18 @@ spec:
         app: intel-gpu-plugin
     spec:
       automountServiceAccountToken: false
+      # `homelab.io/qsv`, not a hostname (ADR 0008: placement is a capability, a pin needs a reason).
+      #
+      # This was pinned to `calamansi-intel`, with a consequence nobody intended: only `.81` advertised
+      # `gpu.intel.com/i915`, so Jellyfin — which requests that resource — could only ever be scheduled there, however
+      # its own nodeSelector was written. Pinning a device plugin by hostname silently makes every consumer of that
+      # device single-node.
+      #
+      # Measured 2026-11-05: both `.81` (card0) and `.80` (card1) have a `renderD128` node, and `.80` already carries
+      # `homelab.io/qsv=true` — the label was true, the plugin simply never looked at it. `.82` has `card0` and no
+      # render node, so the same label correctly excludes it.
       nodeSelector:
-        kubernetes.io/hostname: calamansi-intel
+        homelab.io/qsv: "true"
       containers:
         - name: intel-gpu-plugin
           image: intel/intel-gpu-plugin:0.37.1@sha256:004641b2547d58f1eadce58473fa160ad71377de1eb588cf1f82832387bf3e33
