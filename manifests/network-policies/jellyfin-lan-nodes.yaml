@@ -8,7 +8,29 @@ spec:
     matchLabels:
       app: jellyfin
   ingress:
+    # `world`, and the reason is a measurement rather than a preference (2026-11-05, story 8.6).
+    #
+    # A `Service type: LoadBalancer` puts the VIP on kube-vip's elected node, which is not necessarily the
+    # node the pod runs on. When it is not, the packet is DNAT'd on that node and forwarded over the tunnel —
+    # and it arrives carrying that node's `cilium_host` address as its source, because IPv4 masquerade rewrites
+    # it. A source that is no pod and no registered node identity is classified as **`world`**, however local
+    # it looks, so the CIDR rules below never got a chance:
+    #
+    #   drop (Policy denied) ... identity world->49057: 10.42.1.204:49258 -> 10.42.3.251:8096 tcp SYN   (on .81)
+    #   tcpdump on .80: eno1 In  192.168.20.50 -> 192.168.2.84:8096 [S]
+    #                   cilium_vxlan Out 10.42.1.204 -> 10.42.3.251:8096 [S]      # DNAT'd and forwarded fine
+    #
+    # So `ipBlock: 10.42.0.0/16` in the namespace NetworkPolicy — which *is* in the realised policy map — does
+    # not admit this traffic, and `fromCIDR: 192.168.20.0/24` below does not either. Only entity `world` does,
+    # which was verified by adding it and watching 192.168.2.84:8096 go from timeouts to 200.
+    #
+    # This does not widen exposure beyond what the pod already had: it is reachable only through the LAN VIP and
+    # its `hostPort`, both of which are LAN-only by design (these clients cannot complete a Cloudflare Access
+    # challenge, which is why the media UIs are LAN-reachable at all). It does mean port 8096 on this pod no
+    # longer distinguishes LAN clients from anything else that can route to it — a fact worth knowing before
+    # anyone puts a second address on this Service.
     - fromEntities:
+        - world
         - remote-node
         - host
         - kube-apiserver
