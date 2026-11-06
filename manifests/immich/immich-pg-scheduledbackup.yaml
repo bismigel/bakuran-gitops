@@ -14,6 +14,8 @@ spec:
   backupOwnerReference: self
   cluster:
     name: immich-pg
-  # R2 is not a filesystem: CNPG writes a compressed base backup through the object store API, so this is the
-  # format, not a mount option.
+  # `plugin`, not the default `barmanObjectStore`: the native method needs a binary Immich's image does not have, and
+  # leaving this defaulted would have produced a scheduled backup that fails every night at 03:17 with a clear error
+  # nobody was watching for.
+  method: plugin
   immediate: false
