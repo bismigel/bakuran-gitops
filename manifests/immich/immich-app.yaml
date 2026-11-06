@@ -14,8 +14,13 @@ spec:
       labels:
         app: immich-redis
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: patola-thinkcentre
+      # No hostname pin (story 9.9, 2026-11-06). Both were pinned to `.80`, which made the *application* single-node
+      # while its database had become genuinely HA — so losing `.80` meant "wait for a human to edit a manifest", not a
+      # failover. The RTO/RPO table made that gap visible; this closes it.
+      #
+      # Nothing here demanded a pin (ADR 0008): the library is a Longhorn ReadWriteOnce volume that follows the pod,
+      # and the Deployment is `strategy: Recreate` precisely because of it. The tolerations stay — every node is
+      # control-plane, and a toleration costs nothing.
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
@@ -135,8 +140,13 @@ spec:
       labels:
         app: immich-server
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: patola-thinkcentre
+      # No hostname pin (story 9.9, 2026-11-06). Both were pinned to `.80`, which made the *application* single-node
+      # while its database had become genuinely HA — so losing `.80` meant "wait for a human to edit a manifest", not a
+      # failover. The RTO/RPO table made that gap visible; this closes it.
+      #
+      # Nothing here demanded a pin (ADR 0008): the library is a Longhorn ReadWriteOnce volume that follows the pod,
+      # and the Deployment is `strategy: Recreate` precisely because of it. The tolerations stay — every node is
+      # control-plane, and a toleration costs nothing.
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
