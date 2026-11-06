@@ -1,0 +1,19 @@
+# Daily base backup of Immich's database, on top of continuous WAL archiving.
+#
+# Both matter and they do different jobs: WAL archiving gives point-in-time recovery *within* the retention window,
+# base backups give a restore point that does not replay a day of WAL. A `pg_dump` gives neither.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: immich-pg-daily
+  namespace: immich
+spec:
+  # Six fields, not five: CNPG uses a second-precision cron. The API warned rather than failed, which is why the
+  # first version of this line was accepted and wrong.
+  schedule: "0 17 3 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: immich-pg
+  # R2 is not a filesystem: CNPG writes a compressed base backup through the object store API, so this is the
+  # format, not a mount option.
+  immediate: false
