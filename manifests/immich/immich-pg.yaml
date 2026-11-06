@@ -56,6 +56,33 @@ spec:
     requests: { cpu: 100m, memory: 384Mi }
     limits: { memory: 1Gi }
 
+  # Durability that does not depend on a nightly script. WAL goes to R2 continuously, base backups daily
+  # (`immich-pg-scheduledbackup.yaml`), so a restore can land at a point in time instead of at last night's dump.
+  #
+  # **Upgrade debt, recorded deliberately (verified 2026-11-05 by the API's own admission):** native
+  # `barmanObjectStore` is deprecated and is removed in CloudNativePG **1.31.0** — this operator is 1.30.1, i.e. the
+  # last version that supports it. Before the operator is upgraded, this must move to the Barman Cloud Plugin, which
+  # needs cert-manager in the cluster. Written here because the alternative is discovering it while trying to upgrade
+  # a database operator with two production clusters on it.
+  backup:
+    retentionPolicy: "14d"
+    barmanObjectStore:
+      destinationPath: "s3://homelab-backups/cnpg/immich"
+      endpointURL: "https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com"
+      s3Credentials:
+        accessKeyId:
+          name: immich-pg-backup
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: immich-pg-backup
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+        maxParallel: 2
+      data:
+        compression: gzip
+        jobs: 2
+
   postgresql:
     # The Immich image ships this at `/etc/postgresql/postgresql.conf` line 3, but CloudNativePG generates the
     # configuration itself, so the file is not consulted. Without it the bootstrap dies at
