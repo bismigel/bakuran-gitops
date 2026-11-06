@@ -40,5 +40,11 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value:
-          homelab.io/media-pool: "true"
+          # `media-pool` dropped on 2026-11-05 (story 8.3). It meant "this node has /mnt/media", and that stopped being
+          # what Jellyfin needs when its media volume became an in-pod NFS mount (`nfs: 192.168.2.82:/mnt/media`): the
+          # pod mounts the export itself and does not care which node it lands on.
+          #
+          # It was also the last thing keeping Jellyfin single-node — `media-pool` exists only on `.81`, so with `.81`
+          # cordoned the pod sat Pending: "0/3 nodes are available: 2 didn't match Pod's node affinity/selector". The
+          # GPU capability is the real requirement, and it now exists on two nodes.
           homelab.io/qsv: "true"
