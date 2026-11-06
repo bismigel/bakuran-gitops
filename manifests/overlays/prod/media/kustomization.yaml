@@ -28,10 +28,11 @@ patches:
         path: /spec/template/spec/nodeSelector
         value:
           homelab.io/media-pool: "true"
-  # TEMPORARY, 2026-11-05 — one rehearsal commit, reverted immediately after. `homelab.io/qsv` dropped so the pod
-  # can schedule on `patola-thinkcentre`, which has the pool but no QuickSync. This is the 8.3 claim being tested
-  # rather than asserted: that `jellyfin.lan` (now a kube-vip LoadBalancer address) still serves when the pod is not
-  # on `.81`. Nobody is watching (`ops/watching` = 0), so no one gets software transcoding by accident.
+  # `homelab.io/qsv` restored (the rehearsal commit is reverted). The rehearsal found that the QuickSync label was
+  # never the blocker: `homelab.io/media-pool` exists **only on `.81`**, so with `.81` cordoned the pod is unschedulable
+  # no matter what else is dropped — "0/3 nodes are available: 1 unschedulable, 2 didn't match". Jellyfin becomes
+  # movable when a second node mounts `/mnt/media` and carries that label (story 8.3's remaining prerequisite, in
+  # bakuran-infra), not by changing this pin.
   - target:
       kind: Deployment
       name: jellyfin
@@ -40,3 +41,4 @@ patches:
         path: /spec/template/spec/nodeSelector
         value:
           homelab.io/media-pool: "true"
+          homelab.io/qsv: "true"
