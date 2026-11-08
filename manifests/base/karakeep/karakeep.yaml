@@ -75,7 +75,18 @@ spec:
     spec:
       containers:
         - name: karakeep
-          image: ghcr.io/karakeep-app/karakeep:0.33.2@sha256:b069e4307dec06ea06d16989c6861c30a1ff208568be44ed5fb5d422cd3e950c
+          # 0.33.2 -> 0.34.1 (2026-11-06). The release notes are unusually specific about this one:
+          #
+          #   * auth moved from next-auth to **better-auth**; web sessions become database sessions instead of JWTs, so
+          #     **everyone is signed out once** and must sign in again. Not a bug — it is the migration;
+          #   * `NEXTAUTH_URL` and `NEXTAUTH_SECRET` keep their names and are still required (both are set below), and a
+          #     new `AUTH_TRUSTED_ORIGINS` defaults to `*`;
+          #   * the schema migration runs automatically on first boot, which is why a copy of `/data` was taken before
+          #     the rollout (57 bookmarks / 78 assets) and compared after;
+          #   * emails are lowercased in the database as part of the auth move.
+          #
+          # Digest taken from the registry header, not typed (ADR 0007).
+          image: ghcr.io/karakeep-app/karakeep:0.34.1@sha256:69ae5315c618b7c14c1af3e34c6e211acdb231793af424ecd1cab0b70691d987
           env:
             - { name: DATA_DIR, value: /data }
             # Public registration closed (no invite UI exists; open it briefly to
