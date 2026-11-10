@@ -85,7 +85,7 @@ spec:
             # Same 30 days as the primary (story 10.6): the alerting instance only records rule results, so it is
             # small, and keeping identical windows means the two instances cannot disagree about a 7d SLO.
             - '--storage.tsdb.retention.time=30d'
-            - '--storage.tsdb.retention.size=4GB'
+            - '--storage.tsdb.retention.size=2GB'
             - '--web.enable-lifecycle'
           ports:
             - containerPort: 9090
@@ -98,10 +98,15 @@ spec:
             - name: storage
               mountPath: /prometheus
           resources:
+            # 1Gi was sized for a 1 GB TSDB, and that is what it had. Retaining 30 days (story 10.6) raised the number of
+            # blocks the process loads at startup, so 1Gi became an **OOMKill loop**: both this and the alerting instance
+            # restarted every ~90 s for an hour on 2026-11-09, and every graph in Grafana read "no data" because the
+            # process never lived long enough to answer. Measured before raising: nodes run at 41-55% of 15 GiB, so 2Gi
+            # here is headroom, not a squeeze.
             requests:
-              memory: 256Mi
+              memory: 512Mi
             limits:
-              memory: 1Gi
+              memory: 2Gi
         # Kept in step with the primary: without a reloader this instance would run
         # whatever rules it started with, so a rule edit would make the two disagree.
         - name: config-reloader
