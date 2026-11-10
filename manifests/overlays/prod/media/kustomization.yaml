@@ -20,6 +20,21 @@ kind: Kustomization
 resources:
   - ../../../base/media
 patches:
+  # Pinned for the **tunnel**, not for a directory (2026-11-10). `.81` is the only node whose egress is inside the Proton
+  # WireGuard tunnel, and pods inherit that by sitting there. Measured before pinning: qBittorrent on `.81` egresses as
+  # 84.20.16.49 (Proton) while the same check from `.82` returns 142.188.116.191 — the house. So a torrent client that
+  # reschedules is not slower, it is de-anonymised.
+  #
+  # Only workloads whose own traffic is sensitive are pinned. The *arrs read and write the library over NFS and talk to
+  # indexers, so they can move; qBittorrent, SAB and Prowlarr are the ones that connect outward.
+  - target:
+      kind: Deployment
+      name: (qbittorrent|sabnzbd|prowlarr)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          homelab.io/wg-egress: "true"
   # `homelab.io/qsv` restored (the rehearsal commit is reverted). The rehearsal found that the QuickSync label was
   # never the blocker: `homelab.io/media-pool` exists **only on `.81`**, so with `.81` cordoned the pod is unschedulable
   # no matter what else is dropped — "0/3 nodes are available: 1 unschedulable, 2 didn't match". Jellyfin becomes
