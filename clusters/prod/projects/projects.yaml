@@ -78,6 +78,10 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: monitoring}
     - {server: https://kubernetes.default.svc, namespace: observability}
     - {server: https://kubernetes.default.svc, namespace: opentelemetry-operator-system}
+    # The password manager (2026-11-10). The project rejected the Application at sync time with
+    # `InvalidSpecError: destination namespace 'vaultwarden' does not match any of the allowed destinations` —
+    # which is the project doing exactly what it is for, and the reason this list lives in git.
+    - {server: https://kubernetes.default.svc, namespace: vaultwarden}
     # created BY the apps rather than being their destination (cilium's
     # secret namespace, the *arr download spool). Found by the project rejecting
     # them at sync time — the destination list has to cover namespaces the
