@@ -1,0 +1,21 @@
+# What a vulnerability scan is allowed to fail on (story 10.4).
+#
+# The policy is a file, not a flag in a workflow, because the interesting decisions are the exceptions: which findings
+# are accepted, who accepted them, and when that acceptance expires. Digest pinning (ADR 0007) keeps image *content*
+# stable; it says nothing about whether that content is safe.
+fail_on: [CRITICAL]          # severities that fail the scan
+report: [HIGH]               # severities printed but not failed
+
+# Findings that are known, reviewed and deliberately lived with. Each needs an owner and an expiry — an exception
+# without a date is a decision nobody revisits.
+exceptions: []
+#  - id: CVE-2026-0000
+#    image: ghcr.io/example/thing
+#    reason: "no fix available upstream; the component is not reachable from the internet"
+#    owner: miguel
+#    expires: 2026-12-31
+
+# Images that are never scanned, with the reason. Keep this list short and make each entry a sentence.
+skip: []
+#  - image: docker.io/library/busybox
+#    reason: "debug pod only, never runs in a Deployment"
