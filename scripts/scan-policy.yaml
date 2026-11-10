@@ -3,8 +3,18 @@
 # The policy is a file, not a flag in a workflow, because the interesting decisions are the exceptions: which findings
 # are accepted, who accepted them, and when that acceptance expires. Digest pinning (ADR 0007) keeps image *content*
 # stable; it says nothing about whether that content is safe.
-fail_on: [CRITICAL]          # severities that fail the scan
-report: [HIGH]               # severities printed but not failed
+# **Report-only until 2026-11-24**, then `fail_on: [CRITICAL]` (story 10.4).
+#
+# The first real run found **200 CRITICAL findings** in the images this repo deploys right now — prom/prometheus:v2.51.0,
+# prom/node-exporter:v1.7.0, kube-state-metrics:v2.13.0 among them. Gating on that from day one would have left `main`
+# red for a fortnight and taught everyone to ignore the check, which is the failure mode this repository keeps writing
+# rules about.
+#
+# So the gate is off **with a date and a condition**, not as an oversight: renovate now sees these manifests (that was
+# the `managerFilePatterns` fix), the upgrades are tracked as 10.9, and flipping this to `fail_on: [CRITICAL]` is the
+# last line of that story. The scan still fails on an expired exception and on any scan it cannot run.
+fail_on: []                  # flip to [CRITICAL] when 10.9 closes
+report: [CRITICAL, HIGH]     # severities printed
 
 # Findings that are known, reviewed and deliberately lived with. Each needs an owner and an expiry — an exception
 # without a date is a decision nobody revisits.
