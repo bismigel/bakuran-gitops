@@ -544,6 +544,7 @@ spec:
               # here, so it never reached Grafana. Found by the 2026-11-01 gap audit.
               - configMap: { name: grafana-dashboard-network }
               - configMap: { name: grafana-dashboard-network-devices }
+              - configMap: { name: grafana-dashboard-opnsense }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
