@@ -67,18 +67,19 @@ spec:
             - { name: http, containerPort: 5000 }
           volumeMounts:
             - { name: config, mountPath: /config }
-            - { name: books, mountPath: /books }
+            - { name: media, mountPath: /books, subPath: books }
           resources:
             requests: { cpu: 20m, memory: 128Mi }
             limits: { memory: 1Gi }
       volumes:
+        # One export, mounted once; every library path is a subPath of it (ADR 0011).
+        - name: media
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: kavita-config
-        - name: books
-          hostPath:
-            path: /mnt/media/books
-            type: Directory
 ---
 apiVersion: v1
 kind: Service

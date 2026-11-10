@@ -418,14 +418,19 @@ spec:
             - { name: http, containerPort: 5299 }
           volumeMounts:
             - { name: config, mountPath: /config }
-            - { name: books, mountPath: /books }
-            - { name: downloads, mountPath: /downloads }
+            - { name: media, mountPath: /books, subPath: books }
+            - { name: media, mountPath: /downloads }
             # patched package copy (see the abb-url-patcher init container)
             - { name: patched-app, mountPath: /app/lazylibrarian }
           resources:
             requests: { cpu: 20m, memory: 128Mi }
             limits: { memory: 512Mi }
       volumes:
+        # One export, mounted once; every library path is a subPath of it (ADR 0011).
+        - name: media
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: lazylibrarian-config

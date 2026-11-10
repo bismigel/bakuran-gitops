@@ -146,7 +146,7 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            - name: downloads
+            - name: media
               mountPath: /downloads
           resources:
             requests:
@@ -154,10 +154,13 @@ spec:
             limits:
               memory: "1Gi"
       volumes:
+        # One export, mounted once; every library path is a subPath of it (ADR 0011).
+        # Two separate NFS mounts of the same export are different mount points, and Sonarr imports by hardlink —
+        # so the paths must be bind mounts inside one filesystem or imports silently become copies.
+        - name: media
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: config-pvc
-        - name: downloads
-          hostPath:
-            path: /mnt/media
-            type: Directory

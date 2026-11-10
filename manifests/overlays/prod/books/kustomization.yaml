@@ -34,14 +34,6 @@ resources:
   - kavita-ciceley-password.yaml
 patches:
   - target:
-      kind: Deployment
-      name: (audiobookshelf|kavita|lazylibrarian)
-    patch: |-
-      - op: add
-        path: /spec/template/spec/nodeSelector
-        value:
-          homelab.io/media-pool: "true"
-  - target:
       kind: CronJob
       name: kavita-scan
     patch: |-
