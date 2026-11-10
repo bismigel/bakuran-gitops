@@ -293,7 +293,12 @@ spec:
           args:
             - '--config.file=/etc/prometheus/prometheus.yml'
             - '--storage.tsdb.path=/prometheus'
-            - '--storage.tsdb.retention.size=1GB'
+            # Time-based, not size-based (story 10.6, 2026-11-09). `retention.size=1GB` is honest about disk but
+            # useless for a question about a date: on 2026-11-06 an 11 GB egress spike at 19:00 on Nov 1 could not be
+            # answered because a 1 GiB cap had already rolled that hour off the disk. 30 days inside an 8 GiB volume is
+            # the trade, and `retention.size` stays as a backstop so a metric explosion cannot fill the node.
+            - '--storage.tsdb.retention.time=30d'
+            - '--storage.tsdb.retention.size=6GB'
             - '--web.enable-lifecycle'
           ports:
             - containerPort: 9090
