@@ -14,6 +14,15 @@ spec:
       labels:
         app: immich-redis
     spec:
+      affinity:
+        # Required, matching Forgejo and Vaultwarden: two replicas on one node is a replica that does not survive the
+        # node it duplicates.
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: immich-server
       # No hostname pin (story 9.9, 2026-11-06). Both were pinned to `.80`, which made the *application* single-node
       # while its database had become genuinely HA — so losing `.80` meant "wait for a human to edit a manifest", not a
       # failover. The RTO/RPO table made that gap visible; this closes it.
@@ -129,9 +138,12 @@ metadata:
   name: immich-server
   namespace: immich
 spec:
-  replicas: 1
+  # Two replicas, because the library is ReadWriteMany now (2026-11-10). The database has been a two-instance cluster
+  # since story 8.2, so with this the application is HA end to end: any node can die and Immich keeps serving.
+  replicas: 2
   strategy:
-    type: Recreate        # RWO library volume
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
   selector:
     matchLabels:
       app: immich-server
@@ -195,7 +207,7 @@ spec:
       volumes:
         - name: library
           persistentVolumeClaim:
-            claimName: immich-library
+            claimName: immich-library-rwx
 ---
 apiVersion: v1
 kind: Service
@@ -230,3 +242,14 @@ spec:
                 name: immich-server
                 port:
                   number: 2283
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: immich-server
+  namespace: immich
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: immich-server

@@ -26,6 +26,31 @@ spec:
     requests:
       storage: 30Gi
 ---
+# The library, three times larger and **ReadWriteMany** (2026-11-10).
+#
+# Two requests in one object, because both need a new volume: Longhorn can grow a volume but cannot change its access
+# mode, and `ReadWriteOnce` is what keeps `immich-server` at one replica — a second pod would fail to attach, so the
+# database being HA (story 8.2) never made the *application* HA.
+#
+# 100 GiB is not arbitrary: the smallest Longhorn disk is `patola-thinkcentre`'s dedicated one at 120 G free, and a
+# three-replica volume must fit on every node it lands on. Larger than this and the third replica has nowhere to go.
+#
+# `immich-library` (30 GiB, RWO) stays in place as the rollback copy — ADR 0002 makes deleting it a separate, human
+# decision with its own evidence, not a side effect of a migration.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library-rwx
+  namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 100Gi
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
