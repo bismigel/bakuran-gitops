@@ -1,0 +1,61 @@
+# Vaultwarden's database, HA from the first day rather than retrofitted (2026-11-10).
+#
+# The owner's rule: the only data that really matters is Immich and Vaultwarden. Immich's database became a two-instance
+# CloudNativePG cluster at story 8.2; this is the same shape for the one application where a loss would mean losing
+# every password.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vaultwarden-db
+  namespace: vaultwarden
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: vaultwarden-db
+    creationPolicy: Owner
+    template:
+      data:
+        password: "{{ .password }}"
+        # CNPG's bootstrap reads `username`; Vaultwarden's DATABASE_URL carries the same value.
+        username: "vaultwarden"
+        # Kubernetes cannot template an env var from three other vars, so the full URL is composed here — one place,
+        # and it points at the `-rw` service, so a promotion is a DNS change the app never sees (same as Forgejo).
+        DATABASE_URL: "postgresql://vaultwarden:{{ .password }}@vaultwarden-pg-rw.vaultwarden.svc.cluster.local:5432/vaultwarden"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: vaultwarden-db-password
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: vaultwarden-pg
+  namespace: vaultwarden
+spec:
+  instances: 2
+  # `tag@digest`: CNPG parses the tag to judge major-version upgrades and refuses a bare digest (learned at story 8.2).
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.10@sha256:6287f6497c8c7495305900b79b7aa8d0c9515fa9d3614eff81650068f4d9bacf
+  primaryUpdateStrategy: unsupervised
+  storage:
+    storageClass: longhorn
+    size: 2Gi
+  bootstrap:
+    initdb:
+      database: vaultwarden
+      owner: vaultwarden
+      secret:
+        name: vaultwarden-db
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 512Mi }
+  postgresql:
+    parameters:
+      max_connections: "50"
+      shared_buffers: "64MB"
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
