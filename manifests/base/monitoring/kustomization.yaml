@@ -12,6 +12,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - netdev-exporter.yaml
+  # The router API key its exporter reads. Declared as an ExternalSecret so a rotation on the router reaches the cluster
+  # instead of leaving a dead credential behind a 401 nobody watches (story 10.8).
+  - opnsense-api-secret.yaml
   - alerting-network-devices.yaml
   - grafana-dashboard-network-devices.yaml
   - alerting-workloads.yaml
