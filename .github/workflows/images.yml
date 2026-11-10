@@ -26,11 +26,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The official install script, not a third-party action: the action's own versioning broke this twice in ten
+      # minutes (a pinned tag that does not exist, then a `path` input it decided to reject). A curl + a pinned trivy
+      # release has one moving part, and the version below came from the release list rather than from memory.
       - name: Install trivy
-        uses: aquasecurity/setup-trivy@v0.3.1
-        with:
-          version: v0.58.1
-          cache: true
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin v0.76.2
+          trivy --version
 
       - name: Install the scanner's one dependency
         run: python3 -m pip install --quiet pyyaml
