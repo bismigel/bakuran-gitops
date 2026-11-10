@@ -298,7 +298,7 @@ spec:
             # answered because a 1 GiB cap had already rolled that hour off the disk. 30 days inside an 8 GiB volume is
             # the trade, and `retention.size` stays as a backstop so a metric explosion cannot fill the node.
             - '--storage.tsdb.retention.time=30d'
-            - '--storage.tsdb.retention.size=6GB'
+            - '--storage.tsdb.retention.size=4GB'
             - '--web.enable-lifecycle'
           ports:
             - containerPort: 9090
@@ -311,10 +311,15 @@ spec:
             - name: storage
               mountPath: /prometheus
           resources:
+            # 1Gi was sized for a 1 GB TSDB, and that is what it had. Retaining 30 days (story 10.6) raised the number of
+            # blocks the process loads at startup, so 1Gi became an **OOMKill loop**: both this and the alerting instance
+            # restarted every ~90 s for an hour on 2026-11-09, and every graph in Grafana read "no data" because the
+            # process never lived long enough to answer. Measured before raising: nodes run at 41-55% of 15 GiB, so 2Gi
+            # here is headroom, not a squeeze.
             requests:
-              memory: 256Mi
+              memory: 512Mi
             limits:
-              memory: 1Gi
+              memory: 2Gi
         # Reload Prometheus when the config/rules ConfigMaps change (supports
         # --web.enable-lifecycle); avoids a manual restart after rule edits.
         - name: config-reloader
