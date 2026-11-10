@@ -47,43 +47,51 @@ patches:
       kind: Deployment
       name: audiobookshelf
     patch: |-
+      # The libraries are one NFS volume in the base now (ADR 0011); staging has no .82 to mount, so the single
+      # `media` volume becomes an emptyDir. One substitution, not three per app.
       - op: test
-        path: /spec/template/spec/volumes/1/name
-        value: audiobooks
+        path: /spec/template/spec/volumes/0/name
+        value: media
       - op: replace
-        path: /spec/template/spec/volumes/1
+        path: /spec/template/spec/volumes/0
         value:
-          name: audiobooks
+          name: media
           emptyDir: {}
   - target:
       kind: Deployment
       name: kavita
     patch: |-
+      # The libraries are one NFS volume in the base now (ADR 0011); staging has no .82 to mount, so the single
+      # `media` volume becomes an emptyDir. One substitution, not three per app.
       - op: test
-        path: /spec/template/spec/volumes/1/name
-        value: books
+        path: /spec/template/spec/volumes/0/name
+        value: media
       - op: replace
-        path: /spec/template/spec/volumes/1
+        path: /spec/template/spec/volumes/0
         value:
-          name: books
+          name: media
           emptyDir: {}
   - target:
       kind: Deployment
       name: lazylibrarian
     patch: |-
+      # The libraries are one NFS volume in the base now (ADR 0011); staging has no .82 to mount, so the single
+      # `media` volume becomes an emptyDir. One substitution, not three per app.
       - op: test
-        path: /spec/template/spec/volumes/2/name
-        value: books
+        path: /spec/template/spec/volumes/0/name
+        value: media
       - op: replace
-        path: /spec/template/spec/volumes/2
+        path: /spec/template/spec/volumes/0
         value:
-          name: books
+          name: media
           emptyDir: {}
+      # The libraries are one NFS volume in the base now (ADR 0011); staging has no .82 to mount, so the single
+      # `media` volume becomes an emptyDir. One substitution, not three per app.
       - op: test
-        path: /spec/template/spec/volumes/3/name
-        value: downloads
+        path: /spec/template/spec/volumes/0/name
+        value: media
       - op: replace
-        path: /spec/template/spec/volumes/3
+        path: /spec/template/spec/volumes/0
         value:
-          name: downloads
+          name: media
           emptyDir: {}

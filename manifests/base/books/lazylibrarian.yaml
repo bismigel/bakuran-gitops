@@ -437,17 +437,6 @@ spec:
         - name: patched-app
           emptyDir:
             sizeLimit: 64Mi
-        - name: books
-          hostPath:
-            path: /mnt/media/books
-            type: Directory
-        - name: downloads
-          # Same host tree as SABnzbd (which mounts /mnt/media at /downloads and
-          # completes into /downloads/complete/<category>), so the paths SAB
-          # reports back resolve inside LazyLibrarian.
-          hostPath:
-            path: /mnt/media
-            type: Directory
 ---
 apiVersion: v1
 kind: Service
