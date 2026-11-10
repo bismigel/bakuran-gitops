@@ -1,0 +1,41 @@
+name: images
+
+# Scan what this repo actually deploys (story 10.4).
+#
+# Why here and not only in the app repos: those build images, but *this* repo decides which digest runs. A CVE in a
+# pinned digest is a property of the deployment, and the only place that knows the whole set is here.
+#
+# Weekly, not per-PR: a full scan of ~50 images takes minutes and the answers change on the order of days, not commits.
+# PRs that touch the scanner or its policy do run it, because that is when the guard itself changed.
+on:
+  schedule:
+    - cron: "0 6 * * 1"          # Monday 06:00 UTC, before the week's work
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/scan-images.py"
+      - "scripts/scan-policy.yaml"
+      - ".github/workflows/images.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install trivy
+        uses: aquasecurity/setup-trivy@v0.2.3
+        with:
+          version: v0.58.1
+          cache: true
+
+      - name: Install the scanner's one dependency
+        run: python3 -m pip install --quiet pyyaml
+
+      # The policy lives in scripts/scan-policy.yaml: what fails, what is reported, and every accepted finding with an
+      # owner and an expiry. A failure here means either a new CVE in a pinned digest, or an exception that has expired.
+      - name: Scan the images this repo deploys
+        run: python3 scripts/scan-images.py
