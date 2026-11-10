@@ -17,6 +17,7 @@ resources:
   - opnsense-api-secret.yaml
   - alerting-network-devices.yaml
   - grafana-dashboard-network-devices.yaml
+  - grafana-dashboard-opnsense.yaml
   - alerting-workloads.yaml
   - alerting.yaml
   - prometheus-watchdog.yaml
