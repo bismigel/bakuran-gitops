@@ -107,7 +107,7 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            - name: downloads
+            - name: media
               mountPath: /downloads
           readinessProbe:
             httpGet: { path: /, port: 8080 }
@@ -124,13 +124,14 @@ spec:
             # trades the same memory for slower downloads.
             limits: { memory: 2Gi }
       volumes:
+        # One export, mounted once; every library path is a subPath of it (ADR 0011).
+        - name: media
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: sabnzbd-config
-        - name: downloads
-          hostPath:
-            path: /mnt/media
-            type: Directory
 ---
 apiVersion: v1
 kind: Service

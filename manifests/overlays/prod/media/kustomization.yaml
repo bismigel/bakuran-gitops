@@ -20,14 +20,6 @@ kind: Kustomization
 resources:
   - ../../../base/media
 patches:
-  - target:
-      kind: Deployment
-      name: (sonarr|radarr|prowlarr|bazarr|qbittorrent|sabnzbd)
-    patch: |-
-      - op: add
-        path: /spec/template/spec/nodeSelector
-        value:
-          homelab.io/media-pool: "true"
   # `homelab.io/qsv` restored (the rehearsal commit is reverted). The rehearsal found that the QuickSync label was
   # never the blocker: `homelab.io/media-pool` exists **only on `.81`**, so with `.81` cordoned the pod is unschedulable
   # no matter what else is dropped — "0/3 nodes are available: 1 unschedulable, 2 didn't match". Jellyfin becomes

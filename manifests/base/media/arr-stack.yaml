@@ -139,6 +139,13 @@ spec:
             limits:
               memory: 512Mi
       volumes:
+        - name: media
+          # One export, mounted once; the library paths are subPaths of it (ADR 0011).
+          # Two NFS mounts of the same export are different mount points, and an import by hardlink
+          # would silently become a copy.
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: prowlarr-config
@@ -220,9 +227,10 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            - name: tv
+            - name: media
               mountPath: /tv
-            - name: downloads
+              subPath: tv
+            - name: media
               mountPath: /downloads
           resources:
             requests:
@@ -230,17 +238,16 @@ spec:
             limits:
               memory: 1Gi
       volumes:
+        - name: media
+          # One export, mounted once; the library paths are subPaths of it (ADR 0011).
+          # Two NFS mounts of the same export are different mount points, and an import by hardlink
+          # would silently become a copy.
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: sonarr-config
-        - name: tv
-          hostPath:
-            path: /mnt/media/tv
-            type: Directory
-        - name: downloads
-          hostPath:
-            path: /mnt/media
-            type: Directory
 ---
 apiVersion: v1
 kind: Service
@@ -316,9 +323,10 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            - name: movies
+            - name: media
               mountPath: /movies
-            - name: downloads
+              subPath: movies
+            - name: media
               mountPath: /downloads
           resources:
             requests:
@@ -326,17 +334,16 @@ spec:
             limits:
               memory: 1Gi
       volumes:
+        - name: media
+          # One export, mounted once; the library paths are subPaths of it (ADR 0011).
+          # Two NFS mounts of the same export are different mount points, and an import by hardlink
+          # would silently become a copy.
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: radarr-config
-        - name: movies
-          hostPath:
-            path: /mnt/media/movies
-            type: Directory
-        - name: downloads
-          hostPath:
-            path: /mnt/media
-            type: Directory
 ---
 apiVersion: v1
 kind: Service
@@ -405,27 +412,28 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            - name: movies
+            - name: media
               mountPath: /movies
-            - name: tv
+              subPath: movies
+            - name: media
               mountPath: /tv
+              subPath: tv
           resources:
             requests:
               memory: 256Mi
             limits:
               memory: 512Mi
       volumes:
+        - name: media
+          # One export, mounted once; the library paths are subPaths of it (ADR 0011).
+          # Two NFS mounts of the same export are different mount points, and an import by hardlink
+          # would silently become a copy.
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media
         - name: config
           persistentVolumeClaim:
             claimName: bazarr-config
-        - name: movies
-          hostPath:
-            path: /mnt/media/movies
-            type: Directory
-        - name: tv
-          hostPath:
-            path: /mnt/media/tv
-            type: Directory
 ---
 apiVersion: v1
 kind: Service
