@@ -75,19 +75,6 @@ spec:
       labels:
         app: qbittorrent
     spec:
-      # **Away from the egress node, deliberately.** Two WireGuard tunnels cannot stack: inside this pod the gluetun
-      # handshake to Proton is not covered by the endpoint route that the *node* pins into `main`, so on `.81` it enters
-      # the node's own tunnel and never completes — measured 2026-11-10, `restarting VPN because it failed to pass the
-      # healthcheck`, repeatedly.
-      #
-      # `DoesNotExist` rather than a hostname: the requirement is "anywhere that is not already tunnelled", which
-      # survives the node being renamed, replaced or relabelled.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - { key: homelab.io/wg-egress, operator: DoesNotExist }
       initContainers:
         - name: init
           image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
