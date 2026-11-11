@@ -25,11 +25,14 @@ patches:
   # 84.20.16.49 (Proton) while the same check from `.82` returns 142.188.116.191 — the house. So a torrent client that
   # reschedules is not slower, it is de-anonymised.
   #
+  # qBittorrent is NOT in this list any more: its tunnel moved into the pod (2026-11-10), so pinning it to the egress
+  # node would stack a second WireGuard inside the first and break the handshake. The others still use the node tunnel.
+  #
   # Only workloads whose own traffic is sensitive are pinned. The *arrs read and write the library over NFS and talk to
   # indexers, so they can move; qBittorrent, SAB and Prowlarr are the ones that connect outward.
   - target:
       kind: Deployment
-      name: (qbittorrent|sabnzbd|prowlarr)
+      name: (sabnzbd|prowlarr)
     patch: |-
       - op: add
         path: /spec/template/spec/nodeSelector
