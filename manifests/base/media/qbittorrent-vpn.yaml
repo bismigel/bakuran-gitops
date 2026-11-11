@@ -1,0 +1,32 @@
+# WireGuard inside the pod, so qBittorrent's anonymity stops depending on which node it lands on (2026-11-10).
+#
+# Why: the Proton tunnel is a *node* property. `proton0` on `.81` captures everything that node sends (table 51820 has
+# `default dev proton0`), so a pod inherits the tunnel by sitting there — measured, same command both sides:
+#
+#   qBittorrent on .81  ->  84.20.16.49      (Proton)
+#   .82                 ->  142.188.116.191  (the house)
+#
+# That makes "which node" a privacy setting, and a drain or a routing change a silent leak. With a sidecar, the tunnel
+# belongs to the workload: containers in a pod share a network namespace, so gluetun's tun0 carries qBittorrent's
+# traffic and its **kill-switch** (no tunnel, no route) applies to it.
+#
+# The node tunnel is deliberately left alone. Until this is proven, `homelab.io/wg-egress=true` still pins the pod to
+# `.81`, so the two protections overlap rather than hand over — and rolling back is deleting this file's contents from
+# the Deployment, not undoing a CNI change.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: proton-wg
+  namespace: downloads
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: proton-wg
+    creationPolicy: Owner
+  data:
+    - secretKey: private_key
+      remoteRef:
+        key: proton-wg-private-key
