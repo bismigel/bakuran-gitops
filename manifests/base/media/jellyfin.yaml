@@ -189,8 +189,19 @@ spec:
             # on the public name keeps that, and neither is told about the other's world. The reason it was set in 8.3
             # (a stable address that follows the pod rather than a node) still holds, because `jellyfin.lan` now resolves
             # to the LoadBalancer address — the TV supplies it itself.
+            # The **public** URL (2026-11-10). Three values have now been tried, and each failed a different client:
+            #
+            #   node IP + hostPort  -> the TV broke the moment the pod moved (8.3)
+            #   http://jellyfin.lan -> a LAN-only name handed to *every* client in /System/Info/Public, so a browser on
+            #                          the public hostname was told to talk to something it cannot resolve
+            #   unset               -> Jellyfin reports its bind address, http://<pod-ip>:8096, which nothing can reach
+            #
+            # The public hostname is the only value that is true for a remote client, and the LAN clients do not depend
+            # on it: the TV dials `jellyfin.lan:8096` itself and keeps using it, and the web UI talks to the origin it
+            # was loaded from. HTTPS matters as much as the hostname — Jellyfin builds absolute URLs from this, and an
+            # `http://` advertisement on an `https://` page is mixed content the browser blocks.
             - name: JELLYFIN_PublishedServerUrl
-              value: ""
+              value: "https://jellyfin.bismigel.dev"
           resources:
             requests:
               memory: 512Mi
