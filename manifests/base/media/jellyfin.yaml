@@ -178,8 +178,19 @@ spec:
             #
             # Hardcoding a node here would have made the rest of 8.3 pointless for exactly the clients the failover is
             # for. `jellyfin.lan` resolves to the LoadBalancer address, which follows the pod.
+            # **Unset on purpose** (2026-11-10). It was `http://jellyfin.lan:8096`, which is a LAN-only name — and
+            # Jellyfin hands that value to *every* client in `/System/Info/Public` as `LocalAddress`. A browser opening
+            # `https://jellyfin.bismigel.dev` therefore loaded the page and was then told to talk to an address that does
+            # not resolve outside this LAN: the HTML arrived (200) and the application did not work.
+            #
+            # Measured before removing it: over the public URL, `LocalAddress` came back as `http://jellyfin.lan:8096`.
+            #
+            # With it unset, each client keeps the address it actually used — the TV dials `jellyfin.lan:8096`, a browser
+            # on the public name keeps that, and neither is told about the other's world. The reason it was set in 8.3
+            # (a stable address that follows the pod rather than a node) still holds, because `jellyfin.lan` now resolves
+            # to the LoadBalancer address — the TV supplies it itself.
             - name: JELLYFIN_PublishedServerUrl
-              value: "http://jellyfin.lan:8096"
+              value: ""
           resources:
             requests:
               memory: 512Mi
