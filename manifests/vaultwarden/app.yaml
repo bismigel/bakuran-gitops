@@ -81,10 +81,13 @@ spec:
               valueFrom:
                 secretKeyRef: { name: vaultwarden-db, key: DATABASE_URL }
             - name: SIGNUPS_ALLOWED
-              # **Temporarily open** (2026-11-12) so the owner's first account can be created, then closed again in the
-              # next commit. A password manager on a public hostname with open signups is how the account stops being
-              # yours, so this window is deliberate, short, and reverted.
-              value: "true"
+              # Closed again (2026-11-12), after the owner's account was created through Vaultwarden's own registration
+              # API: `send-verification-email` returns the token directly when mail is disabled, and `register/finish`
+              # consumes it, so the server wrote every field in the format its own verification expects. Verified by
+              # logging in and receiving an access token.
+              #
+              # A password manager on a public hostname with open signups is how the account stops being yours.
+              value: "false"
             - name: ADMIN_TOKEN
               valueFrom:
                 secretKeyRef: { name: vaultwarden-secret, key: ADMIN_TOKEN }
