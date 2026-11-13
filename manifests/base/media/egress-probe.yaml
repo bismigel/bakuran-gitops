@@ -33,6 +33,9 @@ spec:
         - name: probe
           image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
           command: ["sleep", "infinity"]
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 50m, memory: 64Mi }
           securityContext:
             runAsNonRoot: true
             runAsUser: 65534
@@ -61,6 +64,9 @@ spec:
         - name: probe
           image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
           command: ["sleep", "infinity"]
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 50m, memory: 64Mi }
           securityContext:
             runAsNonRoot: true
             runAsUser: 65534
