@@ -26,7 +26,21 @@ spec:
         k8sServiceHost: 192.168.2.100
         k8sServicePort: "6443"
         # Requests only, sized from observed usage (2026-10-28).
-        kubeProxyReplacement: "false"
+        # **Kube-proxy replacement, final attempt (2026-11-13, story 10.10).** The prerequisite work is done:
+        # the ingress is ClusterIP-only behind a pinned address, and the estate has **no NodePort at all** — which
+        # removes the thing that made the first attempt unsafe, since Cilium does not honour `nodeport-addresses`
+        # (measured in a VM: NodePort answered 000 on loopback *and* the node address, which would have taken the whole
+        # public edge dark).
+        #
+        # This must land together with k3s `--disable-kube-proxy` in bakuran-infra: while both datapaths run, cross-node
+        # scrapes break (cAdvisor through the API proxy, Longhorn pod metrics — seen 2026-11-11). Cilium first, then
+        # kube-proxy removal, node by node.
+        #
+        # Rollback: set this back to "false", `bpf.masquerade` to false, sync, and remove the k3s flag — the cluster
+        # returns to IPVS.
+        kubeProxyReplacement: "true"
+        bpf:
+          masquerade: true
         # Chart default is maxUnavailable: 2 - on a 3-node cluster that means two
         # CNI agents down simultaneously. One at a time.
         updateStrategy:
