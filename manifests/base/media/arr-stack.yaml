@@ -162,13 +162,12 @@ metadata:
   name: prowlarr
   namespace: media
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: prowlarr
   ports:
     - port: 9696
       targetPort: 9696
-      nodePort: 30069
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -261,13 +260,12 @@ metadata:
   name: sonarr
   namespace: media
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: sonarr
   ports:
     - port: 8989
       targetPort: 8989
-      nodePort: 30089
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -360,13 +358,12 @@ metadata:
   name: radarr
   namespace: media
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: radarr
   ports:
     - port: 7878
       targetPort: 7878
-      nodePort: 30078
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -453,13 +450,12 @@ metadata:
   name: bazarr
   namespace: media
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: bazarr
   ports:
     - port: 6767
       targetPort: 6767
-      nodePort: 30067
 ---
 # Exposed via the Cloudflare tunnel (behind Access); LAN NodePorts are
 # loopback-only now.

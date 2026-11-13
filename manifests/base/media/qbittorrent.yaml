@@ -29,12 +29,11 @@ metadata:
   name: qbittorrent
   namespace: downloads
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
     - name: webui
       port: 8080
       targetPort: 8080
-      nodePort: 30081
   selector:
     app: qbittorrent
 ---

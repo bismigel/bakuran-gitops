@@ -262,6 +262,11 @@ spec:
   # `192.168.2.84` were measuring a stale address, not a broken one. Re-applied to test once, with the
   # Service in the state it is supposed to be in.
   type: LoadBalancer
+  # The VIP is the only address anyone uses (the TV dials `jellyfin.lan` -> 192.168.2.84). A LoadBalancer Service also
+  # allocates a NodePort unless told otherwise, and NodePorts are about to stop being loopback-only: under Cilium's
+  # kube-proxy replacement they are served on every node address, and `nixos-fw` cannot restore the restriction because
+  # Cilium DNATs in BPF before netfilter. So: no NodePort here either.
+  allocateLoadBalancerNodePorts: false
   selector:
     app: jellyfin
   ports:
