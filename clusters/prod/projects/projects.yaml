@@ -103,6 +103,9 @@ spec:
     - {group: 'admissionregistration.k8s.io', kind: 'MutatingWebhookConfiguration'}
     - {group: 'admissionregistration.k8s.io', kind: 'ValidatingWebhookConfiguration'}
     - {group: 'apiextensions.k8s.io', kind: 'CustomResourceDefinition'}
+    # the egress gateway policy (10.10): pinned ingress addresses, then no NodePorts, then kube-proxy
+    # replacement, and this is the last piece that lets the downloaders leave through .81 without running there.
+    - {group: 'cilium.io', kind: 'CiliumEgressGatewayPolicy'}
     - {group: 'external-secrets.io', kind: 'ClusterSecretStore'}
     - {group: 'networking.k8s.io', kind: 'IngressClass'}
     - {group: 'rbac.authorization.k8s.io', kind: 'ClusterRole'}
