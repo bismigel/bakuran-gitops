@@ -81,9 +81,10 @@ spec:
               valueFrom:
                 secretKeyRef: { name: vaultwarden-db, key: DATABASE_URL }
             - name: SIGNUPS_ALLOWED
-              # Closed. The first account is created by the owner with the ingress briefly set to allow signups; leaving
-              # this true on a public hostname is how a password manager becomes someone else's account.
-              value: "false"
+              # **Temporarily open** (2026-11-12) so the owner's first account can be created, then closed again in the
+              # next commit. A password manager on a public hostname with open signups is how the account stops being
+              # yours, so this window is deliberate, short, and reverted.
+              value: "true"
             - name: ADMIN_TOKEN
               valueFrom:
                 secretKeyRef: { name: vaultwarden-secret, key: ADMIN_TOKEN }
