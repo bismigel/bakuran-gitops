@@ -1,0 +1,75 @@
+# The verification harness for story 10.10 — two pods, one labelled, one not.
+#
+# 10.10 has now been attempted three times, and twice the "result" was not a measurement: first because the policy was
+# invalid (Cilium rejects `interface` + `egressIP` together, logged only at warn level), then because a probe pod carried
+# the same `app=` label as the live downloaders and hijacked their Service. So the harness is in git rather than typed
+# into a shell: a labelled pod that the policy selects, and an unlabelled one beside it that it must not.
+#
+# Both are pinned to `sitaw-amd` on purpose. That is the whole test: the tunnel is on `calamansi-intel`, so a pod here is
+# anonymised only if the egress gateway is doing its job. Delete this file once a real workload is proven on the same path.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: egress-probe
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: labelled
+  namespace: egress-probe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      egress-probe: "true"
+  template:
+    metadata:
+      labels:
+        egress-probe: "true" # <- the only thing CiliumEgressGatewayPolicy selects
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: sitaw-amd
+      containers:
+        - name: probe
+          image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+          command: ["sleep", "infinity"]
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 50m, memory: 64Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control
+  namespace: egress-probe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      egress-probe: "false"
+  template:
+    metadata:
+      labels:
+        egress-probe: "false" # <- must NOT be selected; proves the policy, not the network
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: sitaw-amd
+      containers:
+        - name: probe
+          image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+          command: ["sleep", "infinity"]
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 50m, memory: 64Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
