@@ -141,8 +141,11 @@ spec:
       volumes:
         - name: media
           # One export, mounted once; the library paths are subPaths of it (ADR 0011).
-          # Two NFS mounts of the same export are different mount points, and an import by hardlink
-          # would silently become a copy.
+          # **Imports copy, they do not hardlink — measured 2026-11-12.** A `subPath` mount of an NFS volume is
+          # a *separate NFS mount*; `link()` requires the same **vfsmount**, not the same filesystem, so `ln`
+          # returns `Cross-device link` even when `st_dev` matches. The old hostPath arrangement behaved the
+          # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
+          # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
             server: 192.168.2.82
             path: /mnt/media
@@ -240,8 +243,11 @@ spec:
       volumes:
         - name: media
           # One export, mounted once; the library paths are subPaths of it (ADR 0011).
-          # Two NFS mounts of the same export are different mount points, and an import by hardlink
-          # would silently become a copy.
+          # **Imports copy, they do not hardlink — measured 2026-11-12.** A `subPath` mount of an NFS volume is
+          # a *separate NFS mount*; `link()` requires the same **vfsmount**, not the same filesystem, so `ln`
+          # returns `Cross-device link` even when `st_dev` matches. The old hostPath arrangement behaved the
+          # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
+          # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
             server: 192.168.2.82
             path: /mnt/media
@@ -336,8 +342,11 @@ spec:
       volumes:
         - name: media
           # One export, mounted once; the library paths are subPaths of it (ADR 0011).
-          # Two NFS mounts of the same export are different mount points, and an import by hardlink
-          # would silently become a copy.
+          # **Imports copy, they do not hardlink — measured 2026-11-12.** A `subPath` mount of an NFS volume is
+          # a *separate NFS mount*; `link()` requires the same **vfsmount**, not the same filesystem, so `ln`
+          # returns `Cross-device link` even when `st_dev` matches. The old hostPath arrangement behaved the
+          # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
+          # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
             server: 192.168.2.82
             path: /mnt/media
@@ -426,8 +435,11 @@ spec:
       volumes:
         - name: media
           # One export, mounted once; the library paths are subPaths of it (ADR 0011).
-          # Two NFS mounts of the same export are different mount points, and an import by hardlink
-          # would silently become a copy.
+          # **Imports copy, they do not hardlink — measured 2026-11-12.** A `subPath` mount of an NFS volume is
+          # a *separate NFS mount*; `link()` requires the same **vfsmount**, not the same filesystem, so `ln`
+          # returns `Cross-device link` even when `st_dev` matches. The old hostPath arrangement behaved the
+          # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
+          # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
             server: 192.168.2.82
             path: /mnt/media
