@@ -207,12 +207,11 @@ metadata:
   name: prometheus
   namespace: monitoring
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
     - name: web
       port: 9090
       targetPort: 9090
-      nodePort: 30909
   selector:
     app: prometheus
 ---
@@ -423,12 +422,11 @@ metadata:
   name: grafana
   namespace: monitoring
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
     - name: web
       port: 3000
       targetPort: 3000
-      nodePort: 30300
   selector:
     app: grafana
 ---
