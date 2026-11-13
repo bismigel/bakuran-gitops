@@ -140,15 +140,14 @@ metadata:
   name: vaultwarden
   namespace: vaultwarden
 spec:
-  # NodePort, because that is how the Cloudflare tunnel reaches a service in this estate: both connectors run with
-  # `nodeport-addresses=127.0.0.1/32` (the edge lock), so a hostname's target is always `http://127.0.0.1:<nodePort>` —
-  # never a node IP, which the firewall refuses (learned the hard way on jellyfin, 2026-11-11).
-  #
-  # 30090 verified free across the cluster before choosing it. The LAN Ingress below stays for local access.
+  # ClusterIP. The tunnel reaches this through the **ingress** on a pinned ClusterIP, like every other hostname, so
+  # there is no NodePort any more — `nodePort: 30090` was left in the port list when the type changed, which is invalid
+  # for a ClusterIP Service and left the Application stuck OutOfSync. Caught by reading the out-of-sync resource rather
+  # than assuming the sync had landed.
   type: ClusterIP
   selector: { app.kubernetes.io/name: vaultwarden }
   ports:
-    - { name: http, port: 80, targetPort: http, nodePort: 30090 }
+    - { name: http, port: 80, targetPort: http }
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
