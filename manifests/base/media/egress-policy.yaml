@@ -51,3 +51,14 @@ spec:
     nodeSelector:
       matchLabels:
         egress-node: "true"
+    # `interface` and `egressIP` must be explicit here, and leaving them out is not harmless.
+    #
+    # Without them Cilium auto-detects the interface from the node's **default route**. On `.81` that route is `proton0`
+    # (`ip route get 1.1.1.1` -> `dev proton0 src 10.2.0.2`), so a naive guess gives a mix of the tunnel device and the LAN
+    # address: traffic was SNATed to `192.168.2.81`, then `ip rule 32765` sent it into `proton0` anyway — encrypted with a
+    # LAN source address, which answers nothing. Measured 2026-11-13: a labelled pod on `.82` timed out completely.
+    #
+    # Naming both is the whole point of the feature: the exit address is the tunnel's, so the pod is anonymised wherever
+    # it runs. Verified 2026-11-13 from a pod on `.82` -> `ifconfig.me` = the Proton exit, not the home WAN.
+    interface: proton0
+    egressIP: 10.2.0.2
