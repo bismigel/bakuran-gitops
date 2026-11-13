@@ -1,0 +1,38 @@
+# Anonymised egress for pods that must leave through `.81`, wherever they run.
+#
+# `interface: proton0` **alone**, and that detail is the whole story. Cilium 1.20.3 rejects a policy that names both an
+# interface and an egress IP (`gateway configuration can't specify both an interface and an egress IP`) — logged at warn
+# level, no event, no map entry, so the policy silently does nothing. The earlier attempt here set both and was therefore
+# never applied at all; what broke the downloaders then was the stale mapping from the attempt before it, which SNATed to
+# the LAN address and let `ip rule 32765` push that into `proton0` — a LAN source inside the tunnel, which answers nothing.
+#
+# Naming only the interface makes Cilium derive the egress IP from it: `proton0` carries `10.2.0.2`, the address Proton
+# expects. Measured 2026-11-13: a pod on `.82` reported 84.20.16.49 (the Proton exit) while an unlabelled pod beside it
+# reported the house address — the policy, not the network.
+#
+# The selectors name the probe namespace only. That is deliberate: while this is being proven, nothing in `media` or
+# `downloads` matches it, so a mistake here cannot take out the downloaders (which it did on 2026-11-13, for ~20 minutes).
+apiVersion: cilium.io/v2
+kind: CiliumEgressGatewayPolicy
+metadata:
+  name: anonymised-egress
+spec:
+  selectors:
+    - podSelector:
+        matchLabels:
+          egress-probe: "true"
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: egress-probe
+  destinationCIDRs:
+    - 0.0.0.0/0
+  excludedCIDRs:
+    - 10.42.0.0/16 # pod network
+    - 10.43.0.0/16 # service network
+    - 192.168.2.0/24 # the LAN, including the media pool and the VIP
+    - 10.2.0.0/16 # the tunnel itself
+  egressGateway:
+    nodeSelector:
+      matchLabels:
+        egress-node: "true"
+    interface: proton0
