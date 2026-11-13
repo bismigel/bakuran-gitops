@@ -97,6 +97,19 @@ data:
           - source_labels: [__meta_kubernetes_pod_container_port_number]
             action: keep
             regex: "8080"
+      # The LAN switch, which is OpenWrt, not Kubernetes (2026-11-13). `prometheus-node-exporter-lua` was installed on
+      # the switch itself and bound to its LAN address; the firewall on the switch accepts tcp/9100 from `.82` only, so
+      # this scrape is the single permitted client rather than the exporter being open on the LAN.
+      #
+      # No `node` label on these series (the exporter does not know it is a switch), so anything that joins on `node`
+      # must use `instance` instead - see the dashboard and any rule touching switch health.
+      - job_name: 'switch'
+        static_configs:
+          - targets: ['192.168.2.3:9100']
+            labels:
+              instance: 'gs108tv3'
+              device: 'switch'
+              site: 'lan'
       - job_name: 'node-exporter'
         kubernetes_sd_configs:
           - role: pod
