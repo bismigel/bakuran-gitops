@@ -341,7 +341,7 @@ data:
             "targets": [
               {
                 "refId": "A",
-                "expr": "node_network_up{job=\"switch\",device=~\"lan[1-8]\"}",
+                "expr": "node_network_carrier{job=\"switch\",device=~\"lan[1-8]\"}",
                 "legendFormat": "{{device}}"
               }
             ]

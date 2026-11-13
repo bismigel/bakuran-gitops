@@ -108,8 +108,10 @@ data:
           - targets: ['192.168.2.3:9100']
             labels:
               instance: 'gs108tv3'
-              device: 'switch'
               site: 'lan'
+              # NOT `device:` — the exporter labels every netdev series with the *port* name (`lan1`…`lan8`, `switch`,
+              # `switch.1`), and a static `device` label here silently overwrote all of them, collapsing eight ports into
+              # one series. Measured 2026-11-13: 496 series arrived and every one read `device="switch"`.
       - job_name: 'node-exporter'
         kubernetes_sd_configs:
           - role: pod
