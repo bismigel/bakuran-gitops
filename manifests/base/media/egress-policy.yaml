@@ -10,17 +10,39 @@
 # expects. Measured 2026-11-13: a pod on `.82` reported 84.20.16.49 (the Proton exit) while an unlabelled pod beside it
 # reported the house address — the policy, not the network.
 #
-# The selectors name the probe label only. That is deliberate: while this is being proven, nothing in `media` or
-# `downloads` matches it, so a mistake here cannot take out the downloaders (which it did on 2026-11-13, for ~20 minutes).
+# Proven on the probe pair first (2026-11-13): labelled pod on `.82` reported 84.20.16.49, the control beside it reported
+# the house address. Only then were the real workloads added.
 apiVersion: cilium.io/v2
 kind: CiliumEgressGatewayPolicy
 metadata:
   name: anonymised-egress
 spec:
   selectors:
+    # The probe pair stays as a permanent self-test: one labelled pod and one control, both on a node with no tunnel.
     - podSelector:
         matchLabels:
           egress-probe: "true"
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: media
+    # The real thing. Cilium cannot tell a pinned copy from a moved one, so these selectors and the removal of the
+    # `homelab.io/wg-egress` pins land in the same change - keeping the pins would leave the pods on `.81` and prove
+    # nothing, and adding the selectors while a copy is still pinned is what cut the downloaders off on 2026-11-13.
+    - podSelector:
+        matchLabels:
+          app: qbittorrent
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: downloads
+    - podSelector:
+        matchLabels:
+          app: sabnzbd
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: downloads
+    - podSelector:
+        matchLabels:
+          app: prowlarr
       namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: media
