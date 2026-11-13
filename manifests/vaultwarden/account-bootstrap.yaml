@@ -1,0 +1,161 @@
+# The owner's account, created by a declared Job rather than by a script somebody ran once (2026-11-12).
+#
+# Why a Job and not a note in a runbook: everything else here is reproducible from git. If this database is ever
+# restored to empty - or a second instance is built from the same manifests - the account must exist without anyone
+# remembering how to make one. The alternative, which is what happened first, was a Python one-off held in /tmp.
+#
+# **Idempotent by construction:** the script logs in first. A 200 means the account exists and works, and the Job exits
+# 0 without touching anything. Only a failed login leads to registration.
+#
+# Why registration is done through the API and not by inserting a row: Vaultwarden 1.37.5 expects client-side crypto
+# (PBKDF2 master key, HKDF-derived enc/mac keys, a protected 64-byte symmetric key, and an RSA keypair whose private half
+# is encrypted with it). A row written by hand exists and cannot log in - `{"message":"Username or password is
+# incorrect"}` with nothing to indicate why. `send-verification-email` returns the token directly when mail is disabled,
+# and `register/finish` consumes it, so the server writes every field in the format its own verification expects.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vaultwarden-account
+  namespace: vaultwarden
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: vaultwarden-account
+    creationPolicy: Owner
+  data:
+    - secretKey: email
+      remoteRef: { key: vaultwarden-account-email }
+    - secretKey: password
+      remoteRef: { key: vaultwarden-account-password }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vaultwarden-account-script
+  namespace: vaultwarden
+data:
+  bootstrap.py: |
+    #!/usr/bin/env python3
+    """Ensure the owner's Vaultwarden account exists, and prove it by logging in."""
+    import base64, hashlib, hmac, json, os, secrets, sys, urllib.parse, urllib.request
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+    BASE = os.environ["VAULTWARDEN_URL"].rstrip("/")
+    EMAIL = os.environ["VW_EMAIL"].strip().lower()
+    PASSWORD = os.environ["VW_PASSWORD"]
+    ITER = 600000
+    b64 = lambda b: base64.b64encode(b).decode()
+
+    def post(path, body=None, form=False):
+        if form:
+            data = urllib.parse.urlencode(body).encode()
+            ctype = "application/x-www-form-urlencoded"
+        else:
+            data = json.dumps(body or {}).encode()
+            ctype = "application/json"
+        req = urllib.request.Request(BASE + path, data=data, headers={"Content-Type": ctype}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.status, r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+
+    master_key = hashlib.pbkdf2_hmac("sha256", PASSWORD.encode(), EMAIL.encode(), ITER, 32)
+    master_pw_hash = b64(hashlib.pbkdf2_hmac("sha256", master_key, PASSWORD.encode(), 1, 32))
+
+    # 1. Does it already work? Then there is nothing to do.
+    code, body = post("/identity/connect/token", {
+        "grant_type": "password", "username": EMAIL, "password": master_pw_hash,
+        "scope": "api offline_access", "client_id": "cli",
+        "deviceType": 8, "deviceIdentifier": "account-bootstrap", "deviceName": "account-bootstrap",
+    }, form=True)
+    if code == 200:
+        print(f"account {EMAIL} exists and authenticates - nothing to do")
+        sys.exit(0)
+    print(f"login failed (HTTP {code}); creating the account")
+
+    # 2. Register the way a client does.
+    def enc2(pt, k_enc, k_mac):
+        iv = secrets.token_bytes(16)
+        pad = 16 - (len(pt) % 16)
+        ct = Cipher(algorithms.AES(k_enc), modes.CBC(iv)).encryptor().update(pt + bytes([pad]) * pad)
+        return f"2.{b64(iv)}|{b64(ct)}|{b64(hmac.new(k_mac, iv + ct, hashlib.sha256).digest())}"
+
+    code, body = post("/identity/accounts/register/send-verification-email", {"email": EMAIL, "name": "Miguel"})
+    if code != 200:
+        print(f"send-verification-email failed: HTTP {code} {body[:200]}")
+        sys.exit(1)
+    token = body.strip().strip('"')
+
+    enc_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"enc").derive(master_key)
+    mac_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"mac").derive(master_key)
+    user_key = secrets.token_bytes(64)
+    priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    code, body = post("/identity/accounts/register/finish", {
+        "email": EMAIL, "name": "Miguel", "masterPasswordHash": master_pw_hash, "masterPasswordHint": None,
+        "key": enc2(user_key, enc_key, mac_key),
+        "keys": {
+            "publicKey": b64(priv.public_key().public_bytes(serialization.Encoding.DER,
+                                                            serialization.PublicFormat.SubjectPublicKeyInfo)),
+            "encryptedPrivateKey": enc2(priv.private_bytes(serialization.Encoding.DER,
+                                                           serialization.PrivateFormat.PKCS8,
+                                                           serialization.NoEncryption()),
+                                        user_key[:32], user_key[32:]),
+        },
+        "kdf": 0, "kdfIterations": ITER, "emailVerificationToken": token,
+    })
+    if code not in (200, 201):
+        print(f"register/finish failed: HTTP {code} {body[:200]}")
+        sys.exit(1)
+
+    # 3. Prove it, rather than reporting success from the register response alone.
+    code, body = post("/identity/connect/token", {
+        "grant_type": "password", "username": EMAIL, "password": master_pw_hash,
+        "scope": "api offline_access", "client_id": "cli",
+        "deviceType": 8, "deviceIdentifier": "account-bootstrap", "deviceName": "account-bootstrap",
+    }, form=True)
+    print(f"created; login returns HTTP {code}")
+    sys.exit(0 if code == 200 else 1)
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vaultwarden-account-bootstrap
+  namespace: vaultwarden
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        # The only dependency. Installed at run time so no image has to be built and published for one script.
+        - name: deps
+          image: python:3.12-alpine
+          command: ["sh", "-c", "pip install --quiet --target /deps cryptography"]
+          volumeMounts:
+            - { name: deps, mountPath: /deps }
+      containers:
+        - name: bootstrap
+          image: python:3.12-alpine
+          command: ["python", "/scripts/bootstrap.py"]
+          env:
+            - { name: VAULTWARDEN_URL, value: "http://vaultwarden.vaultwarden.svc.cluster.local" }
+            - { name: PYTHONPATH, value: /deps }
+            - name: VW_EMAIL
+              valueFrom: { secretKeyRef: { name: vaultwarden-account, key: email } }
+            - name: VW_PASSWORD
+              valueFrom: { secretKeyRef: { name: vaultwarden-account, key: password } }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts }
+            - { name: deps, mountPath: /deps }
+      volumes:
+        - { name: scripts, configMap: { name: vaultwarden-account-script } }
+        - { name: deps, emptyDir: {} }

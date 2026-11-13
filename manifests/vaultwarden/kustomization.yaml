@@ -4,3 +4,4 @@ resources:
   - namespace.yaml
   - db.yaml
   - app.yaml
+  - account-bootstrap.yaml
