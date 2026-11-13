@@ -73,6 +73,15 @@ spec:
             server-snippet: |
               limit_req zone=perip burst=200 nodelay;
           service:
+            # **Pinned so the tunnel can target it** (2026-11-12, story 10.10). Public hostnames reach the ingress
+            # through a NodePort on loopback, which works only because kube-proxy keeps NodePorts off the LAN with
+            # `nodeport-addresses=127.0.0.1/32` — and that flag does not translate to Cilium: measured in a throwaway VM,
+            # with it set under kube-proxy replacement NodePort answered 000 on loopback *and* on the node address.
+            #
+            # A pinned ClusterIP takes NodePort out of the tunnel path, so the public edge stops depending on a
+            # datapath detail. `clusterIP` is a create-time field, but this is the value it already has — read from the
+            # live Service before writing it, so declaring it changes nothing today.
+            clusterIP: 10.43.46.55
             type: NodePort
             # TLS terminates at Cloudflare; the origin leg is HTTP and no Ingress
             # uses tls:, so the https port is disabled (drop the dead 32443).
