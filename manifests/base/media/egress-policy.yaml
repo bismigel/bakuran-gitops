@@ -10,7 +10,7 @@
 # expects. Measured 2026-11-13: a pod on `.82` reported 84.20.16.49 (the Proton exit) while an unlabelled pod beside it
 # reported the house address — the policy, not the network.
 #
-# The selectors name the probe namespace only. That is deliberate: while this is being proven, nothing in `media` or
+# The selectors name the probe label only. That is deliberate: while this is being proven, nothing in `media` or
 # `downloads` matches it, so a mistake here cannot take out the downloaders (which it did on 2026-11-13, for ~20 minutes).
 apiVersion: cilium.io/v2
 kind: CiliumEgressGatewayPolicy
@@ -23,7 +23,7 @@ spec:
           egress-probe: "true"
       namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: egress-probe
+          kubernetes.io/metadata.name: media
   destinationCIDRs:
     - 0.0.0.0/0
   excludedCIDRs:
