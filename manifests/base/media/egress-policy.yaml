@@ -1,0 +1,53 @@
+# Anonymised egress for the downloaders, without pinning them to a node.
+#
+# The Proton tunnel (`proton0`) is a **node** property, so before this a pod was anonymised by *where it ran*: qBittorrent,
+# SABnzbd and Prowlarr carried `homelab.io/wg-egress: "true"` and therefore could only live on `calamansi-intel`. Losing that
+# node stopped downloads, and the pin sat in the same bucket as the disk pins even though its reason was privacy, not storage
+# (see `NARRATIVE.md` "the two pins that look alike").
+#
+# A Cilium egress gateway moves the decision into a policy: the pod runs anywhere, and traffic leaves through `.81`, where
+# the tunnel is. One tunnel, one exit IP — the pod's location stops mattering.
+#
+# Requires `kubeProxyReplacement: true` (Cilium), which landed 2026-11-13 with k3s `--disable-kube-proxy`. It is genuinely a
+# prerequisite: the gateway rewrites the source in BPF, and kube-proxy's IPVS rules were what made the first attempt
+# unusable.
+apiVersion: cilium.io/v2
+kind: CiliumEgressGatewayPolicy
+metadata:
+  name: anonymised-downloads
+spec:
+  # Prowlarr is in `media`, the other two in `downloads` — so each selector names its namespace explicitly. A selector
+  # without a `namespaceSelector` matches every namespace, which would silently catch any future pod called `qbittorrent`.
+  selectors:
+    - podSelector:
+        matchLabels:
+          app: qbittorrent
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: downloads
+    - podSelector:
+        matchLabels:
+          app: sabnzbd
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: downloads
+    - podSelector:
+        matchLabels:
+          app: prowlarr
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: media
+  # Everything that leaves the host. `excludedCIDRs` is what keeps this from being a detour: without it, a pod reaching
+  # `immich-pg-rw` or `media.lan` would be sent to `.81` first, and a downloader hitting the media pool over NFS would
+  # traverse the very node it is talking to.
+  destinationCIDRs:
+    - 0.0.0.0/0
+  excludedCIDRs:
+    - 10.42.0.0/16 # pod network
+    - 10.43.0.0/16 # service network
+    - 192.168.2.0/24 # the LAN, including the media pool and the VIP
+    - 10.2.0.0/16 # the tunnel itself
+  egressGateway:
+    nodeSelector:
+      matchLabels:
+        egress-node: "true"
