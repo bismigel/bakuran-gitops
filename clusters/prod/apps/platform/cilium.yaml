@@ -38,6 +38,11 @@ spec:
         #
         # Rollback: set this back to "false", `bpf.masquerade` to false, sync, and remove the k3s flag — the cluster
         # returns to IPVS.
+        # The egress gateway (story 10.10). With it, a pod that must leave through the Proton tunnel can run on **any
+        # node** — the gateway node does the tunnelling — instead of being pinned to `.81` by `homelab.io/wg-egress`.
+        # That pin is the last thing making the downloaders single-node.
+        egressGateway:
+          enabled: true
         kubeProxyReplacement: "true"
         bpf:
           masquerade: true
