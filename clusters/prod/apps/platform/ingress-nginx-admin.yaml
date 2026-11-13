@@ -63,12 +63,15 @@ spec:
             #
             # A pinned ClusterIP takes NodePort out of the tunnel path, so the public edge stops depending on a
             # datapath detail. `clusterIP` is a create-time field, but this is the value it already has — read from the
-            # live Service before writing it, so declaring it changes nothing today.
+            # live Service before writing it.
+            #
+            # **`type: ClusterIP` since 2026-11-12** — the NodePort is gone because nothing uses it any more: both tunnel
+            # connectors were retargeted to this address and verified. That removes the last thing kube-proxy
+            # replacement would have broken (Cilium does not honour `nodeport-addresses`, measured) and shrinks the
+            # surface: no NodePort range listening on any node.
             clusterIP: 10.43.15.7
-            type: NodePort
+            type: ClusterIP
             enableHttps: false
-            nodePorts:
-              http: 32081
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx-admin
