@@ -207,7 +207,10 @@ spec:
       volumes:
         - name: library
           persistentVolumeClaim:
-            claimName: immich-library-rwx
+            # `-v2`: the same data on a claim sized from measurement (20 GiB for 1.5 GiB of files) instead of from the
+            # smallest disk's free space. Copied and verified byte-for-byte on 2026-11-13 (1 565 files, `diff -r`
+            # identical) before this line changed. The old claim is kept, at one replica, until this has run for a while.
+            claimName: immich-library-rwx-v2
 ---
 apiVersion: v1
 kind: Service
