@@ -1,0 +1,27 @@
+# The Immich library, right-sized (story 10.11).
+#
+# `immich-library-rwx` asks for 100 GiB and stores 3.6 GiB. That request was not a guess: Longhorn cannot shrink a volume,
+# so it was chosen as *the largest that would still fit a third replica on the smallest disk* — a workaround for the
+# scheduling alerts wearing the shape of a capacity decision. The alerts have fired ever since (`.80/data`: 220 GiB
+# promised against 134 GiB of disk, ratio 2.02), and they are right: the promise is what makes a rebuild unplaceable.
+#
+# Measured 2026-11-13: 29 volumes promise 276 GiB and hold 18 GiB, i.e. 774 GiB of air once replicas are counted. This
+# one volume is 300 GiB of that air for 3.6 GiB of photos.
+#
+# 20 GiB is 5.5x current usage. Growing is one patch (`spec.resources.requests.storage`); shrinking needs this copy-and-
+# switch dance again, which is the whole reason to size from measurement rather than from hope.
+#
+# The old claim stays until this one is proven, and then it is reduced to one replica rather than deleted (ADR 0002).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library-rwx-v2
+  namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
