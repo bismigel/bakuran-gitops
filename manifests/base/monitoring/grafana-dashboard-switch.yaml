@@ -1,0 +1,442 @@
+# The switch's own counters, which nothing could see before 2026-11-13.
+#
+# `prometheus-node-exporter-lua` runs on the device (OpenWrt, Netgear GS108Tv3) and is bound to its LAN address; the
+# switch's firewall accepts tcp/9100 from `.82` only, and Prometheus scrapes it as job `switch`.
+#
+# The distinction from `grafana-dashboard-network-devices.yaml` is the point: that one answers "does the device answer,
+# and how fast" (probing from outside). This one answers "what is it doing" — per-port bytes, drops, link state, CPU.
+# Neither substitutes for the other, and both are honest only if the series exist: every panel here reads `node_*{job="switch"}`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-switch
+  namespace: monitoring
+data:
+  switch.json: |
+      {
+        "uid": "lan-switch",
+        "title": "Switch \u2014 Netgear GS108Tv3 (OpenWrt)",
+        "tags": [
+          "homelab",
+          "network",
+          "switch",
+          "openwrt"
+        ],
+        "timezone": "browser",
+        "schemaVersion": 39,
+        "version": 1,
+        "refresh": "1m",
+        "description": "The switch itself, scraped at 192.168.2.3:9100 (job `switch`) after `prometheus-node-exporter-lua` was installed on the device on 2026-11-13. `grafana-dashboard-network-devices.yaml` covers whether the device answers and how fast; this covers what it is doing \u2014 per-port counters, CPU, memory, link state.\n\nThese series carry **no `node` label** (the exporter is not a Kubernetes node exporter), so everything here keys on `instance`/`device`. A query joining on `node` would silently return nothing \u2014 that is why this dashboard exists separately rather than being bolted onto the ones that assume a node.",
+        "time": {
+          "from": "now-6h",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 1,
+            "title": "Up",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 0,
+              "y": 0,
+              "w": 6,
+              "h": 4
+            },
+            "description": "1 means the exporter answered. The switch has no `node` label, so this is keyed on instance.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "up{job=\"switch\"}",
+                "legendFormat": "{{instance}}"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Uptime",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 6,
+              "y": 0,
+              "w": 6,
+              "h": 4
+            },
+            "description": "Seconds since the switch booted \u2014 a drop here is a reboot nobody announced.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "s",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "time() - node_boot_time_seconds{job=\"switch\"}",
+                "legendFormat": "{{instance}}"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "CPU busy %",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 12,
+              "y": 0,
+              "w": 12,
+              "h": 4
+            },
+            "description": "Derived from the idle counter; the switch CPU is small, so sustained >70% matters.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"switch\",mode=\"idle\"}[5m])) * 100)",
+                "legendFormat": "{{instance}}"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Load average",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 0,
+              "y": 4,
+              "w": 12,
+              "h": 7
+            },
+            "description": "1/5/15-minute load. On a small MIPS/ARM switch this is mostly the exporter itself.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "node_load1{job=\"switch\"}",
+                "legendFormat": "1m"
+              },
+              {
+                "refId": "B",
+                "expr": "node_load5{job=\"switch\"}",
+                "legendFormat": "5m"
+              },
+              {
+                "refId": "C",
+                "expr": "node_load15{job=\"switch\"}",
+                "legendFormat": "15m"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Memory",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 12,
+              "y": 4,
+              "w": 12,
+              "h": 7
+            },
+            "description": "Used memory. The exporter reports ~64 MiB available on this device; watch it, do not size anything by it.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "bytes",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "node_memory_MemTotal_bytes{job=\"switch\"} - node_memory_MemAvailable_bytes{job=\"switch\"}",
+                "legendFormat": "used"
+              },
+              {
+                "refId": "B",
+                "expr": "node_memory_MemAvailable_bytes{job=\"switch\"}",
+                "legendFormat": "available"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Port traffic (bytes/s)",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 0,
+              "y": 11,
+              "w": 12,
+              "h": 8
+            },
+            "description": "Per-port ingress. `lan1..lan8` are the DSA ports; `switch`/`switch.1` are the bridge, not a port.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "Bps",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "rate(node_network_receive_bytes_total{job=\"switch\",device=~\"lan[1-8]\"}[5m])",
+                "legendFormat": "rx {{device}}"
+              },
+              {
+                "refId": "B",
+                "expr": "rate(node_network_transmit_bytes_total{job=\"switch\",device=~\"lan[1-8]\"}[5m])",
+                "legendFormat": "tx {{device}}"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "title": "Port link state",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 12,
+              "y": 11,
+              "w": 12,
+              "h": 8
+            },
+            "description": "Which ports have carrier. A port that drops to 0 while a device is plugged in is the first thing to look at.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "node_network_up{job=\"switch\",device=~\"lan[1-8]\"}",
+                "legendFormat": "{{device}}"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "title": "Interface errors/drops",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 0,
+              "y": 19,
+              "w": 12,
+              "h": 7
+            },
+            "description": "Non-zero here is physical or duplex: a bad cable, a bad port, or a mismatched link.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "rate(node_network_receive_drop_total{job=\"switch\",device=~\"lan[1-8]\"}[5m])",
+                "legendFormat": "rx drops {{device}}"
+              },
+              {
+                "refId": "B",
+                "expr": "rate(node_network_receive_errs_total{job=\"switch\",device=~\"lan[1-8]\"}[5m])",
+                "legendFormat": "rx errs {{device}}"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "title": "Temperature",
+            "type": "timeseries",
+            "gridPos": {
+              "x": 12,
+              "y": 19,
+              "w": 12,
+              "h": 7
+            },
+            "description": "Only present if the device exports thermal zones; absent panels are honest, empty ones are not.",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "celsius",
+                "custom": {
+                  "lineWidth": 1,
+                  "fillOpacity": 8
+                }
+              },
+              "overrides": []
+            },
+            "options": {
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom"
+              },
+              "tooltip": {
+                "mode": "multi"
+              }
+            },
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "node_thermal_zone_temp_celsius{job=\"switch\"}",
+                "legendFormat": "{{zone}}"
+              }
+            ]
+          }
+        ],
+        "annotations": {
+          "list": []
+        }
+      }

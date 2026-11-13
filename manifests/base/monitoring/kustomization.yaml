@@ -18,6 +18,7 @@ resources:
   - alerting-network-devices.yaml
   - grafana-dashboard-network-devices.yaml
   - grafana-dashboard-opnsense.yaml
+  - grafana-dashboard-switch.yaml
   - alerting-workloads.yaml
   - alerting.yaml
   - prometheus-watchdog.yaml
