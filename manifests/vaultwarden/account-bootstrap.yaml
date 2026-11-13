@@ -129,6 +129,13 @@ kind: Job
 metadata:
   name: vaultwarden-account-bootstrap
   namespace: vaultwarden
+  annotations:
+    # A **PostSync hook**, not a tracked resource: a Job that has completed can never match its own manifest again (its
+    # status and its pod are immutable), so ArgoCD reports it OutOfSync forever and an `ArgoCDAppOutOfSync` alert fires on
+    # something that is working correctly. As a hook it is re-created on each sync and not diffed - which suits an
+    # idempotent bootstrap exactly: it logs in first and does nothing if the account already works.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 2
   ttlSecondsAfterFinished: 86400
