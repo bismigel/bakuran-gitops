@@ -21,6 +21,24 @@ DOCS=(
   docs/reference/known-issues.md docs/reference/conditions.md
 )
 
+# `--check` must be handled BEFORE anything is written: the first version sat after the write block, so
+# `--check` created a file literally named `--check` in the repository root and then ran the comparison anyway.
+# `--check` is what CI runs: regenerate into a temporary file and compare, so "the bundle is current" is a fact rather than a
+# hope. A generated file nobody regenerates is a copy that silently drifts from its source - this one held the retired
+# KNOWN-ISSUES and NEXT-STEPS for weeks.
+if [ "${OUT}" = "--check" ]; then
+  tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+  "${BASH_SOURCE[0]}" "$tmp" >/dev/null
+  if ! diff -q "$tmp" "manifests/duwende/context.yaml" >/dev/null; then
+    echo "FAIL: manifests/duwende/context.yaml is stale - run scripts/generate-duwende-context.sh" >&2
+    diff -u "manifests/duwende/context.yaml" "$tmp" | head -20 >&2
+    exit 1
+  fi
+  echo "context bundle is current ($(grep -c '' manifests/duwende/context.yaml) lines, ${#DOCS[@]} docs)"
+  exit 0
+fi
+
+
 {
   printf '%s\n' \
     '# Homelab context for the Hermes agent. GENERATED; do not edit by hand.' \
@@ -38,20 +56,5 @@ DOCS=(
     sed 's/^/    /' "$SRC/$f"
   done
 } > "$OUT"
-
-# `--check` is what CI runs: regenerate into a temporary file and compare, so "the bundle is current" is a fact rather than a
-# hope. A generated file nobody regenerates is a copy that silently drifts from its source - this one held the retired
-# KNOWN-ISSUES and NEXT-STEPS for weeks.
-if [ "${OUT}" = "--check" ]; then
-  tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
-  "${BASH_SOURCE[0]}" "$tmp" >/dev/null
-  if ! diff -q "$tmp" "manifests/duwende/context.yaml" >/dev/null; then
-    echo "FAIL: manifests/duwende/context.yaml is stale - run scripts/generate-duwende-context.sh" >&2
-    diff -u "manifests/duwende/context.yaml" "$tmp" | head -20 >&2
-    exit 1
-  fi
-  echo "context bundle is current ($(grep -c '' manifests/duwende/context.yaml) lines, ${#DOCS[@]} docs)"
-  exit 0
-fi
 
 echo "wrote $OUT ($(wc -l <"$OUT") lines, ${#DOCS[@]} docs)"
