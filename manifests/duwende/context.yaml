@@ -112,6 +112,9 @@ data:
     | [`ROUTER.md`](ROUTER.md) | the OPNsense box: services, rules, gaps |
     | [`NETWORK-AS-CODE.md`](NETWORK-AS-CODE.md) | what OpenTofu owns vs what stays manual |
     | [`HIGH-AVAILABILITY.md`](HIGH-AVAILABILITY.md) | what a node loss actually costs, per component |
+    | [`NETWORK-STATE.md`](NETWORK-STATE.md) | the measured state of the network, refreshed on demand |
+    | [`POWER.md`](POWER.md) | power: what runs, what dies, and for how long |
+    | [`STORAGE-PLAN.md`](STORAGE-PLAN.md) | where storage is going, and what is blocked on hardware |
     | [`REPOS.md`](REPOS.md) | which repo owns what, and where its plan lives |
     | [`ROADMAP.md`](ROADMAP.md) · [`FORGEJO-PLAN.md`](FORGEJO-PLAN.md) · [`STAGING-DECK.md`](STAGING-DECK.md) | longer-horizon plans |
     | [`docs/reference/conditions.md`](docs/reference/conditions.md) | the safety model behind `ops/run` |
@@ -178,7 +181,7 @@ data:
       `NETWORK.md` §9 backs it up. Unverified network beliefs caused seven outages
       on 2026-10-25.
     - **After a structural change, run `bmad-project-context`** — `record` (mistakes land in
-      `docs/agents-pitfalls.md`), `refresh` (the block stopped matching the repo). Not every PR.
+      `docs/guides/agents-pitfalls.md`), `refresh` (the block stopped matching the repo). Not every PR.
     - **Flips need `scripts/preflight-flip.sh <story>`** — no rehearsal record, no flip.
     - **Read the config before writing a rule about it.** An invariant must be
       written from the file it constrains (and the line quoted), never from live
@@ -2006,6 +2009,12 @@ data:
     preload). Admin hosts return Access 302 at the edge; public hosts return 200.
     Token rotation remains the one deferred Cloudflare task.
   docs/reference/known-issues.md: |
+    ---
+    type: reference
+    audience: operator
+    owns: what is broken now — the live list, and the index of incident records
+    ---
+    
     # Known issues
     
     What is broken **now**, and what to do about it. History — including every incident that is fixed — lives in
@@ -2196,6 +2205,12 @@ data:
     | 2026-10-23 | [hardening / ops learnings](../records/incidents/2026-10-23-hardening-ops-learnings.md) |
     | 2026-10-23 | [Cilium `toFQDNs` / DNS proxy (**FIXED**)](../records/incidents/2026-10-23-cilium-tofqdns-dns-proxy-fixed.md) |
   docs/reference/conditions.md: |
+    ---
+    type: reference
+    audience: agent
+    owns: the safety model for ops/run — blast radius, the three lines that do not move, why no engine
+    ---
+    
     # Conditions — the safety model
     
     `conditions/*.toml` turns a diagnosis that has already been done once into something you **run** instead of read. The format
