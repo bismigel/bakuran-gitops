@@ -109,7 +109,7 @@ data:
     |---|---|
     | [`NETWORK.md`](NETWORK.md) | network, VLANs, the tunnel, the ingress path; §9 is diagnostics |
     | [`STORAGE.md`](STORAGE.md) | every mount, what it protects, and how |
-    | [`ROUTER.md`](ROUTER.md) | the OPNsense box: services, rules, gaps |
+    | [`docs/reference/router.md`](docs/reference/router.md) | router, switch and AP: services, rules, vault layout |
     | [`NETWORK-AS-CODE.md`](NETWORK-AS-CODE.md) | what OpenTofu owns vs what stays manual |
     | [`HIGH-AVAILABILITY.md`](HIGH-AVAILABILITY.md) | what a node loss actually costs, per component |
     | [`NETWORK-STATE.md`](NETWORK-STATE.md) | the measured state of the network, refreshed on demand |
@@ -581,7 +581,7 @@ data:
     | Wi-Fi AP | TP-Link Omada **EAP650**, firmware `1.5.6`, **standalone** | **`.2`** (Kea reservation; it sat at `.151` until 2026-11-01) | `ec:b9:31:02:4d:c0` |
     
     Full per-device configuration, CLI limits and the Terraform assessment:
-    **`ROUTER.md`**.
+    **`docs/reference/router.md`**.
     
     Open items on this hardware (as of 2026-11-01):
     
