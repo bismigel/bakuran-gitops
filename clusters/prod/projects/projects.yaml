@@ -37,6 +37,7 @@ spec:
     - https://github.com/bismigel/bismigel-site
     - https://github.com/bismigel/status-api
     - https://github.com/Ciceley/ciceleywebsite
+    - https://github.com/bismigel/tools-site
     # chart repositories
     - https://helm.cilium.io
     - https://charts.jetstack.io
