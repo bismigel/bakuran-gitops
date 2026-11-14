@@ -169,3 +169,23 @@ kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --
 # regenerate the Duwende knowledge base after editing ~/projects/homelab-context
 ./scripts/generate-duwende-context.sh
 ```
+
+## What owns what
+
+| directory | what it is | applied by |
+|---|---|---|
+| `clusters/prod/root.yaml` | the app-of-apps root | ArgoCD, once, by hand |
+| `clusters/prod/apps/` | one `Application` per component, in sync waves | the root app |
+| `clusters/prod/projects/` | the `prod` AppProject: destinations, `sourceRepos`, cluster-scoped whitelist | the root app |
+| `manifests/base/<component>/` | the manifests for a component | its `Application` |
+| `manifests/overlays/prod/<component>/` | what differs in production (placement, replicas, patches) | its `Application` |
+| `scripts/` | checks that run in CI and by hand (`generate-duwende-context.sh`, `check-runbook-links.py`, …) | you, and `.github/workflows/` |
+
+Two things that catch people out:
+
+- **`clusters/prod/projects/projects.yaml` gates everything.** A new repo needs a `sourceRepos` entry and a new namespace a
+  `destinations` entry, or the Application fails to sync with a message that looks like a permissions bug.
+- **`manifests/duwende/context.yaml` is generated** from the private `homelab-context` repo and must not be edited. It is
+  checked by `scripts/generate-duwende-context.sh --check`, which a CI runner cannot run (the source is private) — so it is
+  run from `homelab-context`'s `verify-all.sh` on a workstation.
+
