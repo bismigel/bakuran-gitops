@@ -1,0 +1,30 @@
+# The WireGuard tunnel's private key, as a Kubernetes Secret — because hosts now read it from the cluster.
+#
+# WHY IT MOVED OFF THE HOST DISK (story 10.14, decided 2026-11-13): the tunnel is going to be carried by whichever node
+# wins a lease, so the key must be obtainable on all three. Copying it onto three disks would work and would be precedented
+# (k3s_cluster_token already lives that way), but the cluster can hold it in one place, and a failover should depend on as
+# little as possible: the lease already needs the API, so reading the key from here adds no new dependency, whereas fetching
+# from Bitwarden at the moment of failover would put a second SaaS round-trip on the boot path of the very event the
+# election exists to survive.
+#
+# It lives beside the egress policy in `media` because that policy is the only consumer, and because a reviewer looking at
+# "where does anonymised egress get its identity" should find both halves in one place. The namespace is `kube-system`
+# because the readers are HOSTS (`k3s kubectl -n kube-system get secret …`), not pods, and because that namespace is
+# already a permitted destination for this project.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: wg-proton-private-key
+  namespace: kube-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: wg-proton-private-key
+    creationPolicy: Owner
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: proton-wg-private-key
