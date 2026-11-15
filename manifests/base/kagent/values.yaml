@@ -64,3 +64,21 @@ providers:
       # whole ModelConfig and the kagent Application retried five times with a message about a nil object.
       temperature: "0"
       maxTokens: 900   # the ModelConfig field is `openAI.baseUrl`, camelCase
+
+# Observability, wired to the collector this cluster already runs.
+#
+# The chart defaults both endpoints to http://host.docker.internal:4317 - a Docker Desktop address that
+# resolves nowhere in a cluster. Measured before this change: 12 trace-export timeouts in 30 minutes from the
+# tool server alone, i.e. the pitch's "the same observability you already use" is true of the abstraction and
+# false of the defaults. Tracing stays off; logging goes to the collector that already exists (observability
+# namespace, otel-collector:4317).
+otel:
+  tracing:
+    enabled: false        # the collector has no tracing backend behind it yet; enabling this would export into nothing
+  logging:
+    enabled: true
+    exporter:
+      otlp:
+        endpoint: http://otel-collector.observability.svc.cluster.local:4317
+        timeout: 15
+        insecure: true
