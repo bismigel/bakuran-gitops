@@ -20,7 +20,9 @@ data:
     echo "firing alerts (excluding Watchdog): $n"
     [ "$n" -eq 0 ] && exit 0
 
-    echo "$alerts" | jq -c '.[0:3][]' | while read -r a; do
+    # One alert per run. Three was the original plan and it meant a Job could outlive its own deadline and
+    # process nothing: measured 2026-11-15, one triage took 3m20s.
+    echo "$alerts" | jq -c '.[0:1][]' | while read -r a; do
       name=$(echo "$a" | jq -r '.labels.alertname')
       summary=$(echo "$a" | jq -r '.annotations.summary // .annotations.description // ""')
       text="Alert firing in the Bakuran homelab.
@@ -33,9 +35,9 @@ data:
       # 300s, not 180: measured 2026-11-15, a three-tool-call triage took 3m20s and the 180s cutoff returned an
       # EMPTY answer - which the loop then reported as success. A silent empty answer is the worst outcome available,
       # so the timeout is above the observed worst case and an empty answer is now an explicit line.
-      ans=$(curl -sf -m 300 -X POST http://triage.kagent:8080/ -H 'Content-Type: application/json' -d "$body" \
+      ans=$(curl -sf -m 420 -X POST http://triage.kagent:8080/ -H 'Content-Type: application/json' -d "$body" \
             | jq -r '.result.artifacts[0].parts[0].text // empty' 2>/dev/null)
-      [ -z "$ans" ] && ans="(no answer within 300s - the agent may still be running; see the triage pod logs)"
+      [ -z "$ans" ] && ans="(no answer within 420s - the agent may still be running; see the triage pod logs)"
       echo "--- ${name}"
       echo "$ans"
 

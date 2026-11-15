@@ -56,4 +56,6 @@ providers:
     apiKeySecretRef: kagent-deepseek
     apiKeySecretKey: DEEPSEEK_API_KEY
     config:
-      baseUrl: "https://api.deepseek.com/v1"   # the ModelConfig field is `openAI.baseUrl`, camelCase
+      baseUrl: "https://api.deepseek.com/v1"
+      temperature: 0
+      maxTokens: 900   # a triage answer, not an essay - the first runs took minutes porque the model kept writing   # the ModelConfig field is `openAI.baseUrl`, camelCase
