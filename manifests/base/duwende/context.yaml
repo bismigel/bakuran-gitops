@@ -25,7 +25,7 @@ data:
     | Claim | Where | Example |
     |---|---|---|
     | what is true *right now*, measured | [`STATE.md`](STATE.md), [`ops/`](ops) | nodes, pods, backup freshness |
-    | what the infrastructure *is*, verified and dated | [`NETWORK.md`](NETWORK.md), [`STORAGE.md`](STORAGE.md), [`SYSTEM.md`](SYSTEM.md) | addressing, mounts, invariants |
+    | what the infrastructure *is*, verified and dated | [`docs/reference/network.md`](docs/reference/network.md), [`docs/reference/storage.md`](docs/reference/storage.md), [`docs/reference/system.md`](docs/reference/system.md) | addressing, mounts, invariants |
     | *why* a decision was made, and what it costs | [`docs/decisions/`](docs/decisions/README.md) | why the tunnel unit holds no endpoint |
     | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) / [`PLAN.org`](PLAN.org) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
     | how to do a day-2 operation | [`OPERATIONS.md`](OPERATIONS.md) | one section per alert |
@@ -53,13 +53,13 @@ data:
     
     ## Read order for an LLM/agent
     
-    1. **`SYSTEM.md`**, architecture, repos, automation flow (the "how it works").
-    2. **`INVENTORY.md`**, hosts, IPs, ports, services, endpoints.
+    1. **`docs/reference/system.md`**, architecture, repos, automation flow (the "how it works").
+    2. **`docs/reference/inventory.md`**, hosts, IPs, ports, services, endpoints.
     3. **`CREDENTIALS.md`**, passwords, tokens, keys (local only, **not** in git).
     4. **`OPERATIONS.md`**, common tasks (deploy app, rebuild host, rotate secrets).
     5. **`docs/reference/known-issues.md`**, what's broken now; its history is in `docs/records/incidents/`.
     6. **`PLAN.md`**, what is planned — generated from the ticket store, never hand-written.
-    7. **`HARDENING.md`**, current security posture, what is applied/deferred, and ops commands.
+    7. **`docs/reference/hardening.md`**, current security posture, what is applied/deferred, and ops commands.
     8. **Ops runbook (web):** <https://runbook.bismigel.dev/> — the sanitized, Access-gated
        procedures page (source: `bismigel-site/org/projects/runbook.org`; the public
        `bismigel.dev` host 404s it).
@@ -105,29 +105,29 @@ data:
     When they disagree about a fact, this repo wins; when they disagree about a
     procedure, `bakuran-infra/docs/` wins because it is what actually gets executed
     during a rebuild. Fix the loser in the same PR as the change that invalidated it
-    (`NETWORK.md` §11 is checked weekly by `docs-verify`).
+    (`docs/reference/network.md` §11 is checked weekly by `docs-verify`).
     
     The documents themselves, by the question they answer:
     
     | doc | question |
     |---|---|
-    | [`NETWORK.md`](NETWORK.md) | network, VLANs, the tunnel, the ingress path; §9 is diagnostics |
-    | [`STORAGE.md`](STORAGE.md) | every mount, what it protects, and how |
+    | [`docs/reference/network.md`](docs/reference/network.md) | network, VLANs, the tunnel, the ingress path; §9 is diagnostics |
+    | [`docs/reference/storage.md`](docs/reference/storage.md) | every mount, what it protects, and how |
     | [`docs/reference/router.md`](docs/reference/router.md) | router, switch and AP: services, rules, vault layout |
-    | [`NETWORK-AS-CODE.md`](NETWORK-AS-CODE.md) | what OpenTofu owns vs what stays manual |
-    | [`HIGH-AVAILABILITY.md`](HIGH-AVAILABILITY.md) | what a node loss actually costs, per component |
+    | [`docs/reference/network-as-code.md`](docs/reference/network-as-code.md) | what OpenTofu owns vs what stays manual |
+    | [`docs/reference/high-availability.md`](docs/reference/high-availability.md) | what a node loss actually costs, per component |
     | [`docs/records/network-state-2026-11.md`](docs/records/network-state-2026-11.md) | the measured state of the network, refreshed on demand |
-    | [`POWER.md`](POWER.md) | power: what runs, what dies, and for how long |
-    | [`STORAGE-PLAN.md`](STORAGE-PLAN.md) | where storage is going, and what is blocked on hardware |
-    | [`REPOS.md`](REPOS.md) | which repo owns what, and where its plan lives |
-    | [`ROADMAP.md`](ROADMAP.md) · [`FORGEJO-PLAN.md`](FORGEJO-PLAN.md) · [`STAGING-DECK.md`](STAGING-DECK.md) | longer-horizon plans |
+    | [`docs/reference/power.md`](docs/reference/power.md) | power: what runs, what dies, and for how long |
+    | [`docs/reference/storage-plan.md`](docs/reference/storage-plan.md) | where storage is going, and what is blocked on hardware |
+    | [`docs/reference/repos.md`](docs/reference/repos.md) | which repo owns what, and where its plan lives |
+    | [`docs/plans/roadmap.md`](docs/plans/roadmap.md) · [`docs/plans/forgejo.md`](docs/plans/forgejo.md) · [`docs/plans/staging-deck.md`](docs/plans/staging-deck.md) | longer-horizon plans |
     | [`docs/reference/conditions.md`](docs/reference/conditions.md) | the safety model behind `ops/run` |
     | [`docs/records/`](docs/records/README.md) | dated accounts: what broke, what fixed it |
     
-    Current-state documents are `NETWORK.md`, `STORAGE.md`, `SYSTEM.md`, `INVENTORY.md`,
-    `HIGH-AVAILABILITY.md`, `ROADMAP.md`, `OPERATIONS.md`, `MEDIA.md`, `HARDENING.md`.
+    Current-state documents are `docs/reference/network.md`, `docs/reference/storage.md`, `docs/reference/system.md`, `docs/reference/inventory.md`,
+    `docs/reference/high-availability.md`, `docs/plans/roadmap.md`, `OPERATIONS.md`, `docs/reference/media.md`, `docs/reference/hardening.md`.
     Dated records (`KNOWN-ISSUES.md`, `docs/records/migration-learnings-2026-11.md`,
-    `PLATFORM-MIGRATION.md`) are history: do not edit past entries to match today.
+    `docs/plans/platform-migration.md`) are history: do not edit past entries to match today.
   AGENTS.md: |
     ---
     type: index
@@ -140,8 +140,8 @@ data:
     You operate the **Bakuran homelab** as an autonomous assistant.
     
     <!-- repo:context -->
-    Plans live in a ticket tree (`plan/`), decisions live in ADRs, and verified facts live in the
-    reference docs. Rules that must hold across every session:
+    Plans live in `plan/`, decisions in ADRs, facts in docs (bare `x.md` = `docs/reference/x.md`).
+    Rules that must hold every session:
     
     - **Change flow:** branch → PR → CI green → squash merge. Never push to `main`, never merge on a
       red check, and always pass the PR number *and* verify the branch it resolved to
@@ -174,7 +174,7 @@ data:
     ## Operating rules (IMPORTANT: follow these)
     - **Pull requests only.** Never push to `main`; do the work on a branch, open a
       PR, and let the human review/merge.
-    - **Be conservative with tokens.** Local model for simple tasks; small context; no log dumps.
+    - **Be conservative with tokens.** Local model for simple tasks; small context; no log dumps
     - **GitOps, not imperative.** Change desired state in `bismigel/bakuran-gitops`
       via PR; never hand-edit resources that ArgoCD manages.
     - **Ask before anything destructive** (cluster changes, deletes, data loss).
@@ -183,14 +183,14 @@ data:
       repeated here. The API server refuses it (`protect-stateful-objects` guardrail) but a guard is
       a backstop, not permission. Exception: one object, by name, with the annotation, after asking —
       runbook 17.
-    - **Read `NETWORK.md` before any network change** — §7 invariants are hard rules; fix a wrong
+    - **Read `network.md` before any network change** — §7 invariants are hard rules; fix a wrong
       fact there in the same PR.
     - **Verify before asserting.** Do not state a cause ("the endpoint is dead",
       "it's IPv6", "the deploy won't restart the tunnel") unless a command in
-      `NETWORK.md` §9 backs it up. Unverified network beliefs caused seven outages
+      `network.md` §9 backs it up. Unverified network beliefs caused seven outages
       on 2026-10-25.
     - **After a structural change, update this block by hand** — a mistake worth remembering goes in
-      `docs/guides/agents-pitfalls.md`; a block that stopped matching the repo is a bug in the block.
+      `guides/agents-pitfalls.md`; a block that stopped matching the repo is a bug in the block.
     - **Flips need `scripts/preflight-flip.sh <story>`** — no rehearsal record, no flip.
     - **Read the config before writing a rule about it.** An invariant must be
       written from the file it constrains (and the line quoted), never from live
@@ -219,7 +219,7 @@ data:
     | tier | what | budget | when |
     |---|---|---|---|
     | 0 | this file + `STATE.md` | ~2 000 tokens | every task |
-    | 1 | one `ops/*` output, one section of `STORAGE.md`/`NETWORK.md`, one runbook page | ~1 500 | by anchor |
+    | 1 | one `ops/*` output, one section of `storage.md`/`network.md`, one runbook page | ~1 500 | by anchor |
     | 2 | whole reference docs, `docs/records/` | unbounded | only when the question is *about* them |
     
     **Start every session with `STATE.md`** (generated; regenerate with `scripts/state.sh`).
@@ -235,18 +235,18 @@ data:
     | what a node drain can take down | `ops/workloads --strict` — multi-replica workloads with no PDB and no justification |
     | is mount X there / how full | `ops/mounts [host]` |
     | are backups current | `ops/backups` |
-    | what does a mount hold, what protects it | `STORAGE.md` (one row per mount) |
-    | network, VLAN, addressing, invariants | `NETWORK.md` |
+    | what does a mount hold, what protects it | `storage.md` (one row per mount) |
+    | network, VLAN, addressing, invariants | `network.md` |
     | change the router | `opentofu/opnsense` (plan first) + runbook 22; **never** hand-edit `config.xml` |
-    | router API / credentials | `NETWORK.md` §4b, Bitwarden `homelab-kube` (`opnsense-api-*`) |
+    | router API / credentials | `network.md` §4b, Bitwarden `homelab-kube` (`opnsense-api-*`) |
     | an alert is firing | the alert's `runbook_url` — site runbook, one section |
-    | which repo owns what, and where its plan lives | `REPOS.md` |
-    | what is planned / known-broken | `PLAN.md`, `docs/reference/known-issues.md` |
+    | which repo owns what, and where its plan lives | `repos.md` |
+    | what is planned / known-broken | `PLAN.md`, `known-issues.md` |
     | day-2 procedures | `OPERATIONS.md` (the file formerly called RUNBOOK.md) |
     | "did I break any of the checks" | `scripts/verify-all.sh` — every checker, including those CI cannot run (they need the siblings, nix or kubectl) |
     | "what are the host facts" | `python3 scripts/facts.py hosts` — derived from `bakuran-infra`'s flake; never restate a host, address or mount in prose |
     | how to accept a story | comment `/approve` on its Forgejo issue (or close it), then `python3 scripts/board.py pull --write` — the comment's author becomes `accepted_by`; `/reject` takes it back |
-    | what work is planned, in flight, or awaiting acceptance | `PLAN.md`/`PLAN.org` — generated from `plan/output/`, every story carries `repo:` (`REPOS.md` § "Where the plan lives") |
+    | what work is planned, in flight, or awaiting acceptance | `PLAN.md`/`PLAN.org` — generated from `plan/output/`, every story carries `repo:` (`repos.md` § "Where the plan lives") |
     | the same, as columns (Kanban) | `BOARD.md` — generated from the store by `scripts/render-board.py` |
     
     Rules that keep this cheap:
@@ -254,7 +254,7 @@ data:
     - **Never dump a command's full output.** `kubectl` without `-o jsonpath` or `| head`,
       `dmesg` without `| tail`, `find` without `-printf` and a cap, are how a 300-token
       question becomes a 4 000-token one.
-    - **Cite the anchor**, not a transcript: `STORAGE.md#m81-longhorn`, not a pasted table.
+    - **Cite the anchor**, not a transcript: `docs/reference/storage.md#m81-longhorn`, not a pasted table.
     - **A fact lives in one place.** If you need it twice, link to it; duplicated facts drift
       and cost twice.
     - **Verify only what is not already dated.** Facts carrying `verified: <date> + <command>`
@@ -264,16 +264,16 @@ data:
     Cloudflare can expose the network, so it is **read-only**: read with
     `curl http://127.0.0.1:8788/client/v4/<path>` (the proxy injects the token you do not have);
     **every write returns 403**. Do not attempt DNS, tunnel, Access or rule changes — STOP and state
-    the exact change and its impact. Details in [HARDENING.md](HARDENING.md#cloudflare-plan-facts-verified).
+    the exact change and its impact. Details in [docs/reference/hardening.md](docs/reference/hardening.md#cloudflare-plan-facts-verified).
     
     ## Context
-    Docs here: **`NETWORK.md` (authoritative network reference — read first)**,
-    `STORAGE.md` (what every mount is for, and what protects it), `SYSTEM.md`,
-    `INVENTORY.md`, `OPERATIONS.md`, `docs/reference/known-issues.md`,
-    `NEXT-STEPS.md`, `MEDIA.md`, `HARDENING.md` (security posture + ops notes). Hosts: **sitaw-amd** (.82, control plane/ArgoCD,
+    Docs here: **`network.md` (authoritative network reference — read first)**,
+    `storage.md` (what every mount is for, and what protects it), `system.md`,
+    `inventory.md`, `OPERATIONS.md`, `known-issues.md`,
+    `NEXT-STEPS.md`, `media.md`, `hardening.md` (security posture + ops notes). Hosts: **sitaw-amd** (.82, control plane/ArgoCD,
     ingress, cloudflared); **calamansi-intel** (.81, media). Media pool `/mnt/media`
     (btrfs on `.82`, NFS4-exported to `.81`). MCP tools: `kubernetes__*` (one cluster), `github__*`, and
-    `media__*` (Sonarr/Radarr/Prowlarr/SABnzbd/qBittorrent/Jellyfin, see MEDIA.md).
+    `media__*` (Sonarr/Radarr/Prowlarr/SABnzbd/qBittorrent/Jellyfin, see docs/reference/media.md).
     
     ## The lab at a glance (permanent facts)
     - **Topology:** one **3-node k3s cluster** (embedded etcd, 3 members, no node tainted):
@@ -282,7 +282,7 @@ data:
       `patola-thinkcentre` (.80) = third etcd/control-plane member, schedulable, also runs
       Immich Postgres + Redis. `kamatis-mbp` (.83) is **not a cluster node** — it left the
       cluster on 2026-10-28 and is now the staging host (`bakuran-infra/staging/`, see
-      `SYSTEM.md` § `.83`). Verified 2026-11-04: `kubectl get nodes` returns exactly
+      `system.md` § `.83`). Verified 2026-11-04: `kubectl get nodes` returns exactly
       `.81`/`.80`/`.82`, all `control-plane,etcd`, `TAINTS <none>`. The public edge is
       `*.bismigel.dev` via a Cloudflare Tunnel (connectors on `.81`/`.82`) with
       Zero Trust Access.
@@ -296,8 +296,27 @@ data:
     - **Everything is GitOps:** change the manifests and open a PR, never hand-edit
       resources ArgoCD manages.
     - **Media:** the *arr stack is on `.81`; anime comes from Nyaa (torrent-first),
-      live-action falls back to Usenet. Gotchas live in `MEDIA.md`.
-  SYSTEM.md: |
+      live-action falls back to Usenet. Gotchas live in `media.md`.
+  OPERATIONS.md: |
+    ---
+    type: index
+    audience: operator
+    owns: nothing — it routes to the guide for each task
+    ---
+    
+    # Operations
+    
+    Day-2 procedures, by what you are trying to do. Each row is a guide; the facts they act on are in `docs/reference/`.
+    
+    | I want to… | go to |
+    |---|---|
+    | deploy or change something in the cluster | [`docs/guides/cluster.md`](docs/guides/cluster.md) |
+    | change a host, its secrets, or the router | [`docs/guides/hosts.md`](docs/guides/hosts.md) |
+    | add a hostname to the Cloudflare tunnel, or touch Access | [`docs/guides/cloudflare.md`](docs/guides/cloudflare.md) |
+    | work out why the media or books stack stopped fetching | [`docs/guides/media-troubleshooting.md`](docs/guides/media-troubleshooting.md) |
+    | run or verify a backup | [`docs/guides/backups.md`](docs/guides/backups.md) |
+    | read what the 2026-10-17 and 2026-10-23 passes added | [`docs/records/2026-10-17-operations-additions.md`](docs/records/2026-10-17-operations-additions.md) |
+  docs_reference_system.md: |
     ---
     type: reference
     audience: operator
@@ -435,7 +454,7 @@ data:
     - `media`: sonarr, radarr, prowlarr, bazarr, media-mcp · `downloads`: qbittorrent, sabnzbd · `default`: jellyfin
     - `monitoring`: node-exporter + **kepler** (scraped by Prometheus)
     - `cloudflared` (NixOS service), one of the edge connectors
-    - **Egress = Proton WireGuard full tunnel** (`proton0`, IPv4-only `0.0.0.0/0`): policy routing (`fwmark 0xca6c` → table 51820, plus `main suppress_prefixlength 0`) sends everything into the tunnel; a `/32` pin keeps the endpoint reachable outside it. There is **no fallback path** — if the tunnel stops passing data the node has no internet. Since 2026-10-28 the interface is owned by **`networking.wireguard`** (`modules/wireguard-native.nix`): the key comes from SOPS, the peer and endpoint from `bakuran.wireguard`, and `wireguard-reconcile.timer` still corrects live drift in place with `wg set`. There is **no `wg-quick` block and no boot seed** any more. Its two policy rules carry **explicit priorities** (`pref 32765` / `pref 32764`) — that is the fix for the seven 2026-10-25 outages, and `nix flake check` fails if they disappear. See **`NETWORK.md` §4/§7.1** and runbook 14.
+    - **Egress = Proton WireGuard full tunnel** (`proton0`, IPv4-only `0.0.0.0/0`): policy routing (`fwmark 0xca6c` → table 51820, plus `main suppress_prefixlength 0`) sends everything into the tunnel; a `/32` pin keeps the endpoint reachable outside it. There is **no fallback path** — if the tunnel stops passing data the node has no internet. Since 2026-10-28 the interface is owned by **`networking.wireguard`** (`modules/wireguard-native.nix`): the key comes from SOPS, the peer and endpoint from `bakuran.wireguard`, and `wireguard-reconcile.timer` still corrects live drift in place with `wg set`. There is **no `wg-quick` block and no boot seed** any more. Its two policy rules carry **explicit priorities** (`pref 32765` / `pref 32764`) — that is the fix for the seven 2026-10-25 outages, and `nix flake check` fails if they disappear. See **`docs/reference/network.md` §4/§7.1** and runbook 14.
     - **ArgoCD-managed** via the `media` app (in-cluster).
     
     ### `kamatis-mbp` (.83): staging host (not a cluster member)
@@ -449,7 +468,7 @@ data:
       rehearsal currently has nowhere to happen until it is powered on.
     - **Guests** (3 × 2.5 GB, one at a time per tap): `server` `.10`, `server2` `.11`,
       `server3` `.12` — three control planes with **embedded etcd (quorum 2/3)**, Cilium
-      the same Cilium version as production (NETWORK.md §1 owns the number), kube-proxy enabled, pod/service CIDRs
+      the same Cilium version as production (docs/reference/network.md §1 owns the number), kube-proxy enabled, pod/service CIDRs
       10.52/10.53, and a **real kube-vip API VIP at `10.10.50.100`** with Cilium pointed at
       it. `native` is a fourth guest that boots the production WireGuard module.
     - **Tooling** (installed by `staging/host.nix`): `staging-vm` (start/fresh/golden/stop,
@@ -545,7 +564,7 @@ data:
       **github**. Cloudflare stays behind the read-only nginx sidecar
       (`127.0.0.1:8788`, writes blocked).
     - **Context:** the homelab docs are copied to `/opt/data` at startup
-      (`AGENTS.md`, `SYSTEM.md`, …) and `SOUL.md` holds the operating rules.
+      (`AGENTS.md`, `docs/reference/system.md`, …) and `SOUL.md` holds the operating rules.
     - **Scheduled:** daily **08:00 America/Toronto** report → Telegram; the job is
       seeded from `hermes-cron-seed` on a fresh PVC.
     - **Guardrails:** read-only Kubernetes RBAC (no Secrets), Cloudflare writes
@@ -562,7 +581,7 @@ data:
     - Deploy: `nix run github:serokell/deploy-rs -- .#sitaw-amd` (or `.#calamansi-intel`).
     - Install: `nixos-anywhere --flake .#<host> --target-host root@<ip>`.
     - `modules/`: `base.nix`, `k3s.nix` (WireGuard/ProtonVPN on `.81`), `backup.nix`.
-  INVENTORY.md: |
+  docs_reference_inventory.md: |
     ---
     type: reference
     audience: operator
@@ -584,7 +603,7 @@ data:
       static, all **server nodes of one k3s cluster** (embedded etcd, 3 members), no node
       tainted. Verified 2026-11-04: `kubectl get nodes` (roles `control-plane,etcd` ×3).
     - `kamatis-mbp` `.83` is **not** a cluster node: it left on 2026-10-28 and is the
-      staging host (KVM + `br-staging`). See `SYSTEM.md` § `.83`; Immich data moved to
+      staging host (KVM + `br-staging`). See `docs/reference/system.md` § `.83`; Immich data moved to
       Longhorn, so nothing production runs there.
     - Admin workstation `nix-station` `.245`; the local Ollama LLM runs on the **gaming PC**
       at `.151:11434` (MAC `d8:5e:d3:8d:51:d2`, switch port `lan8`), not managed by this repo.
@@ -608,7 +627,7 @@ data:
     
     - **No DHCP reservations are active.** They are declared in
       `bakuran-infra/network/lan.md` but OPNsense's Kea generator does not emit
-      hand-written entries (see `NETWORK.md` §12); they must be entered in the GUI.
+      hand-written entries (see `docs/reference/network.md` §12); they must be entered in the GUI.
       Harmless for the statically configured cluster hosts, which do not use DHCP.
     - ~~**The AP still broadcasts its factory SSIDs unencrypted**~~ **RESOLVED (verified
       2026-11-03):** a scan finds no open SSID broadcasting; `Master Siomai` reports WPA2.
@@ -621,7 +640,7 @@ data:
     - **VLAN 20 (CLIENTS) has been live since 2026-11-02** — Wi-Fi clients only, declared in
       `bakuran-infra/opentofu/opnsense` (`vlan.tf` + `firewall-clients.tf`: internet and DNS
       to the router, `192.168.2.0/24` blocked, one exception for the admin laptop). VLANs 30
-      (IoT) and 40 (guest) remain the plan (see `HARDENING.md`). *This section said "No
+      (IoT) and 40 (guest) remain the plan (see `docs/reference/hardening.md`). *This section said "No
       VLANs yet" until 2026-11-03 — it was a day stale.*
     
     ## SSH
@@ -746,7 +765,7 @@ data:
     `.82` exports them to `.81` over **NFS4** and `.81` mounts them directly — there
     is **no union/mergerfs layer** (measured 2026-11-04: `findmnt` shows `nfs4` on
     `.81`, `btrfs /dev/sdb[/@media]` on `.82`, and `pgrep mergerfs` → 0 on both).
-    `STORAGE.md` is authoritative for every mount.
+    `docs/reference/storage.md` is authoritative for every mount.
     
     | Host | Partition | Mount | Size |
     | --- | --- | --- | --- |
@@ -779,33 +798,14 @@ data:
     ├── status-api/ private-api/ homelab-app-template/ media-mcp/
     └── homelab-context/       # THIS folder (local-only)
     ```
-  OPERATIONS.md: |
-    ---
-    type: index
-    audience: operator
-    owns: nothing — it routes to the guide for each task
-    ---
-    
-    # Operations
-    
-    Day-2 procedures, by what you are trying to do. Each row is a guide; the facts they act on are in `docs/reference/`.
-    
-    | I want to… | go to |
-    |---|---|
-    | deploy or change something in the cluster | [`docs/guides/cluster.md`](docs/guides/cluster.md) |
-    | change a host, its secrets, or the router | [`docs/guides/hosts.md`](docs/guides/hosts.md) |
-    | add a hostname to the Cloudflare tunnel, or touch Access | [`docs/guides/cloudflare.md`](docs/guides/cloudflare.md) |
-    | work out why the media or books stack stopped fetching | [`docs/guides/media-troubleshooting.md`](docs/guides/media-troubleshooting.md) |
-    | run or verify a backup | [`docs/guides/backups.md`](docs/guides/backups.md) |
-    | read what the 2026-10-17 and 2026-10-23 passes added | [`docs/records/2026-10-17-operations-additions.md`](docs/records/2026-10-17-operations-additions.md) |
-  MEDIA.md: |
+  docs_reference_media.md: |
     ---
     type: reference
     audience: operator
     owns: the media stack: components, paths, and its gotchas
     ---
     
-    # MEDIA.md: the media stack
+    # docs/reference/media.md: the media stack
     
     All media services run on the **media node** (`calamansi-intel`, `192.168.2.81`).
     The library lives on the host at `/mnt/media` (mergerfs), mounted into Jellyfin as
@@ -1186,7 +1186,7 @@ data:
       last two non-admin). Passwords in Secrets Manager as `jellyfin-<name>`;
       `trish`/`guest` are also in the personal Bitwarden vault.
     - **`root_squash`**: not safe here — `/mnt/media` is mergerfs-as-root over NFS,
-      see `HARDENING.md`.
+      see `docs/reference/hardening.md`.
     
     ## Downloads egress allowlist (2026-10-23)
     
@@ -1238,7 +1238,7 @@ data:
     `media-setup`/`jellyfin-admin-pass` password authenticates fine via
     `/Users/AuthenticateByName`. Check which header you used before concluding a secret
     has rotted.
-  PLATFORM-MIGRATION.md: |
+  docs_plans_platform-migration.md: |
     ---
     type: plan
     audience: operator
@@ -1247,12 +1247,12 @@ data:
     
     # Platform migration plan
     
-    > **Status lives in `ROADMAP.md`.** This file is the detail; the table there is
+    > **Status lives in `docs/plans/roadmap.md`.** This file is the detail; the table there is
     > authoritative about whether it is done, deferred, or blocked.
     
     Last updated: 2026-10-18
     
-    Learnings and blog notes: [MIGRATION-LEARNINGS.md](docs/records/migration-learnings-2026-11.md)
+    Learnings and blog notes: [MIGRATION-LEARNINGS.md](../records/migration-learnings-2026-11.md)
     
     Goal: adopt the useful principles from the reference homelab without turning the
     lab into a rewrite. The reference is better at network isolation, environment
@@ -1885,7 +1885,7 @@ data:
     
     ## Network / WireGuard on the media node (.81)
     
-    **Read `NETWORK.md` first — it is the authoritative network reference.**
+    **Read `docs/reference/network.md` first — it is the authoritative network reference.**
     
     `.81` has no direct internet: everything goes through the Proton WireGuard full
     tunnel (`proton0`). Two hard rules:
@@ -1908,7 +1908,7 @@ data:
     journalctl -u wireguard-reconcile -n 5    # want: ok (handshake Ns, data path HTTP 301)
     ```
     
-    Full procedure: bismigel-site runbook page 14; `NETWORK.md` §4, §7, §9.
+    Full procedure: bismigel-site runbook page 14; `docs/reference/network.md` §4, §7, §9.
     
     ## Router / OPNsense change (declarative, not clicked)
     
