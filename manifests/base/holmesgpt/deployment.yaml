@@ -26,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: holmes
-          image: robustadev/holmes:0.46.0
+          image: robustadev/holmes:0.46.0@sha256:bec9d14eea6a8890ba498c91ab47adcce3af9b6d0c6ee26d642d4e3e0df6218e
           command: ["python3", "-u", "server.py"]   # the upstream entrypoint: serves /api on 5050
           ports:
             - {name: http, containerPort: 5050}
