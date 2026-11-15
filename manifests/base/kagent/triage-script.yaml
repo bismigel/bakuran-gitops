@@ -30,8 +30,12 @@ data:
 
     Diagnose from the live cluster. Name ONE diagnosis, the command that confirms it, and the GitOps change you would propose. Do not propose deleting a PVC, PV or Namespace."
       body=$(jq -nc --arg t "$text" '{jsonrpc:"2.0",id:1,method:"message/send",params:{message:{role:"user",parts:[{kind:"text",text:$t}],messageId:"cron"}}}')
-      ans=$(curl -sf -m 180 -X POST http://triage.kagent:8080/ -H 'Content-Type: application/json' -d "$body" \
-            | jq -r '.result.artifacts[0].parts[0].text // "(no answer)"' 2>/dev/null)
+      # 300s, not 180: measured 2026-11-15, a three-tool-call triage took 3m20s and the 180s cutoff returned an
+      # EMPTY answer - which the loop then reported as success. A silent empty answer is the worst outcome available,
+      # so the timeout is above the observed worst case and an empty answer is now an explicit line.
+      ans=$(curl -sf -m 300 -X POST http://triage.kagent:8080/ -H 'Content-Type: application/json' -d "$body" \
+            | jq -r '.result.artifacts[0].parts[0].text // empty' 2>/dev/null)
+      [ -z "$ans" ] && ans="(no answer within 300s - the agent may still be running; see the triage pod logs)"
       echo "--- ${name}"
       echo "$ans"
 
