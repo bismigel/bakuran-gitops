@@ -42,6 +42,13 @@ spec:
               value: "false"
             - name: LOG_LEVEL
               value: "INFO"
+            # The CLI writes its toolset cache under $HOME, and the image's default HOME is `/` - which a
+            # non-root uid cannot write. Without this, every `holmes ask` dies with
+            # `PermissionError: '/.holmes'`. A declared emptyDir, not a fsGroup guess.
+            - name: HOME
+              value: /tmp/holmes
+          volumeMounts:
+            - {name: home, mountPath: /tmp/holmes}
           resources:
             requests: {cpu: 50m, memory: 256Mi}
             limits: {memory: 1Gi}
@@ -49,4 +56,6 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
             capabilities: {drop: ["ALL"]}
+      volumes:
+        - {name: home, emptyDir: {}}
       restartPolicy: Always
