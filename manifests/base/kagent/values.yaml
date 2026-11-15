@@ -52,7 +52,9 @@ providers:
   default: openAI
   openAI:
     provider: OpenAI
-    model: "deepseek-chat"
+    # deepseek-chat took 30-120 s per round of tool calls and made one triage 3-6 minutes; pi runs on
+    # deepseek-flash in this estate and answers in seconds. The model was the lever, not the prompt budget.
+    model: "deepseek-flash"
     apiKeySecretRef: kagent-deepseek
     apiKeySecretKey: DEEPSEEK_API_KEY
     config:
