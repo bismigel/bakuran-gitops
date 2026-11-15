@@ -21,7 +21,7 @@ DOCS=(
   README.md AGENTS.md OPERATIONS.md
   docs/reference/system.md docs/reference/inventory.md docs/reference/media.md
   docs/plans/platform-migration.md
-  docs/reference/known-issues.md docs/reference/conditions.md
+  docs/reference/known-issues.md docs/reference/conditions.md docs/reference/agents.md
   docs/guides/cluster.md docs/guides/hosts.md docs/guides/backups.md
   docs/guides/cloudflare.md docs/guides/media-troubleshooting.md
 )
