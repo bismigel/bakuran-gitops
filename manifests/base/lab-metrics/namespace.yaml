@@ -1,0 +1,9 @@
+# An experiment, not an estate component. Everything here is disposable: two stores, one scrape config,
+# and a loader. If neither proves useful, deleting the Application removes the workloads and the
+# namespace stays behind empty (ADR 0002) - which is the cheapest possible leftover.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-metrics
+  labels:
+    bakuran.dev/purpose: lab
