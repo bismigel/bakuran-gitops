@@ -79,7 +79,10 @@ data:
               parse_from: attributes.time
               layout_type: gotime
               layout: '2006-01-02T15:04:05.000000000Z07:00'
+    processors:
       # Pod metadata as resource attributes, so a query can say "namespace=media" and mean it.
+      # This is a PROCESSOR, not a receiver - declaring it under `receivers` is what made the collector
+      # crashloop on the first deploy ('receivers unknown type: k8sattributes').
       k8sattributes:
         auth_type: serviceAccount
         passthrough: false
@@ -90,7 +93,9 @@ data:
             - k8s.pod.uid
             - k8s.node.name
             - k8s.deployment.name
-    processors:
+        pod_association:
+          - sources: [{from: resource_attribute, name: k8s.pod.uid}]
+          - sources: [{from: connection}]
       batch:
         timeout: 5s
         send_batch_size: 1024
@@ -113,8 +118,8 @@ data:
     service:
       pipelines:
         logs:
-          receivers: [filelog, k8sattributes]
-          processors: [memory_limiter, resource, batch]
+          receivers: [filelog]
+          processors: [memory_limiter, k8sattributes, resource, batch]
           exporters: [otlphttp]
       telemetry:
         logs: {level: info}
