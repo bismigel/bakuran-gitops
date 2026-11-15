@@ -1463,7 +1463,7 @@ data:
     `opentofu/cloudflare/` (`sync.sh` is a retired rollback path); HSTS is on (`max-age=15552000; includeSubDomains`, no
     preload). Admin hosts return Access 302 at the edge; public hosts return 200.
     Token rotation remains the one deferred Cloudflare task.
-  docs/reference/known-issues.md: |
+  docs_reference_known-issues.md: |
     ---
     type: reference
     audience: operator
@@ -1659,7 +1659,7 @@ data:
     | 2026-10-23 | [NixOS resets IPv4 forwarding on activation](../records/incidents/2026-10-23-nixos-resets-ipv4-forwarding-on-activation.md) |
     | 2026-10-23 | [hardening / ops learnings](../records/incidents/2026-10-23-hardening-ops-learnings.md) |
     | 2026-10-23 | [Cilium `toFQDNs` / DNS proxy (**FIXED**)](../records/incidents/2026-10-23-cilium-tofqdns-dns-proxy-fixed.md) |
-  docs/reference/conditions.md: |
+  docs_reference_conditions.md: |
     ---
     type: reference
     audience: agent
@@ -1707,7 +1707,7 @@ data:
     4. `measured = <date>` — when you last proved the diagnosis. A condition without a date is a guess wearing a filename.
     5. `python3 scripts/check-conditions.py` — id must match the filename, cited docs must exist, and a remedy without
        `why_safe` fails.
-  docs/guides/cluster.md: |
+  docs_guides_cluster.md: |
     ---
     type: guide
     audience: operator
@@ -1841,7 +1841,7 @@ data:
       and does not apply cluster changes.
     - Data on the `hermes-data` PVC (`/opt/data`); `hermes-config` seeds config/SOUL,
       `homelab-context` seeds the docs, `hermes-cron-seed` seeds the daily job.
-  docs/guides/hosts.md: |
+  docs_guides_hosts.md: |
     ---
     type: guide
     audience: operator
@@ -1946,7 +1946,7 @@ data:
     never committed — the repo's `.gitignore` refuses `*.xml`.
     
     Still clicked as of 2026-11-01: **26 firewall rules and 7 aliases**. Import them the same way.
-  docs/guides/backups.md: |
+  docs_guides_backups.md: |
     ---
     type: guide
     audience: operator
@@ -1978,7 +1978,7 @@ data:
     The age identity is at `/root/.config/homelab-backup.agekey` on `.82` (from BWS
     `backup-age-key`) and `~/.homelab-backup.agekey` on nix-station.
     Full rebuild: `bakuran-infra/docs/REBUILD.md` (+ `scripts/bootstrap-argocd.sh`).
-  docs/guides/cloudflare.md: |
+  docs_guides_cloudflare.md: |
     ---
     type: guide
     audience: operator
@@ -2003,7 +2003,7 @@ data:
     - Grafana does **per-user** auto-login via the `Cf-Access-Authenticated-User-Email`
       header (`GF_AUTH_PROXY_*`); the \*arrs are login-free on the LAN (`Forms` +
       `DisabledForLocalAddresses`).
-  docs/guides/media-troubleshooting.md: |
+  docs_guides_media-troubleshooting.md: |
     ---
     type: guide
     audience: operator
