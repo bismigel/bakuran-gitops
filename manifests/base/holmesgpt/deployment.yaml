@@ -1,0 +1,52 @@
+# HolmesGPT as an investigator, not an operator. It reads, it answers, it touches nothing.
+#
+# The key is the Hermes agent's DeepSeek key (see external-secret.yaml): one credential, two readers.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holmesgpt
+  namespace: ops-advisor
+  labels:
+    app.kubernetes.io/name: holmesgpt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: holmesgpt
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: holmesgpt
+    spec:
+      serviceAccountName: holmesgpt
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: holmes
+          image: robustadev/holmes:0.46.0@sha256:bec9d14eea6a8890ba498c91ab47adcce3af9b6d0c6ee26d642d4e3e0df6218e
+          command: ["python3", "-u", "server.py"]   # the upstream entrypoint: serves /api on 5050
+          ports:
+            - {name: http, containerPort: 5050}
+          env:
+            - name: MODEL
+              value: "deepseek/deepseek-chat"
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: holmesgpt-keys
+                  key: DEEPSEEK_API_KEY
+            - name: ENABLE_TELEMETRY
+              value: "false"
+            - name: LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: {drop: ["ALL"]}
+      restartPolicy: Always

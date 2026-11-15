@@ -1,0 +1,22 @@
+# An investigator, not an operator: it holds a read-only ClusterRole and answers questions.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: holmesgpt
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/bismigel/bakuran-gitops
+    targetRevision: main
+    path: manifests/base/holmesgpt
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ops-advisor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
