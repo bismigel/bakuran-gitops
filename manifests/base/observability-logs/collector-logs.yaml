@@ -116,7 +116,7 @@ data:
       pipelines:
         logs:
           receivers: [filelog]
-          processors: [memory_limiter, k8sattributes, resource, batch]
+          processors: [memory_limiter, filter/drop-self, k8sattributes, resource, batch]
           exporters: [otlphttp]
       telemetry:
         logs: {level: info}
