@@ -1,0 +1,35 @@
+# The controller's chart-given RBAC is `create/update/patch/delete` on `*` (kagent-writer-role, hardcoded,
+# no values toggle). This policy is what makes that survivable: the kagent controller may write only its
+# own custom resources and the workloads it owns, in its own namespace.
+#
+# Deliberately a deny-list by userInfo, because RBAC cannot be narrowed without forking the chart. It is
+# the same mechanism as protect-stateful-objects (2026-10-29): the guard is a backstop, and a backstop is
+# only worth having if something would otherwise be allowed.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kagent-controller-scope
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["*"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE", "PATCH", "DELETE"]
+        resources: ["*"]
+  variables:
+    - name: isKagentController
+      expression: >-
+        request.userInfo.username == 'system:serviceaccount:kagent:kagent-controller'
+  matchConditions:
+    - name: kagent-controller-only
+      expression: variables.isKagentController
+  validations:
+    - expression: >-
+        request.namespace == 'kagent'
+        || request.resource.group == 'kagent.dev'
+        || request.resource.resource == 'namespaces'
+        || request.operation == 'DELETE'
+      message: >-
+        The kagent controller may only write inside its own namespace (or its own kagent.dev resources).
+        Any cluster-wide change belongs in bakuran-gitops and goes through a pull request.

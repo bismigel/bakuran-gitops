@@ -3,3 +3,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - deepseek-key.yaml
+  - agent-triage.yaml
+  - guard-vap.yaml
+  - guard-vap-binding.yaml
