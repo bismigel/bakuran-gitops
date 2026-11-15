@@ -31,6 +31,19 @@ spec:
             - {port: "53", protocol: UDP}
             - {port: "53", protocol: TCP}
 
+    # The API server, and this was missing on the first version of the policy. The tool server reads the
+    # cluster by running `kubectl`, so without this every tool call died with
+    #   dial tcp 10.43.0.1:443: i/o timeout
+    # and retried for 30 s - which read as "the agent is slow", not "the policy is wrong". Two triage runs and
+    # a model swap were spent before the pod was asked directly. `kube-apiserver` is a Cilium entity and tracks
+    # the service however the cluster's addressing changes; the alternative is pinning 10.43.0.1/32.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
+            - {port: "6443", protocol: TCP}
+
     # Everything kagent needs from itself: controller -> agents, runner -> agent, agent -> tool server.
     - toEndpoints:
         - matchLabels:
