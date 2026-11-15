@@ -1,0 +1,22 @@
+# The kustomize half of kagent: the namespace and the ExternalSecret that carries the model key. The
+# chart is a separate Application because ArgoCD can express one source per Application here, and the
+# controller crashes without the secret - it panics on a nil database manager rather than reporting the
+# missing key, so this has to exist first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kagent-config
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: prod
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/kagent
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kagent
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
