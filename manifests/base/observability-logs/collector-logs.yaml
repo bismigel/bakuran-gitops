@@ -133,6 +133,10 @@ spec:
   template:
     metadata:
       labels: {app.kubernetes.io/name: otel-logs}
+      annotations:
+        # Without this a ConfigMap change updates the mounted file and leaves the running collectors on the old
+        # configuration - which is how the drop-self filter appeared to do nothing. The checksum forces a roll.
+        checksum/config: "sha256-d13cf0cf67e8f667"
     spec:
       serviceAccountName: otel-logs
       tolerations:
