@@ -17,3 +17,8 @@ spec:
     namespace: kagent
   syncPolicy:
     automated: {prune: true, selfHeal: true}
+    syncOptions:
+      # agents.kagent.dev is larger than 262144 bytes once annotated, which is the limit for client-side
+      # apply; the API rejects it and the controller then crashloops because one of its informers never
+      # becomes available. Server-side apply has no such limit.
+      - ServerSideApply=true
