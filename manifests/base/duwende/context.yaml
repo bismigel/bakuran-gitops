@@ -18,20 +18,18 @@ data:
     
     ## How this repository is organised
     
-    This is a **BMad project**: the method is the
-    [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD), configured in [`_bmad/`](_bmad/README.md).
     The layout follows one rule — a fact lives in exactly one place, and which place depends on what
-    kind of claim it is:
+    kind of claim it is. Ticket state is in git, so an agent reads it with `read`/`grep` rather than an
+    API ([ADR 0013](docs/decisions/adr-0013-the-plan-lives-in-git.md)):
     
     | Claim | Where | Example |
     |---|---|---|
     | what is true *right now*, measured | [`STATE.md`](STATE.md), [`ops/`](ops) | nodes, pods, backup freshness |
     | what the infrastructure *is*, verified and dated | [`NETWORK.md`](NETWORK.md), [`STORAGE.md`](STORAGE.md), [`SYSTEM.md`](SYSTEM.md) | addressing, mounts, invariants |
     | *why* a decision was made, and what it costs | [`docs/decisions/`](docs/decisions/README.md) | why the tunnel unit holds no endpoint |
-    | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) (generated) → [`_bmad-output/`](_bmad-output) | initiative → epics → stories, with `verify:` on each |
+    | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
     | how to do a day-2 operation | [`OPERATIONS.md`](OPERATIONS.md) | one section per alert |
     | what an agent must obey every session | [`AGENTS.md`](AGENTS.md) | PR-only, verify first, never delete |
-    | how an agent is configured to work here | [`_bmad/`](_bmad/README.md), [`.agents/skills/`](.agents/skills) | installed BMad skills, base config, `custom/` overrides |
     
     The reading budget in `AGENTS.md` (three tiers, with a CI-enforced cap on the always-loaded one)
     is this repo's implementation of BMad's "keep loaded context small" principle.
@@ -141,9 +139,9 @@ data:
     
     You operate the **Bakuran homelab** as an autonomous assistant.
     
-    <!-- bmad:context -->
-    This repository is a **BMad project**. Plans live in a ticket tree, decisions live in ADRs, and
-    verified facts live in the reference docs. Rules that must hold across every session:
+    <!-- repo:context -->
+    Plans live in a ticket tree (`plan/`), decisions live in ADRs, and verified facts live in the
+    reference docs. Rules that must hold across every session:
     
     - **Change flow:** branch → PR → CI green → squash merge. Never push to `main`, never merge on a
       red check, and always pass the PR number *and* verify the branch it resolved to
@@ -167,11 +165,11 @@ data:
     
     | Need | Path |
     |---|---|
-    | what is being built, and what "done" means | `_bmad-output/initiative-<slug>/tickets/` |
+    | what is being built, and what "done" means | `plan/<initiative>/tickets/` |
     | why something is the way it is | `docs/decisions/adr-*.md` |
     | what is true right now, measured | `STATE.md`, `ops/*`, and the reference docs |
     | how to do a day-2 operation | `OPERATIONS.md`, or the alert's `runbook_url` |
-    <!-- /bmad:context -->
+    <!-- /repo:context -->
     
     ## Operating rules (IMPORTANT: follow these)
     - **Pull requests only.** Never push to `main`; do the work on a branch, open a
@@ -191,8 +189,8 @@ data:
       "it's IPv6", "the deploy won't restart the tunnel") unless a command in
       `NETWORK.md` §9 backs it up. Unverified network beliefs caused seven outages
       on 2026-10-25.
-    - **After a structural change, run `bmad-project-context`** — `record` (mistakes land in
-      `docs/guides/agents-pitfalls.md`), `refresh` (the block stopped matching the repo). Not every PR.
+    - **After a structural change, update this block by hand** — a mistake worth remembering goes in
+      `docs/guides/agents-pitfalls.md`; a block that stopped matching the repo is a bug in the block.
     - **Flips need `scripts/preflight-flip.sh <story>`** — no rehearsal record, no flip.
     - **Read the config before writing a rule about it.** An invariant must be
       written from the file it constrains (and the line quoted), never from live
@@ -248,7 +246,7 @@ data:
     | "did I break any of the checks" | `scripts/verify-all.sh` — every checker, including those CI cannot run (they need the siblings, nix or kubectl) |
     | "what are the host facts" | `python3 scripts/facts.py hosts` — derived from `bakuran-infra`'s flake; never restate a host, address or mount in prose |
     | how to accept a story | comment `/approve` on its Forgejo issue (or close it), then `python3 scripts/board.py pull --write` — the comment's author becomes `accepted_by`; `/reject` takes it back |
-    | what work is planned, in flight, or awaiting acceptance | `PLAN.md` — generated from `_bmad-output/`, every story carries `repo:` (`REPOS.md` § "Where the plan lives") |
+    | what work is planned, in flight, or awaiting acceptance | `PLAN.md` — generated from `plan/output/`, every story carries `repo:` (`REPOS.md` § "Where the plan lives") |
     | the same, as columns (Kanban) | `BOARD.md` — generated from the store by `scripts/render-board.py` |
     
     Rules that keep this cheap:
