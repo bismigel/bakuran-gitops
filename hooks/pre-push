@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Refuse to push to a protected branch from this machine.
+#
+# Why a local hook: GitHub does not offer branch protection on private repositories without a paid plan
+# (measured 2026-11-15: the API answers "Upgrade to GitHub Pro or make this repository public"). So the
+# server cannot refuse. This refuses instead, and `.github/workflows/guard-main.yml` detects the case
+# where someone bypassed it with --no-verify or pushed from another machine.
+#
+# Install once per clone:  scripts/install-hooks.sh
+#
+# Bypass is possible and deliberate: this is a guard against the ordinary mistake, not a security
+# control. The detection workflow is what makes a bypass visible.
+set -uo pipefail
+PROTECTED="main master"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  for b in $PROTECTED; do
+    if [ "$remote_ref" = "refs/heads/$b" ]; then
+      cat >&2 <<EOF
+
+  refusing to push to '$b'
+
+    Every change goes through a pull request: branch -> PR -> CI green -> merge.
+    See docs/decisions/adr-0001-pr-only-change-flow.md in homelab-context.
+
+    git switch -c <branch>            # if you are on $b now
+    git push -u origin <branch>       # then open the PR
+
+    If this is the accidental-push case: the commit is already local, so nothing is lost.
+    If you truly must override: git push --no-verify  (the guard-main workflow will record it)
+
+EOF
+      exit 1
+    fi
+  done
+done
+exit 0
