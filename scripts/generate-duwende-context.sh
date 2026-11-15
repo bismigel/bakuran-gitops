@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate manifests/duwende/context.yaml: the Hermes knowledge-base
+# Regenerate manifests/base/duwende/context.yaml: the Hermes knowledge-base
 # ConfigMap from the local homelab-context docs. CREDENTIALS.md is excluded.
 #
 #   ./scripts/generate-duwende-context.sh
@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SRC="${HOMELAB_CONTEXT_DIR:-$HOME/projects/homelab-context}"
-OUT="${1:-manifests/duwende/context.yaml}"
+OUT="${1:-manifests/base/duwende/context.yaml}"
 # The agent's context, chosen rather than globbed. Rules for this list:
 #   * entry points and reference docs, not the archive: `docs/history/` and `docs/records/` are dated accounts of what was
 #     true then, and handing an agent those as context is how it quotes a five-week-old fact as current;
@@ -33,12 +33,12 @@ DOCS=(
 if [ "${OUT}" = "--check" ]; then
   tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
   "${BASH_SOURCE[0]}" "$tmp" >/dev/null
-  if ! diff -q "$tmp" "manifests/duwende/context.yaml" >/dev/null; then
-    echo "FAIL: manifests/duwende/context.yaml is stale - run scripts/generate-duwende-context.sh" >&2
-    diff -u "manifests/duwende/context.yaml" "$tmp" | head -20 >&2
+  if ! diff -q "$tmp" "manifests/base/duwende/context.yaml" >/dev/null; then
+    echo "FAIL: manifests/base/duwende/context.yaml is stale - run scripts/generate-duwende-context.sh" >&2
+    diff -u "manifests/base/duwende/context.yaml" "$tmp" | head -20 >&2
     exit 1
   fi
-  echo "context bundle is current ($(grep -c '' manifests/duwende/context.yaml) lines, ${#DOCS[@]} docs)"
+  echo "context bundle is current ($(grep -c '' manifests/base/duwende/context.yaml) lines, ${#DOCS[@]} docs)"
   exit 0
 fi
 
@@ -56,7 +56,15 @@ fi
     'data:'
   for f in "${DOCS[@]}"; do
     if [ ! -f "$SRC/$f" ]; then echo "missing $SRC/$f" >&2; exit 1; fi
-    printf '  %s: |\n' "$f"
+    # A ConfigMap key may only contain [-._a-zA-Z0-9], so a leading path with slashes is not a legal key. Flatten it and
+    # REFUSE anything still illegal: illegal keys fail admission, which makes the whole sync fail silently as a retry loop.
+    # That is how this bundle sat stale from the KNOWN-ISSUES split until 2026-11-15 while --check reported it current.
+    key=$(printf '%s' "$f" | tr '/' '_')
+    case "$key" in
+      *[!A-Za-z0-9._-]*) echo "illegal ConfigMap key for $f: $key" >&2; exit 1 ;;
+      "") echo "empty ConfigMap key for $f" >&2; exit 1 ;;
+    esac
+    printf '  %s: |\n' "$key"
     sed 's/^/    /' "$SRC/$f"
   done
 } > "$OUT"
