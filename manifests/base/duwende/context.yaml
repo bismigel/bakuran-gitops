@@ -1782,6 +1782,13 @@ data:
     agent and the CronJob; the CRDs go with the chart, and the `kagent` namespace stays, empty, by
     [ADR 0002](../decisions/adr-0002-never-delete-stateful-objects.md).
     
+    ## What is known to be imperfect
+    
+    Every caveat in this stack — the wildcard role, the 0.7.9 pin, the printed-not-stored traces, the one-alert-per-run
+    loop, the guards that GitHub cannot enforce — is listed with its evidence and the thing that would close it in
+    [the 2026-11-15 record](../records/2026-11-15-agentic-stack-caveats.md). Read it before assuming a limit is a
+    temporary mess rather than a decision.
+    
     ## What no agent does
     
     - **Merge.** Every change goes through a pull request reviewed by a human. `bakuran-gitops` should
