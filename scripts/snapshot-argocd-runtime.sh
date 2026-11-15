@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Snapshot the live ArgoCD runtime objects into manifests/argocd/runtime.yaml.
+# Snapshot the live ArgoCD runtime objects into install/argocd/runtime.yaml.
 #
 # Why this exists: the `argocd-runtime` Application runs with prune:false and
 # selfHeal:true, so it can only own what is written in runtime.yaml. An empty
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 NS="${NS:-argocd}"
-OUT="${1:-manifests/argocd/runtime.yaml}"
+OUT="${1:-install/argocd/runtime.yaml}"
 
 command -v kubectl >/dev/null || { echo "kubectl is required" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }

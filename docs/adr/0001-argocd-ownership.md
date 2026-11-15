@@ -17,7 +17,7 @@ selectors.
 Helm owns ArgoCD.
 
 - Release `argocd`, chart `argo-cd` 10.10.5.
-- Values live in `manifests/argocd/values.yaml`.
+- Values live in `install/argocd/values.yaml`.
 - `configs.cm` and `configs.secret` remain bootstrap-owned.
   - Redis HA is enabled with three Redis/sentinel pods and three HAProxy pods.
   - Per-pod announce Services are made headless by
