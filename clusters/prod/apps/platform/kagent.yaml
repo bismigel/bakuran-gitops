@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kagent
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: prod
+  sources:
+    - repoURL: ghcr.io/kagent-dev/kagent/helm/kagent
+      chart: kagent
+      targetRevision: 0.7.9
+      helm:
+        releaseName: kagent
+        valueFiles:
+          - $values/manifests/base/kagent/values.yaml
+    - repoURL: git@github.com:bismigel/bakuran-gitops.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kagent
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]

@@ -1,0 +1,59 @@
+# kagent 0.7.9, trimmed to a controller.
+#
+# Every prebuilt Agent is switched off, and that is the important half: the chart ships ten of them
+# (`helm-agent`, `cilium-manager-agent`, `argo-rollouts-agent`, …) together with ClusterRoles named
+# `kagent-writer-role`, `kagent-cilium-manager-role` and `kagent-cilium-policy-role`. Deploying them as
+# shipped would put ten always-on agents with write access into a cluster whose ADR 0012 says an engine
+# may diagnose and never remediate. One agent of our own, with a read-only role, replaces them.
+#
+# Pinned to 0.7.9 deliberately: the v1.0 line in the docs installs substrate as well - Postgres schemas, a
+# RustFS object store, a per-node DaemonSet and a gVisor worker pool - which is not a homelab trial.
+database:
+  type: sqlite
+
+ui:
+  replicas: 0
+
+kmcp:
+  enabled: false
+
+kagent-tools:
+  enabled: false
+
+tools:
+  grafana-mcp:
+    enabled: false
+  querydoc:
+    enabled: false
+
+# Each agent is a SUBCHART gated on a top-level `<name>.enabled` key - not `agents.<name>`.
+k8s-agent:
+  enabled: false
+kgateway-agent:
+  enabled: false
+istio-agent:
+  enabled: false
+promql-agent:
+  enabled: false
+observability-agent:
+  enabled: false
+argo-rollouts-agent:
+  enabled: false
+helm-agent:
+  enabled: false
+cilium-policy-agent:
+  enabled: false
+cilium-manager-agent:
+  enabled: false
+cilium-debug-agent:
+  enabled: false
+
+providers:
+  default: openAI
+  openAI:
+    provider: OpenAI
+    model: "deepseek-chat"
+    apiKeySecretRef: kagent-deepseek
+    apiKeySecretKey: DEEPSEEK_API_KEY
+    config:
+      baseURL: "https://api.deepseek.com/v1"
