@@ -44,7 +44,8 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: victorialogs
-          image: victoriametrics/victoria-logs:v1.26.0@sha256:f44e20c260bd939833cf41083a830abb908d948461dd92e031ecc158f91b728f
+# v1.26.0 carried CRITICALs in libcrypto3/libssl3 and its Go stdlib; v1.54.0 is the current release (2026-11-13)
+          image: victoriametrics/victoria-logs:v1.54.0@sha256:ee4e820cac3721f5f5d91641b950c22439593adc4224f9655e5333d5a84c1dfe
           args:
             - -storageDataPath=/storage
             - -retentionPeriod=30d
