@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/forgejo
+    path: manifests/base/forgejo
   destination:
     server: https://kubernetes.default.svc
     namespace: forgejo
