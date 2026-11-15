@@ -1722,7 +1722,13 @@ data:
     | **ArgoCD** | `argocd` | git | **the cluster** | repo read + cluster write | **yes — alone** |
     | **Hermes** | `duwende` | cluster, repos, media APIs | PRs, Telegram replies | `DEEPSEEK_API_KEY`, `GH_TOKEN`, `TELEGRAM_BOT_TOKEN` | no — via PR only |
     | **HolmesGPT** | `ops-advisor` | cluster: get/list/watch | nothing | `DEEPSEEK_API_KEY` only | **no** |
+    | **kagent** | `kagent` | its own CRs | its own namespace only | `DEEPSEEK_API_KEY` | **no** — fenced by admission |
+    | **triage agent** | `kagent` (pod) | 4 read tools | nothing | none | **no** |
     | **pi** (workstation) | your machine | everything | files, commits | deepseek + git + kubectl | via PR only |
+    
+    Two of these are one system: `kagent` is a runtime, and `triage` is the agent it runs. They are separate rows
+    because their permissions differ — the controller's RBAC is wildcard by chart default, and the agent's tools are
+    four of eighteen.
     
     Verified 2026-11-15 with `kubectl auth can-i … --as=system:serviceaccount:ops-advisor:holmesgpt`:
     `list pods`, `get nodes`, `list pvc`, `volumes.longhorn.io` → **yes**; `create/delete pods`,
@@ -1749,6 +1755,16 @@ data:
     [ADR 0012](../decisions/adr-0012-an-engine-is-a-scheduler-not-a-record.md) expressed as RBAC rather
     than as a prompt. Measured latency on this estate: 20–29 s per question.
     
+    ## The triage loop
+    
+    Every five minutes a CronJob in `kagent` reads Alertmanager, and asks the `triage` agent about each firing
+    alert (excluding `Watchdog`, which is the permanent test alert). The answer goes to the Telegram chat the alert
+    arrived in, prefixed `[triage]`, and into the Job log. The agent holds four tools — list, describe, events, pod
+    logs — so it can read and cannot act.
+    
+    Measured 2026-11-15: 20–30 s per question, and its first live diagnosis was **wrong** (see below), which is why
+    the eval corpus exists.
+    
     ## What no agent does
     
     - **Merge.** Every change goes through a pull request reviewed by a human. `bakuran-gitops` should
@@ -1761,6 +1777,12 @@ data:
       adding an alert forces the question in the pull request rather than during the incident.
     
     ## If an agent's answer looks wrong
+    
+    Its answers are not measurements. On 2026-11-15 the triage agent read `egress-node=true` on one node and a probe
+    pinned to another, concluded the egress policy "can never match", and proposed relabelling nodes. The probe
+    egresses as `84.20.16.49`; Cilium tunnels a selected pod's traffic to the gateway node, so the pod being
+    elsewhere is the supported case. A confident wrong diagnosis is the normal failure mode of a language model
+    with read access, and the countermeasure is a measurement, not more prompt.
     
     It probably is. The evidence to check it lives here: `docs/records/incidents/` for what actually
     happened before, `conditions/*.toml` for the diagnoses already known, and `evals/` for whether the
