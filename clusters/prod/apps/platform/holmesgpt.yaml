@@ -8,7 +8,7 @@ metadata:
 spec:
   project: prod
   source:
-    repoURL: https://github.com/bismigel/bakuran-gitops
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
     path: manifests/base/holmesgpt
   destination:
