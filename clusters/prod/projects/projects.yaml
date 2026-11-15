@@ -81,6 +81,8 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: media}
     - {server: https://kubernetes.default.svc, namespace: monitoring}
     - {server: https://kubernetes.default.svc, namespace: observability}
+    # the log collector's own namespace: it needs hostPath, which `observability` (baseline) forbids
+    - {server: https://kubernetes.default.svc, namespace: observability-logs}
     # the read-only investigator: its own namespace so removing it touches nothing else
     - {server: https://kubernetes.default.svc, namespace: ops-advisor}
     - {server: https://kubernetes.default.svc, namespace: kagent}
