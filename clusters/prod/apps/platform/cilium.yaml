@@ -20,10 +20,16 @@ spec:
         # API for registration and config; with a node IP here, any agent that
         # restarted while that node was down could never reinitialise - even though
         # etcd and the API had survived on the other two.
-        # Rehearsed in bakuran-infra/staging 2026-10-28: rollout to Running in ~20s,
-        # a running agent tolerates losing the VIP, a cold start waits for it
-        # (kube-vip is hostNetwork, so it starts without CNI).
-        k8sServiceHost: 192.168.2.100
+        # The LOCAL API, not the VIP. A cold start used to wait for 192.168.2.100, which kube-vip could
+        # only announce after winning a lease through 10.43.0.1 - which Cilium provides, because
+        # kube-proxy replacement is on. On 2026-11-15 a power cut closed that cycle and the cluster sat
+        # for 27 minutes with three Ready nodes and nothing able to run.
+        #
+        # Every node here is control-plane and runs its own API server, so each agent can talk to
+        # 127.0.0.1:6443 and needs nothing from the network to register. Rehearsed 2026-11-15 on the
+        # staging cluster: with the VIP deleted from every node, all three agents stayed Running and a
+        # new pod got networking (docs/rehearsals/2026-11-15-cilium-local-api-staging.md).
+        k8sServiceHost: 127.0.0.1
         k8sServicePort: "6443"
         # Requests only, sized from observed usage (2026-10-28).
         # **Kube-proxy replacement, final attempt (2026-11-13, story 10.10).** The prerequisite work is done:
