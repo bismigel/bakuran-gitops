@@ -32,7 +32,12 @@ spec:
               args:
                 - |
                   apk add --no-cache curl jq >/dev/null
+                  # Watchdog is a permanent test alert: it is always firing, it says nothing, and triaging it
+                  # every five minutes would be five model calls an hour spent on a heartbeat. Filtered here
+                  # rather than muted in Alertmanager, because muting it would also stop WatchdogMissing from
+                  # being able to notice the pipeline is dead.
                   alerts=$(curl -sf "http://alertmanager.monitoring.svc:9093/api/v2/alerts?active=true&silenced=false&inhibited=false" || echo '[]')
+                  alerts=$(echo "$alerts" | jq '[.[] | select(.labels.alertname != "Watchdog")]')
                   n=$(echo "$alerts" | jq 'length')
                   echo "firing alerts: $n"
                   [ "$n" -eq 0 ] && exit 0
