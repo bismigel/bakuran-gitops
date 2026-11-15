@@ -21,13 +21,12 @@ spec:
         apiVersions: ["*"]
         operations: ["CREATE", "UPDATE", "DELETE"]
         resources: ["*"]
-  variables:
-    - name: isKagentController
-      expression: >-
-        request.userInfo.username == 'system:serviceaccount:kagent:kagent-controller'
+  # `variables` is only visible to `validations`, not to `matchConditions` - referring to it there is a
+  # compilation error and the whole policy is rejected.
   matchConditions:
     - name: kagent-controller-only
-      expression: variables.isKagentController
+      expression: >-
+        request.userInfo.username == 'system:serviceaccount:kagent:kagent-controller'
   validations:
     - expression: request.namespace == 'kagent'
       message: >-
