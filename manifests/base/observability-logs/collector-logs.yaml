@@ -66,20 +66,17 @@ data:
       # and the path gives namespace/pod/uid/container without an API call.
       filelog:
         include: [/var/log/pods/*/*/*.log]
-        exclude: [/var/log/pods/observability_otel-logs-*/*/*.log]   # do not collect our own output
+        exclude: [/var/log/pods/observability-logs_otel-logs-*/*/*.log]   # not our own output
         start_at: end                       # a fresh collector reads new lines, not the whole history
         include_file_path: true
         include_file_name: false
         operators:
+          # The standard `container` operator: parses kubelet's CRI envelope AND the JSON line inside it,
+          # and - with add_metadata_from_filepath - sets k8s.namespace.name / k8s.pod.name / k8s.pod.uid from
+          # the path. A hand-written regex here is what left the first deploy with unparsed `_msg` and no
+          # pod attributes to query by.
           - type: container
             add_metadata_from_filepath: true
-            # kubelet's CRI shape: <time> <stream> <tag> <msg>
-            regex: '^(?P<time>[^ ]+) (?P<stream>stdout|stderr) (?P<logtag>[^ ]*) ?(?P<log>.*)$'
-            timestamp:
-              parse_from: attributes.time
-              layout_type: gotime
-              layout: '2006-01-02T15:04:05.000000000Z07:00'
-    processors:
       # Pod metadata as resource attributes, so a query can say "namespace=media" and mean it.
       # This is a PROCESSOR, not a receiver - declaring it under `receivers` is what made the collector
       # crashloop on the first deploy ('receivers unknown type: k8sattributes').
