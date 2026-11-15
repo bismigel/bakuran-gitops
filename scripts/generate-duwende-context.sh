@@ -18,8 +18,9 @@ OUT="${1:-manifests/base/duwende/context.yaml}"
 # The guides OPERATIONS routes to are included too: an index inside the bundle that points at files the bundle does not carry
 # is worse than no index. `OPERATIONS.md` itself stays, as the router.
 DOCS=(
-  README.md AGENTS.md SYSTEM.md INVENTORY.md
-  OPERATIONS.md MEDIA.md PLATFORM-MIGRATION.md
+  README.md AGENTS.md OPERATIONS.md
+  docs/reference/system.md docs/reference/inventory.md docs/reference/media.md
+  docs/plans/platform-migration.md
   docs/reference/known-issues.md docs/reference/conditions.md
   docs/guides/cluster.md docs/guides/hosts.md docs/guides/backups.md
   docs/guides/cloudflare.md docs/guides/media-troubleshooting.md
