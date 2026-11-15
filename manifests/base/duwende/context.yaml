@@ -1765,6 +1765,23 @@ data:
     Measured 2026-11-15: 20–30 s per question, and its first live diagnosis was **wrong** (see below), which is why
     the eval corpus exists.
     
+    ## Stopping it
+    
+    The loop is one CronJob, so the switch is one field:
+    
+    ```bash
+    kubectl -n kagent patch cronjob triage -p '{"spec":{"suspend":true}}'    # emergency
+    ```
+    
+    That is a hand-edit on a declared object, which this estate does not allow to stand: a patch is an incident
+    response, and the PR that makes it permanent goes in the same breath
+    ([ADR 0003](../decisions/adr-0003-tunnel-unit-has-no-endpoint.md) is what that cost once). The declarative equivalent is
+    `spec.suspend: true` in `manifests/base/kagent/triage-cronjob.yaml`.
+    
+    Nothing else in the cluster depends on kagent. Deleting the three Applications removes the controller, the
+    agent and the CronJob; the CRDs go with the chart, and the `kagent` namespace stays, empty, by
+    [ADR 0002](../decisions/adr-0002-never-delete-stateful-objects.md).
+    
     ## What no agent does
     
     - **Merge.** Every change goes through a pull request reviewed by a human. `bakuran-gitops` should

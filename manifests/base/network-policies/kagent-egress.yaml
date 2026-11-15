@@ -1,0 +1,56 @@
+# Egress for the kagent namespace: the investigation runtime that reads the cluster.
+#
+# What this buys, and what it does not:
+#
+#   BUYS - the agent and its tool server can no longer reach anything inside the cluster except kube-dns,
+#   Alertmanager and each other. That is where the blast radius of a confused model actually is: a lateral
+#   path to the API server, to Longhorn, to other namespaces' pods. Cluster-internal ranges are excluded below.
+#
+#   DOES NOT BUY - a destination allowlist for the internet. The model call goes to api.deepseek.com and the
+#   message to api.telegram.org, and neither has a stable address. `toFQDNs` would express this exactly and it
+#   does not work in this cluster (Cilium's transparent DNS proxy is not returning responses - see
+#   downloads-egress.yaml, same constraint, measured 2026-10-23). So the public rule is a broad allow with the
+#   private ranges excluded, which is the same compromise qBittorrent makes and for the same reason.
+#
+# The enterprise answer is an egress proxy with one stable address, and that is a bigger job than this.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kagent-egress
+  namespace: kagent
+spec:
+  endpointSelector: {}
+  egress:
+    # DNS. Without this everything else times out and looks like a network fault.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+
+    # Everything kagent needs from itself: controller -> agents, runner -> agent, agent -> tool server.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kagent
+
+    # The loop's input.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app: alertmanager
+      toPorts:
+        - ports:
+            - {port: "9093", protocol: TCP}
+
+    # The internet, minus everything that belongs to this estate.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8        # cluster pod/services CIDRs and anything routed internally
+            - 172.16.0.0/12
+            - 192.168.0.0/16    # the LAN
+            - 169.254.0.0/16    # link-local / metadata endpoints
+            - 100.64.0.0/10     # CGNAT
