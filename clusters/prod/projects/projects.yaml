@@ -80,6 +80,7 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: observability}
     # the read-only investigator: its own namespace so removing it touches nothing else
     - {server: https://kubernetes.default.svc, namespace: ops-advisor}
+    - {server: https://kubernetes.default.svc, namespace: kagent}
     - {server: https://kubernetes.default.svc, namespace: opentelemetry-operator-system}
     # The password manager (2026-11-10). The project rejected the Application at sync time with
     # `InvalidSpecError: destination namespace 'vaultwarden' does not match any of the allowed destinations` —

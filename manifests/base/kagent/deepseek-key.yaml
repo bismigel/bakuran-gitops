@@ -1,0 +1,17 @@
+# Same key the Hermes agent and HolmesGPT use. One credential, three readers, no new Bitwarden item.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kagent-deepseek
+  namespace: kagent
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: kagent-deepseek
+  data:
+    - secretKey: DEEPSEEK_API_KEY
+      remoteRef:
+        key: deepseek-api-key
