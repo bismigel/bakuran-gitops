@@ -1,0 +1,18 @@
+# The same bot Alertmanager already uses, so a diagnosis arrives in the same chat as the alert it explains.
+# Nothing new is minted; this is a second reader of one existing credential.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kagent-telegram
+  namespace: kagent
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: kagent-telegram
+  data:
+    - secretKey: bot-token
+      remoteRef:
+        key: telegram-bot-token
