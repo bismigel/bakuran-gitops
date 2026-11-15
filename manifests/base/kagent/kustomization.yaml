@@ -4,5 +4,7 @@ resources:
   - namespace.yaml
   - deepseek-key.yaml
   - agent-triage.yaml
+  - triage-runner-rbac.yaml
+  - triage-cronjob.yaml
   - guard-vap.yaml
   - guard-vap-binding.yaml

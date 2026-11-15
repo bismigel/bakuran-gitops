@@ -1,0 +1,7 @@
+# The runner needs to read nothing in the cluster: the agent does that with its own tools. This exists so
+# the CronJob does not run as `default`.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: triage-runner
+  namespace: kagent

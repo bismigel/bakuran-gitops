@@ -1,0 +1,51 @@
+# The trigger. Alertmanager has no webhook receiver in this cluster, so the loop is pull-based: every five
+# minutes, ask the triage agent about every alert that is firing and not silenced, and record the answer.
+#
+# Why a CronJob and not a webhook: a receiver means an ingress, a shared secret and something that must be
+# up at 03:00. A poll every five minutes costs nothing, cannot be spoofed, and if it fails you notice the
+# same way you notice any other Job failing - in `ops/broken`.
+#
+# It writes its answers to a ConfigMap rather than to a chat, so a bad night leaves evidence.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: triage
+  namespace: kagent
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          serviceAccountName: triage-runner
+          restartPolicy: Never
+          containers:
+            - name: triage
+              image: alpine:3.20
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  apk add --no-cache curl jq >/dev/null
+                  alerts=$(curl -sf "http://alertmanager.monitoring.svc:9093/api/v2/alerts?active=true&silenced=false&inhibited=false" || echo '[]')
+                  n=$(echo "$alerts" | jq 'length')
+                  echo "firing alerts: $n"
+                  [ "$n" -eq 0 ] && exit 0
+                  echo "$alerts" | jq -c '.[0:3][]' | while read -r a; do
+                    name=$(echo "$a" | jq -r '.labels.alertname')
+                    summary=$(echo "$a" | jq -r '.annotations.summary // .annotations.description // ""')
+                    q="Alert firing in the Bakuran homelab.\n\nalertname: ${name}\nsummary: ${summary}\n\nDiagnose from the live cluster. Name ONE diagnosis, the command that confirms it, and the GitOps change you would propose. Do not propose deleting a PVC, PV or Namespace."
+                    body=$(jq -nc --arg t "$q" '{jsonrpc:"2.0",id:1,method:"message/send",params:{message:{role:"user",parts:[{kind:"text",text:$t}],messageId:"cron"}}}')
+                    ans=$(curl -sf -m 180 -X POST http://triage.kagent:8080/ -H 'Content-Type: application/json' -d "$body" \
+                      | jq -r '.result.artifacts[0].parts[0].text // "(no answer)"')
+                    echo "--- $name"
+                    echo "$ans"
+                  done
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {memory: 256Mi}
