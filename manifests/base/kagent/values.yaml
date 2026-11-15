@@ -74,7 +74,14 @@ providers:
 # namespace, otel-collector:4317).
 otel:
   tracing:
-    enabled: false        # the collector has no tracing backend behind it yet; enabling this would export into nothing
+    # Enabled as a probe, not as coverage: the collector's pipeline exports traces to its `logging` exporter,
+    # so a trace reaching it prints. Measured before this change: 0 log records arrived in 3 minutes with the
+    # logging pipeline configured, i.e. the endpoint was right and nothing was being emitted. If traces arrive,
+    # the SDK emits and only logging instrumentation is missing; if they do not, the export path is still wrong.
+    enabled: true
+    exporter:
+      otlp:
+        endpoint: http://otel-collector.observability.svc.cluster.local:4317
   logging:
     enabled: true
     exporter:
