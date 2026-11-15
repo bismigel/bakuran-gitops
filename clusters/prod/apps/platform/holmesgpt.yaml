@@ -6,7 +6,7 @@ metadata:
   namespace: argocd
   finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
-  project: platform
+  project: prod
   source:
     repoURL: https://github.com/bismigel/bakuran-gitops
     targetRevision: main
