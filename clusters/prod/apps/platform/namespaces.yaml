@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/namespaces
+    path: manifests/base/namespaces
   destination:
     server: https://kubernetes.default.svc
     namespace: default

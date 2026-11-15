@@ -147,7 +147,7 @@ deletion policy.
 
 - **Never commit plaintext secrets.** In-cluster secrets come from **Bitwarden
   Secrets Manager via External Secrets Operator** (`ClusterSecretStore/bitwarden`)
-  using `ExternalSecret` / `PushSecret` CRs — see `manifests/external-secrets/`.
+  using `ExternalSecret` / `PushSecret` CRs — see `manifests/base/external-secrets/`.
 - **Every Secret is ESO-owned.** The last hand-applied ones (`books/kavita-secrets`,
   `books/lazylibrarian-secrets`) were adopted on 2026-10-29 with
   `creationPolicy: Owner` — the object is updated in place, so a running pod never sees
