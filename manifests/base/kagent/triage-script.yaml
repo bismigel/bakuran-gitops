@@ -41,7 +41,10 @@ data:
       # Telegram rejects a message over 4096 characters with a 400, and an agent's answer is easily longer - the
       # first run failed exactly that way, silently, because `-f` hides the body. Truncated to fit, with the full
       # text left in the Job log, and the response body printed when it still fails.
-      short=$(printf '%s' "${ans}" | cut -c1-3200)
+      # `cut -c` counts CHARACTERS; Telegram's limit is 4096 BYTES, and this agent's prose is full of em dashes
+      # and arrows at three bytes each. The first truncation still came back "message is too long". head -c counts
+      # bytes, so 3000 is safe whatever the text contains.
+      short=$(printf '%s' "${ans}" | head -c 3000)
       token=$(cat /etc/telegram/bot-token)
       code=$(curl -s -m 25 -o /tmp/tg.json -w '%{http_code}' -X POST \
         "https://api.telegram.org/bot${token}/sendMessage" \
