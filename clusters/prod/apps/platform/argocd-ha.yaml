@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/argocd-ha
+    path: manifests/base/argocd-ha
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
