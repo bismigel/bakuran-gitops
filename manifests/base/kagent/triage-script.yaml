@@ -37,9 +37,19 @@ data:
 
       # Straight to the chat the alert arrived in: a diagnosis nobody reads is a log line. Prefixed so it is clear
       # this is a model's reading of the cluster, not a measurement.
-      curl -sf -m 25 -X POST "https://api.telegram.org/bot$(cat /etc/telegram/bot-token)/sendMessage" \
+      #
+      # Telegram rejects a message over 4096 characters with a 400, and an agent's answer is easily longer - the
+      # first run failed exactly that way, silently, because `-f` hides the body. Truncated to fit, with the full
+      # text left in the Job log, and the response body printed when it still fails.
+      short=$(printf '%s' "${ans}" | cut -c1-3200)
+      token=$(cat /etc/telegram/bot-token)
+      code=$(curl -s -m 25 -o /tmp/tg.json -w '%{http_code}' -X POST \
+        "https://api.telegram.org/bot${token}/sendMessage" \
         -d chat_id="${TELEGRAM_CHAT_ID}" \
         --data-urlencode "text=[triage] ${name} - ${summary}
 
-    ${ans}" >/dev/null || echo "telegram send failed for ${name}"
+    ${short}")
+      if [ "$code" != "200" ]; then
+        echo "telegram send failed for ${name}: http=${code} $(jq -r '.description // ""' /tmp/tg.json 2>/dev/null)"
+      fi
     done
