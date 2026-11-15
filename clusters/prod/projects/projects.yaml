@@ -50,8 +50,7 @@ spec:
     # cluster-wide controller, so its namespace is a real widening and is listed separately below.
     - https://cloudnative-pg.github.io/charts
     # kagent is published as OCI charts, which ArgoCD matches by exact repoURL
-    - ghcr.io/kagent-dev/kagent/helm/kagent
-    - ghcr.io/kagent-dev/kagent/helm/kagent-crds
+    - ghcr.io/kagent-dev/kagent/helm
   # The `staging` namespace left this list on 2026-10-30 together with the
   # status-api-staging Application. That Application deployed a *staging*
   # overlay into *production* - a leftover from before the per-cluster roots -
