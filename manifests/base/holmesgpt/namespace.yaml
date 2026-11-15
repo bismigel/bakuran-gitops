@@ -1,0 +1,7 @@
+# A namespace of its own so the investigator can be removed without touching anything else. It is a
+# Namespace, so ADR 0002 means it cannot be deleted later without runbook 17 - the cheapest kind of
+# leftover, and the reason a read-only trial is safe to start.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ops-advisor
