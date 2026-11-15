@@ -1,0 +1,44 @@
+# Argo Workflows: the execution layer for runbooks.
+#
+# Deliberately small. What is kept is the part that makes it worth adopting - WorkflowTemplates as Kubernetes
+# objects, retries, and a `suspend` step that stops a workflow until a human resumes it (ADR 0012 as a primitive
+# instead of a promise). What is turned down is the part that would need babysitting: no artifact repository (the
+# runbooks collect evidence into the log), no SSO (one operator), no autoscaling.
+#
+# The chart ships 8 ClusterRoles by default. That is the same shape as kagent's wildcard role and deserves the same
+# scrutiny: they are the executor/agent roles Argo needs to create pods in the namespace a workflow runs in. If this
+# outlives the experiment, they get narrowed the way kagent's were.
+controller:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  # Watch every namespace: a runbook for the media stack and one for argocd are separate workflows in separate
+  # namespaces, and a single operator does not want two controllers.
+  workflowNamespaces: []
+  metricsConfig:
+    enabled: true
+    path: /metrics
+    port: 9090
+
+server:
+  replicas: 1
+  authMode: server          # no SSO: there is one operator, and Access/Cloudflare is the outer boundary
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}
+
+# No artifact repository. Nothing in this estate's runbooks needs to move files between steps; evidence is text in
+# the workflow log, which is what gets read at 03:00 anyway.
+artifactRepository: {}
+useDefaultArtifactRepo: false
+
+executor:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 128Mi}
+
+# The default service account is per-namespace; workflows run as `argo-workflow` and get the executor role only.
+workflow:
+  serviceAccount:
+    create: true
