@@ -59,5 +59,8 @@ providers:
     apiKeySecretKey: DEEPSEEK_API_KEY
     config:
       baseUrl: "https://api.deepseek.com/v1"
-      temperature: 0
-      maxTokens: 900   # a triage answer, not an essay - the first runs took minutes porque the model kept writing   # the ModelConfig field is `openAI.baseUrl`, camelCase
+      # The ModelConfig CRD types these oddly: temperature, frequencyPenalty, presencePenalty and topP are
+      # STRINGS, while maxTokens, n, seed and timeout are integers. An integer 0 for temperature rejected the
+      # whole ModelConfig and the kagent Application retried five times with a message about a nil object.
+      temperature: "0"
+      maxTokens: 900   # the ModelConfig field is `openAI.baseUrl`, camelCase
