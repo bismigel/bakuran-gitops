@@ -16,6 +16,13 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# A fixup push cancels the run it superseded instead of paying for both. GitHub bills a minimum of one minute
+# per job, so a review conversation with five pushes used to cost five runs of every workflow. Only pull-request
+# runs cancel; a push to main always runs to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   runbook-links:
     runs-on: ubuntu-latest
