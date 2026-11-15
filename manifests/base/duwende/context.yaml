@@ -30,6 +30,7 @@ data:
     | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) / [`PLAN.org`](PLAN.org) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
     | how to do a day-2 operation | [`OPERATIONS.md`](OPERATIONS.md) | one section per alert |
     | what an agent must obey every session | [`AGENTS.md`](AGENTS.md) | PR-only, verify first, never delete |
+    | which agents run, and what each may touch | [`docs/reference/agents.md`](docs/reference/agents.md) | Hermes proposes PRs · HolmesGPT cannot · ArgoCD alone writes |
     
     The reading budget in `AGENTS.md` (three tiers, with a CI-enforced cap on the always-loaded one)
     is this repo's implementation of BMad's "keep loaded context small" principle.
