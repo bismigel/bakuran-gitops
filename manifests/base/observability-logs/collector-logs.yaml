@@ -7,11 +7,29 @@
 # Enrichment is k8sattributes: the resource attributes (workload, node) are what make a log query answerable
 # without knowing a pod name in advance. That needs read access to pods/namespaces/replicasets — the ClusterRole
 # below is `get/list/watch` only.
+# The collector reads the kubelet's log files, which means hostPath - and the `observability` namespace enforces
+# PodSecurity `baseline`, which forbids it. Rather than lower that namespace for everything that lives in it, the
+# collector gets one of its own whose single purpose is node log collection, labelled so the exception is visible
+# in `kubectl get ns` rather than buried in a manifest.
+#
+# ADR 0002: a Namespace cannot be deleted later without runbook 17. That is the right trade here - this is a
+# standing component, not a trial.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability-logs
+  labels:
+    bakuran.dev/purpose: node-log-collection
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: otel-logs
-  namespace: observability
+  namespace: observability-logs
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -34,13 +52,13 @@ roleRef:
   kind: ClusterRole
   name: otel-logs-read
 subjects:
-  - {kind: ServiceAccount, name: otel-logs, namespace: observability}
+  - {kind: ServiceAccount, name: otel-logs, namespace: observability-logs}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: otel-logs-config
-  namespace: observability
+  namespace: observability-logs
 data:
   config.yaml: |
     receivers:
@@ -105,7 +123,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: otel-logs
-  namespace: observability
+  namespace: observability-logs
   labels: {app.kubernetes.io/name: otel-logs}
 spec:
   selector:

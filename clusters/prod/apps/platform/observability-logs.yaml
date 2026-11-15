@@ -13,6 +13,7 @@ spec:
     path: manifests/base/observability-logs
   destination:
     server: https://kubernetes.default.svc
-    namespace: observability
+    namespace: observability-logs
   syncPolicy:
     automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
