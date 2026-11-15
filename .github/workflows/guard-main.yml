@@ -1,0 +1,32 @@
+# Detects a push to main that did not arrive through a pull request.
+#
+# GitHub cannot prevent it here: branch protection on private repositories needs a paid plan (measured
+# 2026-11-15 — "Upgrade to GitHub Pro or make this repository public"). So `hooks/pre-push` refuses
+# locally, and this records and fails anything that slipped past it, whether by `--no-verify` or from a
+# machine where the hook was never installed.
+#
+# A squash-merged commit keeps its association with the PR; a direct push has none, which is the test.
+name: guard-main
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  came-from-a-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: the commit on main belongs to a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          n=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq 'length' 2>/dev/null || echo 0)
+          if [ "$n" -eq 0 ]; then
+            echo "::error::$SHA landed on main without a pull request"
+            echo "This repository is PR-only (ADR 0001). Revert it through a PR, and install the hook:"
+            echo "  scripts/install-hooks.sh"
+            exit 1
+          fi
+          echo "  $SHA is part of $n pull request(s) - fine"
