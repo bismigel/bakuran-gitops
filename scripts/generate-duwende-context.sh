@@ -15,10 +15,14 @@ OUT="${1:-manifests/duwende/context.yaml}"
 #     tombstones for KNOWN-ISSUES.md and NEXT-STEPS.md are 9 and 12 lines and would only waste bytes;
 #   * RUNBOOK.md is gone: it was renamed OPERATIONS.md, and this list was not updated when it was, which broke the generator
 #     silently for weeks because nothing ran it (found 2026-11-14 by story 11.6).
+# The guides OPERATIONS routes to are included too: an index inside the bundle that points at files the bundle does not carry
+# is worse than no index. `OPERATIONS.md` itself stays, as the router.
 DOCS=(
   README.md AGENTS.md SYSTEM.md INVENTORY.md
   OPERATIONS.md MEDIA.md PLATFORM-MIGRATION.md
   docs/reference/known-issues.md docs/reference/conditions.md
+  docs/guides/cluster.md docs/guides/hosts.md docs/guides/backups.md
+  docs/guides/cloudflare.md docs/guides/media-troubleshooting.md
 )
 
 # `--check` must be handled BEFORE anything is written: the first version sat after the write block, so

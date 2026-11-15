@@ -759,604 +759,24 @@ data:
     └── homelab-context/       # THIS folder (local-only)
     ```
   OPERATIONS.md: |
-    # Runbook
-    
-    All commands assume `nix-station` unless noted. SSH key: `~/.ssh/id_ed25519`.
-    
-    ## Check cluster status
-    
-    ```bash
-    ssh -i ~/.ssh/id_ed25519 root@192.168.2.82 'k3s kubectl -n argocd get applications; k3s kubectl -n apps get pods'
-    ssh -i ~/.ssh/id_ed25519 root@192.168.2.81 'k3s kubectl get pods -A'
-    ```
-    
-    ## Deploy a NEW app
-    
-    ```bash
-    # 1. Create from template (public if the image can be public)
-    gh repo create bismigel/<app> --private --template bismigel/homelab-app-template
-    gh repo clone bismigel/<app> && cd <app>
-    
-    # 2. Rename placeholders
-    ./scripts/init.sh <app> <app>.ciceley.cc <port> apps bismigel
-    
-    # 3. Put your app in app/ + Dockerfile, then push
-    git add -A && git commit -m "init <app>" && git push     # CI builds → GHCR
-    
-    # 4. Register with ArgoCD (add a file to the gitops repo)
-    #    clusters/prod/apps/{platform,workloads}/<app>.yaml   (one file per Application)
-    ```
-    
-    - **Public** package → nothing else needed (the `imagePullSecrets` is ignored).
-    - **Private** package → ensure the shared `ghcr-secret` works (below) and that
-      ArgoCD can read the repo (add a deploy key + repo secret; keys are unique per
-      repo).
-    
-    ## Deploy an EXISTING app (code change)
-    
-    Just push to `main`. CI builds the image, bumps the tag in `deploy/k8s/deployment.yaml`,
-    and ArgoCD syncs.
-    
-    ## Repos / drift discipline
-    
-    - **PR only.** Private repos on GitHub Free can't enable branch protection, so
-      nix-station uses a global `pre-push` hook (`~/.config/git/hooks/pre-push`)
-      that rejects direct pushes to `main`/`master`. Merge on GitHub.
-    - ArgoCD apps are **auto-sync + selfHeal + prune**; `ArgoCDAppOutOfSync` /
-      `ArgoCDAppUnhealthy` fire after 15 min (Prometheus scrapes the controller
-      endpoints, the leader exposes `argocd_app_info`).
-    - Hosts change **only** via `deploy-rs` from `bakuran-infra`.
-    
-    ## Network / WireGuard on the media node (.81)
-    
-    **Read `NETWORK.md` first — it is the authoritative network reference.**
-    
-    `.81` has no direct internet: everything goes through the Proton WireGuard full
-    tunnel (`proton0`). Two hard rules:
-    
-    1. **Never run `systemctl restart wg-quick-proton0`.** A restart deletes and
-       recreates the interface and strands the node (7 outages on 2026-10-25).
-    2. **Never change the `wg-quick-proton0` unit in a deploy.** Verify afterwards:
-       `systemctl show wg-quick-proton0 -p NRestarts -p ActiveEnterTimestamp` —
-       `NRestarts` must stay `0` and the timestamp must not move.
-    
-    Restore egress in place (~30 s, no restart):
-    
-    ```bash
-    ssh root@192.168.2.81 'KEYFILE=/root/wg.key EXPECT_FP=1795227bcb589e43 /root/wg-restore.sh'
-    ```
-    
-    After a reboot it heals itself: the reconciler runs at +90 s and every 60 s.
-    
-    ```bash
-    journalctl -u wireguard-reconcile -n 5    # want: ok (handshake Ns, data path HTTP 301)
-    ```
-    
-    Full procedure: bismigel-site runbook page 14; `NETWORK.md` §4, §7, §9.
-    
-    ## Router / OPNsense change (declarative, not clicked)
-    
-    Full procedure: **bismigel-site runbook page 22**. The loop, in short:
-    
-    ```bash
-    cd bakuran-infra/opentofu/opnsense
-    set -a; . ~/.config/opentofu/r2.env; set +a            # R2_ACCESS_KEY_ID / SECRET
-    export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-    export AWS_DEFAULT_REGION=auto
-    export TF_VAR_opnsense_api_key="$(grep -oP '(?<=key=)\S+' ~/router-stage/opnsense-api-key.txt)"
-    export TF_VAR_opnsense_api_secret="$(grep -oP '(?<=secret=)\S+' ~/router-stage/opnsense-api-key.txt)"
-    
-    nix run nixpkgs#opentofu -- init          # S3 backend -> R2, bucket homelab-backups
-    nix run nixpkgs#opentofu -- plan          # READ IT
-    nix run nixpkgs#opentofu -- apply
-    nix run nixpkgs#opentofu -- plan          # must be "No changes"
-    ```
-    
-    Two traps that make a green apply a lie — **check both every time**:
-    
-    1. **`dns_servers` is a `Set`**, so order is lost. `["192.168.2.1","1.1.1.1"]` applies as
-       `1.1.1.1,192.168.2.1` and Kea sends them in that order — clients try the tunnelled
-       resolver first and the change achieves nothing.
-    2. **`auto_collect` must be `false`**, or `routers`/`dns_servers`/`ntp_servers` are ignored
-       while the apply reports success.
-    
-    Read the router back instead of trusting the exit code:
-    `curl -sk -u "$KEY:$SECRET" https://192.168.2.1/api/kea/dhcpv4/searchSubnet | jq -r '.rows[0].option_data'`
-    
-    **Take a config export before any DHCP change:** `/api/core/backup/download/this` →
-    `~/router-stage/` (0600). It holds the WebGUI TLS key and the root password hash, so it is
-    never committed — the repo's `.gitignore` refuses `*.xml`.
-    
-    Still clicked as of 2026-11-01: **26 firewall rules and 7 aliases**. Import them the same way.
-    
-    ## NixOS host changes
-    
-    ```bash
-    cd ~/projects/bakuran-infra
-    # edit hosts/<host>/... then:
-    ./scripts/preflight-wg.sh                    # MANDATORY if the deploy touches .81
-    nix flake check --no-build                   # invariant assertions (seed, override, migration inert)
-    nix run github:serokell/deploy-rs -- .#sitaw-amd        # or .#calamansi-intel
-    # validate first:  nix eval .#nixosConfigurations.sitaw-amd.config.system.build.toplevel.drvPath
-    ```
-    
-    `preflight-wg.sh` exits non-zero when the deploy would restart
-    `wg-quick-proton0` — the operation that has stranded `.81` seven times. If it
-    fails, the change belongs in `bakuran.wireguard` (the reconciler), not in the
-    wg-quick block.
-    
-    ## Host secrets (sops-nix)
-    
-    ```bash
-    cd ~/projects/bakuran-infra
-    sops secrets/homelab.yaml                       # edit (re-encrypts on save)
-    nix run github:serokell/deploy-rs -- .#sitaw-amd    # apply
-    ```
-    
-    Decrypted secrets land in `/run/secrets/`; e.g. cloudflared credentials are a
-    symlink at `/root/.cloudflared/<tunnel-id>.json`. Age identity = the host's SSH
-    host key. See KNOWN-ISSUES for the reinstall caveat.
-    
-    ## Reinstall / new host (DESTRUCTIVE: wipes disk)
-    
-    ```bash
-    cd ~/projects/bakuran-infra
-    # add hosts/<name>/{default.nix,disko.nix} + register in flake.nix + deploy.nodes
-    git add -A     # flakes only see tracked files
-    nix run github:nix-community/nixos-anywhere -- --flake .#<name> --target-host root@<ip>
-    ```
-    
-    ## ArgoCD
-    
-    ```bash
-    ssh ... .82 'k3s kubectl -n argocd get applications'
-    # force refresh / sync
-    ssh ... .82 'k3s kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite'
-    ssh ... .82 'k3s kubectl -n argocd patch application <name> --type merge -p "{\"operation\":{\"sync\":{\"revision\":\"main\"}}}"'
-    ```
-    
-    ## GHCR pull secret (private packages)
-    
-    Now an **ExternalSecret** from Bitwarden (no Sealed Secrets):
-    `bakuran-gitops/manifests/external-secrets/ghcr-secret.yaml`. To rotate, update
-    `ghcr-user`/`ghcr-token` in Bitwarden → ESO re-syncs the `ghcr-secret` in `apps`.
-    
-    ## Cloudflare tunnel (add a hostname)
-    
-    1. Add a rule to the **remote** tunnel config (API `PUT .../configurations`) →
-       `http://127.0.0.1:32080` (NodePorts are loopback-only since the edge lock).
-    2. Create a proxied `CNAME` → `8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com`.
-    3. Ensure the app's `Ingress` has that `host`.
-    
-    > The tunnel is **remotely-managed**; the on-host `/etc/cloudflared/config.yml`
-    > (old Proxmox box) is gone. NixOS `services.cloudflared` supplies credentials;
-    > routing comes from the remote config.
-    
-    ## Media stack (.81): GitOps
-    
-    Managed by the `media` ArgoCD app
-    (`bakuran-gitops/clusters/prod/apps/workloads/media.yaml` → `manifests/overlays/prod/media/`),
-    deployed to the `calamansi-intel` cluster. Wiring (root folders, download
-    clients, Prowlarr → Sonarr/Radarr):
-    
-    ```bash
-    QBT_PASSWORD='<qbt webui password>' ~/projects/bakuran-infra/scripts/media-stack-setup.sh
-    ```
-    
-    Media host paths on `.81`: `/mnt/media/{tv,movies,downloads,temp}` (hostPath
-    mounts; the *arrs see them as `/tv`, `/movies`, `/downloads`).
-    
-    ## Books stack (.81): after a rebuild
-    
-    ArgoCD app `books` (`manifests/base/books/` + `overlays/prod/books/`) brings up Kavita + LazyLibrarian. Their
-    settings live in PVCs (and are in the R2 `appdata/` backup); if the PVCs are
-    lost, re-run on `nix-station`:
-    
-    ```bash
-    # one command (idempotent): media-setup (if missing) -> Kavita admin/library ->
-    # ciceley -> LazyLibrarian (SABnzbd, NZBGeek, API key, Wanted defaults, download dir)
-    BWS_ACCESS_TOKEN=... ~/projects/bakuran-infra/scripts/books-bootstrap.sh
-    ```
-    
-    Kavita account management: `kavita-user.sh list|lock|unlock|register <name>`
-    (lock removes the Login role; the user keeps existing sessions until their token
-    expires). `lazylibrarian-ui-setup.sh` also enables the LazyLibrarian API for
-    media-mcp; its key is BWS `lazylibrarian-api-key` and must be **32 characters**.
-    
-    `lazylibrarian-ui-setup.sh` runs a throwaway Playwright Job (npm installs in the
-    pod, reads keys from the `media-setup` Secret, deletes itself, restarts the app).
-    LazyLibrarian has no config API and drops externally-seeded `config.ini` sections,
-    so the UI is the only durable path, do not hand-edit the file.
-    
-    ## Audiobookshelf accounts (books ns, `.81`)
-    
-    Two accounts exist: **`gio`** (root/admin) and **`ciceley`** (user, no admin role).
-    Passwords are random 28-char and live in BWS `audiobookshelf-gio` /
-    `audiobookshelf-ciceley` (same item names in the Bitwarden vault). Both can log in
-    at <https://audiobookshelf.bismigel.dev> (public hostname, ABS does its own auth).
-    
-    Four API facts that cost time to discover:
-    
-    1. **Bootstrap is `POST /init`**, not `/api/users`: `{"newRoot":{"username":"gio","password":"…"}}`.
-       It only works while no root user exists (`/status` → `"isInit": false`).
-    2. **Login is `POST /login`** (not `/api/login` — that path 401s with the same body,
-       which looks like a wrong password). Response: `{"user":{…,"token":"…"}}`.
-    3. **Users created through `POST /api/users` land `isActive: false`** — PATCH the
-       user with `{"isActive":true}` or the login silently fails.
-    4. **ABS caches users in memory.** Editing `pash` directly in
-       `/config/absdatabase.sqlite` has no effect until the pod restarts. (Password
-       resets go through the API or the UI; the DB is the last resort.)
-    
-    ```bash
-    POD=$(ssh ... .81 'k3s kubectl -n books get pod -l app=audiobookshelf -o jsonpath="{.items[0].metadata.name}"')
-    U=http://127.0.0.1:32080; H='Host: audiobookshelf.bismigel.dev'
-    
-    # first-run only
-    ssh ... .81 "curl -s $H -X POST $U/init -H 'Content-Type: application/json' \
-      --data '{\"newRoot\":{\"username\":\"gio\",\"password\":\"<pw>\"}}'"
-    
-    # admin token, then create users / library
-    TOK=$(ssh ... .81 "curl -s $H -X POST $U/login -H 'Content-Type: application/json' \
-      --data '{\"username\":\"gio\",\"password\":\"<pw>\"}'" | jq -r .user.token)
-    ssh ... .81 "curl -s $H -X POST $U/api/users -H 'Authorization: Bearer $TOK' \
-      -H 'Content-Type: application/json' --data '{\"username\":\"ciceley\",\"password\":\"<pw>\",\"type\":\"user\"}'"
-    ssh ... .81 "curl -s $H -X PATCH $U/api/users/<id> -H 'Authorization: Bearer $TOK' \
-      -H 'Content-Type: application/json' --data '{\"isActive\":true}'"
-    ```
-    
-    Library: **Audiobooks**, media type *book*, folder `/audiobooks`
-    (→ `/mnt/media/audiobooks`). Empty is normal — files appear after the next scan.
-    
-    Adding an account to the personal vault (needs an unlocked `bw`; the agent cannot
-    unlock, and never writes a session to disk):
-    
-    ```bash
-    export BW_SESSION=$(bw unlock --raw)
-    for u in gio ciceley; do
-      p=$(bws secret list -o json | jq -r --arg k "audiobookshelf-$u" '.[]|select(.key==$k).value')
-      bw get template item | jq --arg u "audiobookshelf-$u" --arg p "$p" \
-        '.type=1|.name=$u|.login.username=$u|.login.password=$p|.login.uris=[{"uri":"https://audiobookshelf.bismigel.dev"}]|del(.id,.organizationId,.folderId,.collectionIds)' \
-        | bw encode | bw create item
-     done
-    bw lock
-    ```
-    
-    Agents: Hermes has **reachability** to `books` (8080/5000/5299) for `/status` and
-    `/ping`, but no app login — account changes are human-only.
-    
-    ## LazyLibrarian is not downloading (books never get snatched)
-    
-    Triage in this order — the 2026-10-24 outage was #2 followed by #3, and looked
-    like "nothing happens" because LL fails at *search*, long before a download.
-    
-    **1. Is there demand, and does anything get snatched?**
-    
-    ```bash
-    POD=$(ssh ... .81 'k3s kubectl -n books get pod -l app=lazylibrarian -o jsonpath="{.items[0].metadata.name}"')
-    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- python3 -c \
-      \"import sqlite3;d=sqlite3.connect('/config/lazylibrarian.db');print(d.execute('select Status,count(*) from books group by Status').fetchall())\""
-    ```
-    
-    `Wanted` high + `Snatched` 0 = search problem, keep going. `Snatched` > 0 but
-    nothing on disk = go to #6 (SAB/import).
-    
-    **2. Does LL search through Prowlarr, not straight at NZBGeek?**
-    
-    NZBGeek sits behind Cloudflare, which answers LL's `python-requests` calls with
-    `HTTP 403` / `error code: 1010`. From the pod, direct searches look like this:
-    
-    ```
-    book 7020 -> HTTPError HTTP Error 403: Forbidden      # body: error code: 1010
-    same URL with a browser User-Agent -> 200             # so it is the signature, not the key
-    ```
-    
-    LL has no User-Agent setting, so it must go through Prowlarr (`/2/api` = NZBgeek):
-    
-    ```bash
-    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- \
-      sed -n '/^\[Newznab/,/^\[/p' /config/config.ini"
-    # want: host = http://prowlarr.media.svc.cluster.local:9696/2
-    #       api  = <prowlarr key>   bookcat = 7000,7020   enabled = 1
-    ```
-    
-    **3. Is the Prowlarr key present and did the init container apply it?**
-    
-    The `provider-config` init container rewrites `[Newznab_*]` on every start from
-    `books/lazylibrarian-secrets`, which is seeded out of band (no ESO in `media` or
-    `books`) from BWS `prowlarr-api-key`:
-    
-    ```bash
-    BWS_ACCESS_TOKEN=... ~/projects/bakuran-infra/scripts/lazylibrarian-secrets.sh
-    ssh ... .81 'k3s kubectl -n books rollout restart deploy/lazylibrarian'
-    ssh ... .81 'k3s kubectl -n books logs deploy/lazylibrarian -c provider-config --tail=5'
-    # want: provider-config: [Newznab_0] updated: host, api, bookcat, ...
-    ```
-    
-    `provider-config: no config.ini yet, nothing to do` on **every** start means the
-    init container is looking at the wrong file (it read `lazylibrarian.ini` until
-    2026-10-24; the app writes `/config/config.ini`) and the whole step is a no-op.
-    
-    **4. Can LL reach Prowlarr at all?** NetworkPolicy, not DNS:
-    
-    ```bash
-    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- python3 -c \
-      'import urllib.request as u;print(u.urlopen(\"http://prowlarr.media.svc.cluster.local:9696/2/api?t=caps&apikey=<key>\",timeout=15).status)'"
-    ```
-    
-    A timeout here is the `books` egress policy (`manifests/network-policies/policies.yaml`):
-    books may only reach itself, DNS, `downloads:8080`, Prowlarr `9696`, and public
-    80/443. 
-    
-    **5. Force a search now** (the `cron_search_book` job only fires periodically):
-    
-    ```bash
-    # book id from the DB, then:
-    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- python3 -c \
-      'import urllib.request as u;print(u.urlopen(\"http://127.0.0.1:5299/api?apikey=<lazylibrarian-api-key>&cmd=searchbook&id=94812&wait=1\",timeout=60).read())'"
-    ssh ... .81 'k3s kubectl -n books logs deploy/lazylibrarian -c lazylibrarian --since=3m | grep -i search'
-    # good: "Best match (100.0%) ... http://prowlarr...:9696/2" -> "sent to SAB successfully"
-    ```
-    
-    **6. SAB / import.** Category `books`, `DOWNLOAD_DIR=/downloads/complete/books`
-    (host `/mnt/media/complete/books`). Check the queue, then that LL flips the book
-    `Wanted` -> `Snatched` -> `Open`. Only EPUB/PDF are scanned by Kavita; a MOBI-only
-    release downloads but never imports.
-    
-    SAB has to fetch the NZB **twice removed** and both hops need egress, which is
-    the most common way this looks "stuck at Grabbing 0%":
-    
-    1. LL gives SAB a URL on Prowlarr → needs `downloads -> media/prowlarr:9696`
-       (`sabnzbd-egress` + `allow-ingress-prowlarr-indexer-clients`).
-    2. Prowlarr answers **301** to `api.nzbgeek.info/api?t=get&id=...` and SAB
-       follows it itself → needs the Cloudflare edge on 443. Symptom of a miss:
-       `[Errno 101] Network unreachable` in SAB's log, retry every 120s.
-    
-    Sonarr/Radarr never hit this: they fetch the NZB in `media` (public egress) and
-    POST the file to SAB. Only LazyLibrarian hands over a bare URL.
-    
-    **7. Imported to `/config`, not to the library.** Two tells in the LL log:
-    ```
-    WARNING: eBook dir ['/books'] not writeable, using /config: [Errno 28] No space left on device: '/books/ll_temp'
-    ERROR: No ebook-convert found
-    ```
-    
-    `No space left on device` on `/books` while `df` shows hundreds of GB free means
-    **mergerfs**, not the disk: the library dirs are pinned to the local branch
-    (`media-sda`, see `bakuran-infra/hosts/calamansi-intel/default.nix`
-    `media-dirs`) and `category.create=epmfs` writes into the branch that already
-    holds the path. When that branch drops below mergerfs' 4G `minfreespace`,
-    creates fail with ENOSPC.
-    
-    ```bash
-    ssh ... .81 'df -h /mnt/media-sda; du -sh /mnt/media-sda/*'   # 99% = the problem
-    ssh ... .81 'df -h /mnt/media-nvme /mnt/remote82-sda'          # space elsewhere
-    ```
-    
-    **Rebalancing a full branch** (safe, verified, no downtime — mergerfs merges
-    reads, so the folder keeps serving while it moves):
-    
-    ```bash
-    # 1. how full is each branch, and what is big
-    for b in /mnt/media-sda /mnt/media-nvme /mnt/remote82-sda; do printf '%-20s ' $b; df -h $b | tail -1 | awk '{print $4" free"}'; done
-    du -sh /mnt/media-sda/tv/* | sort -h | tail -5
-    
-    # 2. copy a folder to a branch with room (mkdir -p the parent first)
-    mkdir -p /mnt/remote82-sda/tv
-    nohup sh -c 'cp -a "/mnt/media-sda/tv/<show>" /mnt/remote82-sda/tv/ && echo COPIED' > /tmp/rebalance.log 2>&1 &
-    
-    # 3. verify EVERY file before deleting anything (spaces in names -> tab separator)
-    S=/mnt/media-sda/tv/<show>; D=/mnt/remote82-sda/tv/<show>; bad=0
-    while IFS=$'\t' read -r p s; do
-      [ -f "$D/$p" ] && [ "$(stat -c%s "$D/$p")" = "$s" ] || { echo "MISMATCH $p"; bad=1; }
-    done < <(cd "$S" && find . -type f -printf '%p\t%s\n')
-    [ $bad -eq 0 ] && rm -rf "$S" && echo "moved"
-    
-    # 4. the pool still serves it, now from the other branch
-    find /mnt/media/tv/<show> -name '*.mkv' | wc -l
-    ```
-    
-    Rules that matter: never `rm` before the verify loop passes; moves to
-    `remote82-*` are over NFS (slow, ~100 MB/s) while folders between local branches is
-    fast; a *new* file can appear in the destination mid-copy (Sonarr importing) —
-    that is fine, the verify loop only checks the source's file list.
-    
-    Last resort: lower `minfreespace` on the pool (buys a little, masks the real
-    growth). The `[Errno 28]` failure is safe — the book stays on the `/config` PVC
-    and can be moved by hand later.
-    
-    ## Hermes agent
-    
-    Deployed by the `duwende` ArgoCD app (`manifests/duwende/hermes.yaml`; the
-    namespace/app name is historical).
-    
-    ```bash
-    POD=$(ssh ... .82 'k3s kubectl -n duwende get pod -l app=hermes -o jsonpath="{.items[0].metadata.name}"')
-    ssh ... .82 "k3s kubectl -n duwende exec $POD -c hermes -- hermes status"
-    ssh ... .82 "k3s kubectl -n duwende exec $POD -c hermes -- hermes cron list"
-    ssh ... .82 'k3s kubectl -n duwende rollout restart deployment/hermes'
-    ```
-    
-    - Dashboard `agent.bismigel.dev` (Cloudflare Access + basic auth `admin`;
-      password in BWS `hermes-dashboard-password`). API server is disabled.
-    - Telegram: same bot; allowlist `TELEGRAM_ALLOWED_USERS=607008268`.
-    - Model: DeepSeek `deepseek-chat` (custom OpenAI-compatible provider); MCP
-      servers: kubernetes, media, prometheus, github.
-    - Cloudflare stays read-only through the nginx sidecar (`127.0.0.1:8788`).
-    - Role: SRE in the small sense. It reports and triages, proposes pull requests,
-      and does not apply cluster changes.
-    - Data on the `hermes-data` PVC (`/opt/data`); `hermes-config` seeds config/SOUL,
-      `homelab-context` seeds the docs, `hermes-cron-seed` seeds the daily job.
-    
-    ## Monitoring / dashboards
-    
-    Prometheus and Alertmanager are GitOps-managed. Prometheus **reloads itself**
-    when `prometheus-config` or `prometheus-rules` changes (`--web.enable-lifecycle`
-    plus a checksum reloader sidecar), so rule edits need no manual restart.
-    Grafana provisions the five `grafana-dashboard-*.yaml` ConfigMaps; the file
-    provider polls every 30s but only applies a change when the dashboard `version`
-    increases, **bump it in the same commit**. Kube-state-metrics uses a dedicated
-    least-privilege SA (no secret/configmap reads).
-    
-    ## Backups / DR
-    
-    Daily: credentials (`.81`/`.82`) and appdata (`.82`) → R2, age-encrypted.
-    Retention: `appdata/` **14 days**, `credentials/` and `nixstation/` **90 days**
-    (R2 lifecycle, enforced by `bakuran-infra/opentofu/cloudflare/r2.tf`.)
-    
-    Alerts (Telegram via Alertmanager):
-    - a dump/credential is missing → unit aborts before upload → `BackupFailed`
-    - daily 12:00: newest object >36 h → `BackupStale`
-    - weekly Sun 04:30: decrypt + tar + SQLite `integrity_check` (Kavita/LL) +
-      `gzip -t` the Immich dump → `BackupVerifyFailed`
-    - external dead-man's switch on **nix-station** (15 min, via
-      `status.bismigel.dev`): 3 failures → Telegram (`~/.config/homelab-deadman.env`)
-    
-    ```bash
-    # back up now
-    ssh ... .81 'systemctl start homelab-backup'          # credentials
-    ssh ... .82 'systemctl start homelab-backup-apps'     # appdata
-    ssh ... .82 'systemctl start homelab-backup-verify'   # prove it restores
-    # restore: age -d -i <age identity> <file> | tar xz
-    ```
-    
-    The age identity is at `/root/.config/homelab-backup.agekey` on `.82` (from BWS
-    `backup-age-key`) and `~/.homelab-backup.agekey` on nix-station.
-    Full rebuild: `bakuran-infra/docs/REBUILD.md` (+ `scripts/bootstrap-argocd.sh`).
-    
-    ## Cloudflare Access / auto-login
-    
-    - Sensitive hostnames (`grafana`/`jellyfin`/`status`/`private`/`agent` `.bismigel.dev`)
-      are gated by Access; policies managed via the CF API (`access/apps`).
-    - Grafana does **per-user** auto-login via the `Cf-Access-Authenticated-User-Email`
-      header (`GF_AUTH_PROXY_*`); the \*arrs are login-free on the LAN (`Forms` +
-      `DisabledForLocalAddresses`).
-    
-    ## Hermes access map (2026-10-13)
-    
-    Autonomy = **full**; operating rules (PR-only, token-conservative, ask before
-    destructive) live in its workspace `AGENTS.md` + `/context/AGENTS.md`.
-    
-    | Capability | How | Notes |
-    |---|---|---|
-    | Cluster (both) | kubernetes MCP, multi-cluster kubeconfig | contexts `sitaw-amd` (.82) + `calamansi-intel` (.81) |
-    | GitHub | `gh`/`git` (shell) + GitHub MCP (hosted remote) | PAT from Bitwarden; **open PRs only** |
-    | Cloudflare | `curl http://127.0.0.1:8788/client/v4/...` | **read-only guardrail sidecar**; token isolated, writes 403 |
-    | Docs | `/context/*.md` | CREDENTIALS.md excluded |
-    | Models | DeepSeek primary, local qwen fallback | key in Bitwarden (`deepseek-api-key`) |
-    
-    **Gotcha:** never seed Bitwarden with a `PushSecret`, a leftover one clobbers the
-    real value on a timer (this reverted the DeepSeek key + Telegram token once).
-    
-    ## 2026-10-17 additions
-    
-    ### Cloudflare edge (OpenTofu-managed)
-    ```bash
-    # source of truth: bakuran-infra/opentofu/cloudflare/ (records_all.tf, tunnel.tf,
-    # access_apps.tf, zone_settings.tf, r2.tf). State lives in the R2 S3 backend.
-    cd bakuran-infra/opentofu/cloudflare
-    export TF_VAR_cloudflare_api_token="$(… BWS cloudflare-api-token …)"   # never to disk
-    export AWS_ACCESS_KEY_ID=…  AWS_SECRET_ACCESS_KEY=…                  # BWS r2-access-key-id / r2-secret-access-key
-    tofu init && tofu plan && tofu apply       # expect a small diff, and 0 to destroy
-    ```
-    Adding a hostname = a `cloudflare_dns_record` in `records_all.tf` **and** an
-    ingress row in `tunnel.tf`. Then `dig @1.1.1.1 <host>` (answers in seconds) and
-    check a neighbouring hostname to prove nothing else moved. A local cache can keep
-    an NXDOMAIN for a few minutes — query the resolver directly, not `getent`.
-    
-    `cloudflare-sync.timer` is **retired** (it would fight the OpenTofu state).
-    `cloudflare/sync.sh` is a manual **rollback** path only:
-    ```bash
-    ssh root@192.168.2.82 systemctl start cloudflare-sync.service   # rollback only
-    ssh root@192.168.2.82 systemctl list-timers | grep cloudflare    # expect nothing
-    ```
-    
-    ### Immich
-    ```bash
-    # accounts (admin from Bitwarden jellyfin-*):
-    BWS_ACCESS_TOKEN=… ./scripts/immich-setup.sh
-    kubectl -n immich get pods,pvc
-    kubectl -n immich rollout restart deploy/immich-server   # pulls :latest
-    # storage lives on .83: /mnt/data/immich/{library,postgres}
-    ```
-    
-    ### Login watchers (monitoring)
-    ```bash
-    kubectl -n monitoring get cronjob access-login-watch jellyfin-login-watch immich-login-watch
-    kubectl -n monitoring logs job/<watcher-job>
-    ```
-    
-    ### Jellyfin remote cap + client IP
-    ```bash
-    KEY=$(bws secret list | jq -r '.[]|select(.key=="jellyfin-api-key")|.value')
-    # per-user 12 Mbps cap:
-    curl -s -H "Authorization: MediaBrowser Token=\"$KEY\"" \
-      http://192.168.2.81:8096/System/Configuration | jq '.RemoteClientBitrateLimit'
-    # network (real client IP):
-    curl -s -H "Authorization: MediaBrowser Token=\"$KEY\"" \
-      http://192.168.2.81:8096/System/Configuration/network | jq '.KnownProxies'
-    ```
-    Config lives in the Jellyfin PVC (backed up). Ingress must keep `use-forwarded-headers=true`.
-    
-    ### media-mcp (Hermes media tools)
-    ```bash
-    kubectl -n media rollout restart deploy/media-mcp   # after a new :latest image
-    # tools: radarr_lookup/add_movie/search, sonarr_lookup/add_series/search
-    ```
-    
-    ### Hermes (agent)
-    ```bash
-    H() { kubectl -n duwende exec deploy/hermes -c hermes -- hermes "$@"; }
-    H status
-    H cron list
-    H cron create '0 8 * * *' '<prompt>' --name 'Daily homelab report' --deliver telegram:607008268
-    H tools list                 # MCP servers: kubernetes, media, prometheus, github
-    kubectl -n duwende rollout restart deploy/hermes
-    ```
-    The daily job is seeded from `hermes-cron-seed` on a fresh PVC; edit it with
-    `hermes cron edit` or the dashboard. If you change it, update
-    `hermes-cron-seed` too so a fresh PVC gets the new version (live edits persist
-    on the PVC and in the R2 backup).
-    
-    ### Bitwarden Secrets Manager
-    ```bash
-    bws secret list --output json | jq -r '.[].key'
-    # no trash/restore: see CREDENTIALS.md before deleting
-    ```
-    
-    ## Hardening / security ops (2026-10-23)
-    
-    **Deploy a cross-node hardening change** (canary `.83` first):
-    ```bash
-    nix run github:serokell/deploy-rs -- .#kamatis-mbp
-    nix run github:serokell/deploy-rs -- .#calamansi-intel
-    nix run github:serokell/deploy-rs -- .#sitaw-amd
-    ```
-    
-    **On-host kubectl is root-only now** (kubeconfig `0600`):
-    ```bash
-    sudo k3s kubectl get nodes        # or: ssh root@192.168.2.82 k3s kubectl ...
-    ```
-    
-    **Force ArgoCD to pick up a merge now:**
-    ```bash
-    kubectl -n argocd annotate application <app> argocd.argoproj.io/refresh=normal --overwrite
-    ```
-    
-    **Smoke test:** `ssh root@192.168.2.82 'systemctl start homelab-smoke'`.
-    
-    **Cloudflare (OpenTofu) apply runs on `sitaw-amd`** (no repo checkout there —
-    copy `opentofu/cloudflare` to a root-only `/tmp` dir first):
-    ```bash
-    set -a; . /root/.config/homelab-backup.env; set +a
-    export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-    export TF_VAR_cloudflare_api_token="$(cat /run/secrets/cloudflare_api_token)"
-    terraform init -reconfigure && terraform plan
-    ```
-    
-    **Bitwarden session is per-process:** persist it for another shell with
-    ```bash
-    umask 077; printf '%s' "$BW_SESSION" > ~/.bw-session   # export it where needed
-    ```
+    ---
+    type: index
+    audience: operator
+    owns: nothing — it routes to the guide for each task
+    ---
+    
+    # Operations
+    
+    Day-2 procedures, by what you are trying to do. Each row is a guide; the facts they act on are in `docs/reference/`.
+    
+    | I want to… | go to |
+    |---|---|
+    | deploy or change something in the cluster | [`docs/guides/cluster.md`](docs/guides/cluster.md) |
+    | change a host, its secrets, or the router | [`docs/guides/hosts.md`](docs/guides/hosts.md) |
+    | add a hostname to the Cloudflare tunnel, or touch Access | [`docs/guides/cloudflare.md`](docs/guides/cloudflare.md) |
+    | work out why the media or books stack stopped fetching | [`docs/guides/media-troubleshooting.md`](docs/guides/media-troubleshooting.md) |
+    | run or verify a backup | [`docs/guides/backups.md`](docs/guides/backups.md) |
+    | read what the 2026-10-17 and 2026-10-23 passes added | [`docs/records/2026-10-17-operations-additions.md`](docs/records/2026-10-17-operations-additions.md) |
   MEDIA.md: |
     # MEDIA.md: the media stack
     
@@ -2252,3 +1672,501 @@ data:
     4. `measured = <date>` — when you last proved the diagnosis. A condition without a date is a guess wearing a filename.
     5. `python3 scripts/check-conditions.py` — id must match the filename, cited docs must exist, and a remedy without
        `why_safe` fails.
+  docs/guides/cluster.md: |
+    ---
+    type: guide
+    audience: operator
+    owns: how to change the cluster: deploy, drift, ArgoCD, GHCR, the media and books stacks
+    ---
+    
+    ## Check cluster status
+    
+    ```bash
+    ssh -i ~/.ssh/id_ed25519 root@192.168.2.82 'k3s kubectl -n argocd get applications; k3s kubectl -n apps get pods'
+    ssh -i ~/.ssh/id_ed25519 root@192.168.2.81 'k3s kubectl get pods -A'
+    ```
+    
+    ## Deploy a NEW app
+    
+    ```bash
+    # 1. Create from template (public if the image can be public)
+    gh repo create bismigel/<app> --private --template bismigel/homelab-app-template
+    gh repo clone bismigel/<app> && cd <app>
+    
+    # 2. Rename placeholders
+    ./scripts/init.sh <app> <app>.ciceley.cc <port> apps bismigel
+    
+    # 3. Put your app in app/ + Dockerfile, then push
+    git add -A && git commit -m "init <app>" && git push     # CI builds → GHCR
+    
+    # 4. Register with ArgoCD (add a file to the gitops repo)
+    #    clusters/prod/apps/{platform,workloads}/<app>.yaml   (one file per Application)
+    ```
+    
+    - **Public** package → nothing else needed (the `imagePullSecrets` is ignored).
+    - **Private** package → ensure the shared `ghcr-secret` works (below) and that
+      ArgoCD can read the repo (add a deploy key + repo secret; keys are unique per
+      repo).
+    
+    ## Deploy an EXISTING app (code change)
+    
+    Just push to `main`. CI builds the image, bumps the tag in `deploy/k8s/deployment.yaml`,
+    and ArgoCD syncs.
+    
+    ## Repos / drift discipline
+    
+    - **PR only.** Private repos on GitHub Free can't enable branch protection, so
+      nix-station uses a global `pre-push` hook (`~/.config/git/hooks/pre-push`)
+      that rejects direct pushes to `main`/`master`. Merge on GitHub.
+    - ArgoCD apps are **auto-sync + selfHeal + prune**; `ArgoCDAppOutOfSync` /
+      `ArgoCDAppUnhealthy` fire after 15 min (Prometheus scrapes the controller
+      endpoints, the leader exposes `argocd_app_info`).
+    - Hosts change **only** via `deploy-rs` from `bakuran-infra`.
+    
+    ## ArgoCD
+    
+    ```bash
+    ssh ... .82 'k3s kubectl -n argocd get applications'
+    # force refresh / sync
+    ssh ... .82 'k3s kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite'
+    ssh ... .82 'k3s kubectl -n argocd patch application <name> --type merge -p "{\"operation\":{\"sync\":{\"revision\":\"main\"}}}"'
+    ```
+    
+    ## GHCR pull secret (private packages)
+    
+    Now an **ExternalSecret** from Bitwarden (no Sealed Secrets):
+    `bakuran-gitops/manifests/external-secrets/ghcr-secret.yaml`. To rotate, update
+    `ghcr-user`/`ghcr-token` in Bitwarden → ESO re-syncs the `ghcr-secret` in `apps`.
+    
+    ## Media stack (.81): GitOps
+    
+    Managed by the `media` ArgoCD app
+    (`bakuran-gitops/clusters/prod/apps/workloads/media.yaml` → `manifests/overlays/prod/media/`),
+    deployed to the `calamansi-intel` cluster. Wiring (root folders, download
+    clients, Prowlarr → Sonarr/Radarr):
+    
+    ```bash
+    QBT_PASSWORD='<qbt webui password>' ~/projects/bakuran-infra/scripts/media-stack-setup.sh
+    ```
+    
+    Media host paths on `.81`: `/mnt/media/{tv,movies,downloads,temp}` (hostPath
+    mounts; the *arrs see them as `/tv`, `/movies`, `/downloads`).
+    
+    ## Books stack (.81): after a rebuild
+    
+    ArgoCD app `books` (`manifests/base/books/` + `overlays/prod/books/`) brings up Kavita + LazyLibrarian. Their
+    settings live in PVCs (and are in the R2 `appdata/` backup); if the PVCs are
+    lost, re-run on `nix-station`:
+    
+    ```bash
+    # one command (idempotent): media-setup (if missing) -> Kavita admin/library ->
+    # ciceley -> LazyLibrarian (SABnzbd, NZBGeek, API key, Wanted defaults, download dir)
+    BWS_ACCESS_TOKEN=... ~/projects/bakuran-infra/scripts/books-bootstrap.sh
+    ```
+    
+    Kavita account management: `kavita-user.sh list|lock|unlock|register <name>`
+    (lock removes the Login role; the user keeps existing sessions until their token
+    expires). `lazylibrarian-ui-setup.sh` also enables the LazyLibrarian API for
+    media-mcp; its key is BWS `lazylibrarian-api-key` and must be **32 characters**.
+    
+    `lazylibrarian-ui-setup.sh` runs a throwaway Playwright Job (npm installs in the
+    pod, reads keys from the `media-setup` Secret, deletes itself, restarts the app).
+    LazyLibrarian has no config API and drops externally-seeded `config.ini` sections,
+    so the UI is the only durable path, do not hand-edit the file.
+    
+    ## Monitoring / dashboards
+    
+    Prometheus and Alertmanager are GitOps-managed. Prometheus **reloads itself**
+    when `prometheus-config` or `prometheus-rules` changes (`--web.enable-lifecycle`
+    plus a checksum reloader sidecar), so rule edits need no manual restart.
+    Grafana provisions the five `grafana-dashboard-*.yaml` ConfigMaps; the file
+    provider polls every 30s but only applies a change when the dashboard `version`
+    increases, **bump it in the same commit**. Kube-state-metrics uses a dedicated
+    least-privilege SA (no secret/configmap reads).
+    
+    ## Hermes agent
+    
+    Deployed by the `duwende` ArgoCD app (`manifests/duwende/hermes.yaml`; the
+    namespace/app name is historical).
+    
+    ```bash
+    POD=$(ssh ... .82 'k3s kubectl -n duwende get pod -l app=hermes -o jsonpath="{.items[0].metadata.name}"')
+    ssh ... .82 "k3s kubectl -n duwende exec $POD -c hermes -- hermes status"
+    ssh ... .82 "k3s kubectl -n duwende exec $POD -c hermes -- hermes cron list"
+    ssh ... .82 'k3s kubectl -n duwende rollout restart deployment/hermes'
+    ```
+    
+    - Dashboard `agent.bismigel.dev` (Cloudflare Access + basic auth `admin`;
+      password in BWS `hermes-dashboard-password`). API server is disabled.
+    - Telegram: same bot; allowlist `TELEGRAM_ALLOWED_USERS=607008268`.
+    - Model: DeepSeek `deepseek-chat` (custom OpenAI-compatible provider); MCP
+      servers: kubernetes, media, prometheus, github.
+    - Cloudflare stays read-only through the nginx sidecar (`127.0.0.1:8788`).
+    - Role: SRE in the small sense. It reports and triages, proposes pull requests,
+      and does not apply cluster changes.
+    - Data on the `hermes-data` PVC (`/opt/data`); `hermes-config` seeds config/SOUL,
+      `homelab-context` seeds the docs, `hermes-cron-seed` seeds the daily job.
+  docs/guides/hosts.md: |
+    ---
+    type: guide
+    audience: operator
+    owns: how to change a host or the router: NixOS, secrets, reinstall, WireGuard, OpenTofu
+    ---
+    
+    ## NixOS host changes
+    
+    ```bash
+    cd ~/projects/bakuran-infra
+    # edit hosts/<host>/... then:
+    ./scripts/preflight-wg.sh                    # MANDATORY if the deploy touches .81
+    nix flake check --no-build                   # invariant assertions (seed, override, migration inert)
+    nix run github:serokell/deploy-rs -- .#sitaw-amd        # or .#calamansi-intel
+    # validate first:  nix eval .#nixosConfigurations.sitaw-amd.config.system.build.toplevel.drvPath
+    ```
+    
+    `preflight-wg.sh` exits non-zero when the deploy would restart
+    `wg-quick-proton0` — the operation that has stranded `.81` seven times. If it
+    fails, the change belongs in `bakuran.wireguard` (the reconciler), not in the
+    wg-quick block.
+    
+    ## Host secrets (sops-nix)
+    
+    ```bash
+    cd ~/projects/bakuran-infra
+    sops secrets/homelab.yaml                       # edit (re-encrypts on save)
+    nix run github:serokell/deploy-rs -- .#sitaw-amd    # apply
+    ```
+    
+    Decrypted secrets land in `/run/secrets/`; e.g. cloudflared credentials are a
+    symlink at `/root/.cloudflared/<tunnel-id>.json`. Age identity = the host's SSH
+    host key. See KNOWN-ISSUES for the reinstall caveat.
+    
+    ## Reinstall / new host (DESTRUCTIVE: wipes disk)
+    
+    ```bash
+    cd ~/projects/bakuran-infra
+    # add hosts/<name>/{default.nix,disko.nix} + register in flake.nix + deploy.nodes
+    git add -A     # flakes only see tracked files
+    nix run github:nix-community/nixos-anywhere -- --flake .#<name> --target-host root@<ip>
+    ```
+    
+    ## Network / WireGuard on the media node (.81)
+    
+    **Read `NETWORK.md` first — it is the authoritative network reference.**
+    
+    `.81` has no direct internet: everything goes through the Proton WireGuard full
+    tunnel (`proton0`). Two hard rules:
+    
+    1. **Never run `systemctl restart wg-quick-proton0`.** A restart deletes and
+       recreates the interface and strands the node (7 outages on 2026-10-25).
+    2. **Never change the `wg-quick-proton0` unit in a deploy.** Verify afterwards:
+       `systemctl show wg-quick-proton0 -p NRestarts -p ActiveEnterTimestamp` —
+       `NRestarts` must stay `0` and the timestamp must not move.
+    
+    Restore egress in place (~30 s, no restart):
+    
+    ```bash
+    ssh root@192.168.2.81 'KEYFILE=/root/wg.key EXPECT_FP=1795227bcb589e43 /root/wg-restore.sh'
+    ```
+    
+    After a reboot it heals itself: the reconciler runs at +90 s and every 60 s.
+    
+    ```bash
+    journalctl -u wireguard-reconcile -n 5    # want: ok (handshake Ns, data path HTTP 301)
+    ```
+    
+    Full procedure: bismigel-site runbook page 14; `NETWORK.md` §4, §7, §9.
+    
+    ## Router / OPNsense change (declarative, not clicked)
+    
+    Full procedure: **bismigel-site runbook page 22**. The loop, in short:
+    
+    ```bash
+    cd bakuran-infra/opentofu/opnsense
+    set -a; . ~/.config/opentofu/r2.env; set +a            # R2_ACCESS_KEY_ID / SECRET
+    export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+    export AWS_DEFAULT_REGION=auto
+    export TF_VAR_opnsense_api_key="$(grep -oP '(?<=key=)\S+' ~/router-stage/opnsense-api-key.txt)"
+    export TF_VAR_opnsense_api_secret="$(grep -oP '(?<=secret=)\S+' ~/router-stage/opnsense-api-key.txt)"
+    
+    nix run nixpkgs#opentofu -- init          # S3 backend -> R2, bucket homelab-backups
+    nix run nixpkgs#opentofu -- plan          # READ IT
+    nix run nixpkgs#opentofu -- apply
+    nix run nixpkgs#opentofu -- plan          # must be "No changes"
+    ```
+    
+    Two traps that make a green apply a lie — **check both every time**:
+    
+    1. **`dns_servers` is a `Set`**, so order is lost. `["192.168.2.1","1.1.1.1"]` applies as
+       `1.1.1.1,192.168.2.1` and Kea sends them in that order — clients try the tunnelled
+       resolver first and the change achieves nothing.
+    2. **`auto_collect` must be `false`**, or `routers`/`dns_servers`/`ntp_servers` are ignored
+       while the apply reports success.
+    
+    Read the router back instead of trusting the exit code:
+    `curl -sk -u "$KEY:$SECRET" https://192.168.2.1/api/kea/dhcpv4/searchSubnet | jq -r '.rows[0].option_data'`
+    
+    **Take a config export before any DHCP change:** `/api/core/backup/download/this` →
+    `~/router-stage/` (0600). It holds the WebGUI TLS key and the root password hash, so it is
+    never committed — the repo's `.gitignore` refuses `*.xml`.
+    
+    Still clicked as of 2026-11-01: **26 firewall rules and 7 aliases**. Import them the same way.
+  docs/guides/backups.md: |
+    ---
+    type: guide
+    audience: operator
+    owns: how to run and verify a backup, and what restore looks like
+    ---
+    
+    ## Backups / DR
+    
+    Daily: credentials (`.81`/`.82`) and appdata (`.82`) → R2, age-encrypted.
+    Retention: `appdata/` **14 days**, `credentials/` and `nixstation/` **90 days**
+    (R2 lifecycle, enforced by `bakuran-infra/opentofu/cloudflare/r2.tf`.)
+    
+    Alerts (Telegram via Alertmanager):
+    - a dump/credential is missing → unit aborts before upload → `BackupFailed`
+    - daily 12:00: newest object >36 h → `BackupStale`
+    - weekly Sun 04:30: decrypt + tar + SQLite `integrity_check` (Kavita/LL) +
+      `gzip -t` the Immich dump → `BackupVerifyFailed`
+    - external dead-man's switch on **nix-station** (15 min, via
+      `status.bismigel.dev`): 3 failures → Telegram (`~/.config/homelab-deadman.env`)
+    
+    ```bash
+    # back up now
+    ssh ... .81 'systemctl start homelab-backup'          # credentials
+    ssh ... .82 'systemctl start homelab-backup-apps'     # appdata
+    ssh ... .82 'systemctl start homelab-backup-verify'   # prove it restores
+    # restore: age -d -i <age identity> <file> | tar xz
+    ```
+    
+    The age identity is at `/root/.config/homelab-backup.agekey` on `.82` (from BWS
+    `backup-age-key`) and `~/.homelab-backup.agekey` on nix-station.
+    Full rebuild: `bakuran-infra/docs/REBUILD.md` (+ `scripts/bootstrap-argocd.sh`).
+  docs/guides/cloudflare.md: |
+    ---
+    type: guide
+    audience: operator
+    owns: how to add a hostname to the tunnel, and how Access and auto-login are wired
+    ---
+    
+    ## Cloudflare tunnel (add a hostname)
+    
+    1. Add a rule to the **remote** tunnel config (API `PUT .../configurations`) →
+       `http://127.0.0.1:32080` (NodePorts are loopback-only since the edge lock).
+    2. Create a proxied `CNAME` → `8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com`.
+    3. Ensure the app's `Ingress` has that `host`.
+    
+    > The tunnel is **remotely-managed**; the on-host `/etc/cloudflared/config.yml`
+    > (old Proxmox box) is gone. NixOS `services.cloudflared` supplies credentials;
+    > routing comes from the remote config.
+    
+    ## Cloudflare Access / auto-login
+    
+    - Sensitive hostnames (`grafana`/`jellyfin`/`status`/`private`/`agent` `.bismigel.dev`)
+      are gated by Access; policies managed via the CF API (`access/apps`).
+    - Grafana does **per-user** auto-login via the `Cf-Access-Authenticated-User-Email`
+      header (`GF_AUTH_PROXY_*`); the \*arrs are login-free on the LAN (`Forms` +
+      `DisabledForLocalAddresses`).
+  docs/guides/media-troubleshooting.md: |
+    ---
+    type: guide
+    audience: operator
+    owns: when the media or books stack stops fetching: the diagnoses that took longest
+    ---
+    
+    ## LazyLibrarian is not downloading (books never get snatched)
+    
+    Triage in this order — the 2026-10-24 outage was #2 followed by #3, and looked
+    like "nothing happens" because LL fails at *search*, long before a download.
+    
+    **1. Is there demand, and does anything get snatched?**
+    
+    ```bash
+    POD=$(ssh ... .81 'k3s kubectl -n books get pod -l app=lazylibrarian -o jsonpath="{.items[0].metadata.name}"')
+    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- python3 -c \
+      \"import sqlite3;d=sqlite3.connect('/config/lazylibrarian.db');print(d.execute('select Status,count(*) from books group by Status').fetchall())\""
+    ```
+    
+    `Wanted` high + `Snatched` 0 = search problem, keep going. `Snatched` > 0 but
+    nothing on disk = go to #6 (SAB/import).
+    
+    **2. Does LL search through Prowlarr, not straight at NZBGeek?**
+    
+    NZBGeek sits behind Cloudflare, which answers LL's `python-requests` calls with
+    `HTTP 403` / `error code: 1010`. From the pod, direct searches look like this:
+    
+    ```
+    book 7020 -> HTTPError HTTP Error 403: Forbidden      # body: error code: 1010
+    same URL with a browser User-Agent -> 200             # so it is the signature, not the key
+    ```
+    
+    LL has no User-Agent setting, so it must go through Prowlarr (`/2/api` = NZBgeek):
+    
+    ```bash
+    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- \
+      sed -n '/^\[Newznab/,/^\[/p' /config/config.ini"
+    # want: host = http://prowlarr.media.svc.cluster.local:9696/2
+    #       api  = <prowlarr key>   bookcat = 7000,7020   enabled = 1
+    ```
+    
+    **3. Is the Prowlarr key present and did the init container apply it?**
+    
+    The `provider-config` init container rewrites `[Newznab_*]` on every start from
+    `books/lazylibrarian-secrets`, which is seeded out of band (no ESO in `media` or
+    `books`) from BWS `prowlarr-api-key`:
+    
+    ```bash
+    BWS_ACCESS_TOKEN=... ~/projects/bakuran-infra/scripts/lazylibrarian-secrets.sh
+    ssh ... .81 'k3s kubectl -n books rollout restart deploy/lazylibrarian'
+    ssh ... .81 'k3s kubectl -n books logs deploy/lazylibrarian -c provider-config --tail=5'
+    # want: provider-config: [Newznab_0] updated: host, api, bookcat, ...
+    ```
+    
+    `provider-config: no config.ini yet, nothing to do` on **every** start means the
+    init container is looking at the wrong file (it read `lazylibrarian.ini` until
+    2026-10-24; the app writes `/config/config.ini`) and the whole step is a no-op.
+    
+    **4. Can LL reach Prowlarr at all?** NetworkPolicy, not DNS:
+    
+    ```bash
+    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- python3 -c \
+      'import urllib.request as u;print(u.urlopen(\"http://prowlarr.media.svc.cluster.local:9696/2/api?t=caps&apikey=<key>\",timeout=15).status)'"
+    ```
+    
+    A timeout here is the `books` egress policy (`manifests/network-policies/policies.yaml`):
+    books may only reach itself, DNS, `downloads:8080`, Prowlarr `9696`, and public
+    80/443. 
+    
+    **5. Force a search now** (the `cron_search_book` job only fires periodically):
+    
+    ```bash
+    # book id from the DB, then:
+    ssh ... .81 "k3s kubectl -n books exec $POD -c lazylibrarian -- python3 -c \
+      'import urllib.request as u;print(u.urlopen(\"http://127.0.0.1:5299/api?apikey=<lazylibrarian-api-key>&cmd=searchbook&id=94812&wait=1\",timeout=60).read())'"
+    ssh ... .81 'k3s kubectl -n books logs deploy/lazylibrarian -c lazylibrarian --since=3m | grep -i search'
+    # good: "Best match (100.0%) ... http://prowlarr...:9696/2" -> "sent to SAB successfully"
+    ```
+    
+    **6. SAB / import.** Category `books`, `DOWNLOAD_DIR=/downloads/complete/books`
+    (host `/mnt/media/complete/books`). Check the queue, then that LL flips the book
+    `Wanted` -> `Snatched` -> `Open`. Only EPUB/PDF are scanned by Kavita; a MOBI-only
+    release downloads but never imports.
+    
+    SAB has to fetch the NZB **twice removed** and both hops need egress, which is
+    the most common way this looks "stuck at Grabbing 0%":
+    
+    1. LL gives SAB a URL on Prowlarr → needs `downloads -> media/prowlarr:9696`
+       (`sabnzbd-egress` + `allow-ingress-prowlarr-indexer-clients`).
+    2. Prowlarr answers **301** to `api.nzbgeek.info/api?t=get&id=...` and SAB
+       follows it itself → needs the Cloudflare edge on 443. Symptom of a miss:
+       `[Errno 101] Network unreachable` in SAB's log, retry every 120s.
+    
+    Sonarr/Radarr never hit this: they fetch the NZB in `media` (public egress) and
+    POST the file to SAB. Only LazyLibrarian hands over a bare URL.
+    
+    **7. Imported to `/config`, not to the library.** Two tells in the LL log:
+    ```
+    WARNING: eBook dir ['/books'] not writeable, using /config: [Errno 28] No space left on device: '/books/ll_temp'
+    ERROR: No ebook-convert found
+    ```
+    
+    `No space left on device` on `/books` while `df` shows hundreds of GB free means
+    **mergerfs**, not the disk: the library dirs are pinned to the local branch
+    (`media-sda`, see `bakuran-infra/hosts/calamansi-intel/default.nix`
+    `media-dirs`) and `category.create=epmfs` writes into the branch that already
+    holds the path. When that branch drops below mergerfs' 4G `minfreespace`,
+    creates fail with ENOSPC.
+    
+    ```bash
+    ssh ... .81 'df -h /mnt/media-sda; du -sh /mnt/media-sda/*'   # 99% = the problem
+    ssh ... .81 'df -h /mnt/media-nvme /mnt/remote82-sda'          # space elsewhere
+    ```
+    
+    **Rebalancing a full branch** (safe, verified, no downtime — mergerfs merges
+    reads, so the folder keeps serving while it moves):
+    
+    ```bash
+    # 1. how full is each branch, and what is big
+    for b in /mnt/media-sda /mnt/media-nvme /mnt/remote82-sda; do printf '%-20s ' $b; df -h $b | tail -1 | awk '{print $4" free"}'; done
+    du -sh /mnt/media-sda/tv/* | sort -h | tail -5
+    
+    # 2. copy a folder to a branch with room (mkdir -p the parent first)
+    mkdir -p /mnt/remote82-sda/tv
+    nohup sh -c 'cp -a "/mnt/media-sda/tv/<show>" /mnt/remote82-sda/tv/ && echo COPIED' > /tmp/rebalance.log 2>&1 &
+    
+    # 3. verify EVERY file before deleting anything (spaces in names -> tab separator)
+    S=/mnt/media-sda/tv/<show>; D=/mnt/remote82-sda/tv/<show>; bad=0
+    while IFS=$'\t' read -r p s; do
+      [ -f "$D/$p" ] && [ "$(stat -c%s "$D/$p")" = "$s" ] || { echo "MISMATCH $p"; bad=1; }
+    done < <(cd "$S" && find . -type f -printf '%p\t%s\n')
+    [ $bad -eq 0 ] && rm -rf "$S" && echo "moved"
+    
+    # 4. the pool still serves it, now from the other branch
+    find /mnt/media/tv/<show> -name '*.mkv' | wc -l
+    ```
+    
+    Rules that matter: never `rm` before the verify loop passes; moves to
+    `remote82-*` are over NFS (slow, ~100 MB/s) while folders between local branches is
+    fast; a *new* file can appear in the destination mid-copy (Sonarr importing) —
+    that is fine, the verify loop only checks the source's file list.
+    
+    Last resort: lower `minfreespace` on the pool (buys a little, masks the real
+    growth). The `[Errno 28]` failure is safe — the book stays on the `/config` PVC
+    and can be moved by hand later.
+    
+    ## Audiobookshelf accounts (books ns, `.81`)
+    
+    Two accounts exist: **`gio`** (root/admin) and **`ciceley`** (user, no admin role).
+    Passwords are random 28-char and live in BWS `audiobookshelf-gio` /
+    `audiobookshelf-ciceley` (same item names in the Bitwarden vault). Both can log in
+    at <https://audiobookshelf.bismigel.dev> (public hostname, ABS does its own auth).
+    
+    Four API facts that cost time to discover:
+    
+    1. **Bootstrap is `POST /init`**, not `/api/users`: `{"newRoot":{"username":"gio","password":"…"}}`.
+       It only works while no root user exists (`/status` → `"isInit": false`).
+    2. **Login is `POST /login`** (not `/api/login` — that path 401s with the same body,
+       which looks like a wrong password). Response: `{"user":{…,"token":"…"}}`.
+    3. **Users created through `POST /api/users` land `isActive: false`** — PATCH the
+       user with `{"isActive":true}` or the login silently fails.
+    4. **ABS caches users in memory.** Editing `pash` directly in
+       `/config/absdatabase.sqlite` has no effect until the pod restarts. (Password
+       resets go through the API or the UI; the DB is the last resort.)
+    
+    ```bash
+    POD=$(ssh ... .81 'k3s kubectl -n books get pod -l app=audiobookshelf -o jsonpath="{.items[0].metadata.name}"')
+    U=http://127.0.0.1:32080; H='Host: audiobookshelf.bismigel.dev'
+    
+    # first-run only
+    ssh ... .81 "curl -s $H -X POST $U/init -H 'Content-Type: application/json' \
+      --data '{\"newRoot\":{\"username\":\"gio\",\"password\":\"<pw>\"}}'"
+    
+    # admin token, then create users / library
+    TOK=$(ssh ... .81 "curl -s $H -X POST $U/login -H 'Content-Type: application/json' \
+      --data '{\"username\":\"gio\",\"password\":\"<pw>\"}'" | jq -r .user.token)
+    ssh ... .81 "curl -s $H -X POST $U/api/users -H 'Authorization: Bearer $TOK' \
+      -H 'Content-Type: application/json' --data '{\"username\":\"ciceley\",\"password\":\"<pw>\",\"type\":\"user\"}'"
+    ssh ... .81 "curl -s $H -X PATCH $U/api/users/<id> -H 'Authorization: Bearer $TOK' \
+      -H 'Content-Type: application/json' --data '{\"isActive\":true}'"
+    ```
+    
+    Library: **Audiobooks**, media type *book*, folder `/audiobooks`
+    (→ `/mnt/media/audiobooks`). Empty is normal — files appear after the next scan.
+    
+    Adding an account to the personal vault (needs an unlocked `bw`; the agent cannot
+    unlock, and never writes a session to disk):
+    
+    ```bash
+    export BW_SESSION=$(bw unlock --raw)
+    for u in gio ciceley; do
+      p=$(bws secret list -o json | jq -r --arg k "audiobookshelf-$u" '.[]|select(.key==$k).value')
+      bw get template item | jq --arg u "audiobookshelf-$u" --arg p "$p" \
+        '.type=1|.name=$u|.login.username=$u|.login.password=$p|.login.uris=[{"uri":"https://audiobookshelf.bismigel.dev"}]|del(.id,.organizationId,.folderId,.collectionIds)' \
+        | bw encode | bw create item
+     done
+    bw lock
+    ```
+    
+    Agents: Hermes has **reachability** to `books` (8080/5000/5299) for `/status` and
+    `/ping`, but no app login — account changes are human-only.
