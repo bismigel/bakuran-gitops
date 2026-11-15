@@ -1,0 +1,18 @@
+# Container logs: one VictoriaLogs, one collector DaemonSet, standard OTLP between them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability-logs
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: prod
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/observability-logs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

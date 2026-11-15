@@ -1,0 +1,143 @@
+# The log collector: one DaemonSet, one pipeline, standard OTLP out.
+#
+# It reads the kubelet's own log files (/var/log/pods) rather than the Kubernetes API, because the API does not
+# stream historical logs and this must survive a collector restart. The `container` operator parses kubelet's
+# JSON envelope and derives namespace/pod/container from the file path.
+#
+# Enrichment is k8sattributes: the resource attributes (workload, node) are what make a log query answerable
+# without knowing a pod name in advance. That needs read access to pods/namespaces/replicasets — the ClusterRole
+# below is `get/list/watch` only.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-logs
+  namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-logs-read
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-logs-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-logs-read
+subjects:
+  - {kind: ServiceAccount, name: otel-logs, namespace: observability}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-logs-config
+  namespace: observability
+data:
+  config.yaml: |
+    receivers:
+      # Kubelet writes one JSON object per line; `container` parses it and fills the body/attributes,
+      # and the path gives namespace/pod/uid/container without an API call.
+      filelog:
+        include: [/var/log/pods/*/*/*.log]
+        exclude: [/var/log/pods/observability_otel-logs-*/*/*.log]   # do not collect our own output
+        start_at: end                       # a fresh collector reads new lines, not the whole history
+        include_file_path: true
+        include_file_name: false
+        operators:
+          - type: container
+            add_metadata_from_filepath: true
+            # kubelet's CRI shape: <time> <stream> <tag> <msg>
+            regex: '^(?P<time>[^ ]+) (?P<stream>stdout|stderr) (?P<logtag>[^ ]*) ?(?P<log>.*)$'
+            timestamp:
+              parse_from: attributes.time
+              layout_type: gotime
+              layout: '2006-01-02T15:04:05.000000000Z07:00'
+      # Pod metadata as resource attributes, so a query can say "namespace=media" and mean it.
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.node.name
+            - k8s.deployment.name
+    processors:
+      batch:
+        timeout: 5s
+        send_batch_size: 1024
+      # The pod name changes on every restart; the workload name does not, and that is what an operator searches by.
+      resource:
+        attributes:
+          - {key: cluster, value: bakuran, action: upsert}
+      memory_limiter:
+        check_interval: 2s
+        limit_percentage: 70
+        spike_limit_percentage: 20
+    exporters:
+      # VictoriaLogs speaks native OTLP logs at this path - no vendor exporter, no proprietary protocol.
+      otlphttp:
+        logs_endpoint: http://victorialogs.observability.svc.cluster.local:9428/insert/opentelemetry/v1/logs
+        compression: gzip
+        timeout: 10s
+        retry_on_failure: {enabled: true, initial_interval: 2s, max_interval: 30s}
+        sending_queue: {enabled: true, num_consumers: 4, queue_size: 5000}
+    service:
+      pipelines:
+        logs:
+          receivers: [filelog, k8sattributes]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlphttp]
+      telemetry:
+        logs: {level: info}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-logs
+  namespace: observability
+  labels: {app.kubernetes.io/name: otel-logs}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: otel-logs}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: otel-logs}
+    spec:
+      serviceAccountName: otel-logs
+      tolerations:
+        - {operator: Exists}    # every node's logs matter, including tainted ones
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.140.0@sha256:ffc818ee108d0b934fd14207fd87ff247c9b64f344ed349d0b66c166c18a2312
+          args: ["--config=/conf/config.yaml"]
+          env:
+            - {name: K8S_NODE_NAME, valueFrom: {fieldRef: {fieldPath: spec.nodeName}}}
+          volumeMounts:
+            - {name: config, mountPath: /conf}
+            - {name: varlogpods, mountPath: /var/log/pods, readOnly: true}
+            - {name: varlibdockercontainers, mountPath: /var/lib/docker/containers, readOnly: true}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: config
+          configMap: {name: otel-logs-config}
+        - name: varlogpods
+          hostPath: {path: /var/log/pods}
+        - name: varlibdockercontainers
+          hostPath: {path: /var/lib/docker/containers}
