@@ -62,24 +62,26 @@ metadata:
 data:
   config.yaml: |
     receivers:
-      # Kubelet writes one JSON object per line; `container` parses it and fills the body/attributes,
-      # and the path gives namespace/pod/uid/container without an API call.
+      # Kubelet writes one JSON object per line; the standard `container` operator parses the CRI envelope,
+      # the JSON inside it, and (with add_metadata_from_filepath) sets k8s.namespace.name / k8s.pod.name /
+      # k8s.pod.uid from the file path. A hand-written regex here was tried and produced unparsed `_msg`.
       filelog:
         include: [/var/log/pods/*/*/*.log]
-        exclude: [/var/log/pods/observability-logs_otel-logs-*/*/*.log]   # not our own output
-        start_at: end                       # a fresh collector reads new lines, not the whole history
+        start_at: end
         include_file_path: true
         include_file_name: false
         operators:
-          # The standard `container` operator: parses kubelet's CRI envelope AND the JSON line inside it,
-          # and - with add_metadata_from_filepath - sets k8s.namespace.name / k8s.pod.name / k8s.pod.uid from
-          # the path. A hand-written regex here is what left the first deploy with unparsed `_msg` and no
-          # pod attributes to query by.
           - type: container
             add_metadata_from_filepath: true
-      # Pod metadata as resource attributes, so a query can say "namespace=media" and mean it.
-      # This is a PROCESSOR, not a receiver - declaring it under `receivers` is what made the collector
-      # crashloop on the first deploy ('receivers unknown type: k8sattributes').
+    processors:
+      # 1. Drop our own logs FIRST. Measured: the collector's own output was 84% of every row ingested - a
+      #    feedback loop that dominates dashboards and multiplies storage by eight.
+      filter/drop_self:
+        error_mode: ignore
+        logs:
+          log_record:
+            - 'resource.attributes["k8s.namespace.name"] == "observability-logs"'
+      # 2. Pod metadata as resource attributes, so a query can say namespace=media and mean it.
       k8sattributes:
         auth_type: serviceAccount
         passthrough: false
@@ -93,19 +95,18 @@ data:
         pod_association:
           - sources: [{from: resource_attribute, name: k8s.pod.uid}]
           - sources: [{from: connection}]
-      batch:
-        timeout: 5s
-        send_batch_size: 1024
-      # The pod name changes on every restart; the workload name does not, and that is what an operator searches by.
-      resource:
-        attributes:
-          - {key: cluster, value: bakuran, action: upsert}
       memory_limiter:
         check_interval: 2s
         limit_percentage: 70
         spike_limit_percentage: 20
+      resource:
+        attributes:
+          - {key: cluster, value: bakuran, action: upsert}
+      batch:
+        timeout: 5s
+        send_batch_size: 1024
     exporters:
-      # VictoriaLogs speaks native OTLP logs at this path - no vendor exporter, no proprietary protocol.
+      # VictoriaLogs accepts native OTLP logs at this path: standard otlphttp, no vendor exporter.
       otlphttp:
         logs_endpoint: http://victorialogs.observability.svc.cluster.local:9428/insert/opentelemetry/v1/logs
         compression: gzip
@@ -116,7 +117,7 @@ data:
       pipelines:
         logs:
           receivers: [filelog]
-          processors: [memory_limiter, filter/drop-self, k8sattributes, resource, batch]
+          processors: [memory_limiter, filter/drop_self, k8sattributes, resource, batch]
           exporters: [otlphttp]
       telemetry:
         logs: {level: info}
@@ -136,7 +137,7 @@ spec:
       annotations:
         # Without this a ConfigMap change updates the mounted file and leaves the running collectors on the old
         # configuration - which is how the drop-self filter appeared to do nothing. The checksum forces a roll.
-        checksum/config: "sha256-d13cf0cf67e8f667"
+        checksum/config: "sha256-8047748bcad8a738"
     spec:
       serviceAccountName: otel-logs
       tolerations:
