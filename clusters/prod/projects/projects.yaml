@@ -49,6 +49,9 @@ spec:
     # CloudNativePG, for Forgejo's database as a two-instance cluster (story 8.5). The operator is a
     # cluster-wide controller, so its namespace is a real widening and is listed separately below.
     - https://cloudnative-pg.github.io/charts
+    # kagent is published as OCI charts, which ArgoCD matches by exact repoURL
+    - ghcr.io/kagent-dev/kagent/helm/kagent
+    - ghcr.io/kagent-dev/kagent/helm/kagent-crds
   # The `staging` namespace left this list on 2026-10-30 together with the
   # status-api-staging Application. That Application deployed a *staging*
   # overlay into *production* - a leftover from before the per-cluster roots -
