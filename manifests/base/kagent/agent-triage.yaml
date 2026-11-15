@@ -8,6 +8,9 @@ metadata:
   namespace: kagent
 spec:
   description: "Read-only Kubernetes triage for the Bakuran homelab"
+  type: Declarative
+  declarative:
+    deployment: {}
   modelConfig: default-model-config
   systemMessage: |
     You are a read-only triage agent for a three-node k3s homelab (sitaw-amd .82, calamansi-intel .81,
@@ -32,6 +35,9 @@ spec:
         name: kagent-tool-server
         kind: RemoteMCPServer
         apiGroup: kagent.dev
+        # Four of the eighteen tools the server offers. The rest are create/patch/delete/exec/apply, and
+        # an investigator holding those is not an investigator - the tool grant is the boundary, not the
+        # system message that asks it to behave.
         toolNames:
           - k8s_get_resources
           - k8s_describe_resource
