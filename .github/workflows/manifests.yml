@@ -1,0 +1,14 @@
+name: manifests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: one manifest layout
+        run: python3 scripts/check-manifest-layout.py
