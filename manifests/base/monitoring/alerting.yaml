@@ -14,6 +14,7 @@ data:
             for: 5m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-nodedown"
               summary: "node-exporter down on {{ $labels.instance }}"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#nodedown"
           - alert: TargetDown
@@ -24,6 +25,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-targetdown"
               summary: "target {{ $labels.job }}/{{ $labels.instance }} down"
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#targetdown"
           # A backup disk that has fallen off the bus is indistinguishable from one
@@ -44,6 +46,7 @@ data:
             for: 20m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-backupmountmissing"
               summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} is not mounted"
               description: "No filesystem series for this mount, so nothing is mounted there (or the node-exporter is gone, which TargetDown covers). Until it comes back, writes aimed at the backup path land on the root filesystem, and the weekly mirror/off-site copy does nothing and reports success."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#backupmountmissing"
@@ -54,6 +57,7 @@ data:
             for: 30m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-diskfillingup"
               summary: "disk {{ $labels.mountpoint }} on {{ $labels.instance }} >85% full"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#diskfillingup"
           - alert: RootFilesystemDaysToFull
@@ -69,6 +73,7 @@ data:
             for: 2h
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-rootfilesystemdaystofull"
               summary: "root filesystem on {{ $labels.instance }} projected to fill within 7 days"
               description: "Image store and k3s state are growing faster than they are being reclaimed. `k3s crictl rmi --prune` and `nix-collect-garbage --delete-older-than 14d` usually recover 15-20G; etcd does not survive a full /."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#rootfilesystemdaystofull"
@@ -77,6 +82,7 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-hostmemoryhigh"
               summary: "memory on {{ $labels.instance }} >90%"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#hostmemoryhigh"
           # Media pool (/mnt/media on calamansi-intel): the whole media stack and
@@ -104,6 +110,7 @@ data:
             for: 2h
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-mediapooldaystofull"
               summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} projected to fill within 7 days"
               description: "At the current 6h trend this filesystem runs out inside a week. Rebalance, tighten acquisition sizes, or add capacity."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapooldaystofull"
@@ -119,6 +126,7 @@ data:
             for: 5m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-wireguardnohandshake"
               summary: "WireGuard {{ $labels.iface }} on {{ $labels.instance }} has not handshaked in 5m"
               description: "Packets may still be leaving with no reply - check `wg show {{ $labels.iface }}` and the endpoint IP in the host config."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardnohandshake"
@@ -130,6 +138,7 @@ data:
             for: 5m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-wireguardnoegress"
               summary: "{{ $labels.instance }}: WireGuard up but no data path"
               description: "Handshake may be fine; traffic is not leaving. Compare the key on the interface with SOPS before touching it (NETWORK.md 8.2)."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardnoegress"
@@ -139,6 +148,7 @@ data:
             expr: increase(wireguard_unit_restarts[15m]) > 0
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-wireguardrestarted"
               summary: "wg-quick-{{ $labels.iface }} restarted on {{ $labels.instance }}"
               description: "A wg-quick restart has taken this node off the network before (NETWORK.md 7.1). Confirm egress and LAN reachability."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardrestarted"
@@ -147,6 +157,7 @@ data:
             for: 20m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-wireguardmetricsmissing"
               summary: "No WireGuard metrics at all"
               description: "Either the textfile timer on the media node is not running or node-exporter is not scraping /var/lib/node-exporter/textfile."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardmetricsmissing"
@@ -163,6 +174,7 @@ data:
             for: 5m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-straycniaddress"
               summary: "{{ $labels.instance }} had a non-Cilium interface inside the pod CIDR (removed by cni-stray-sweep)"
               description: "Pods can be allocated an address the node itself owns, which makes them unreachable while they look scheduled. Check which interface was removed in the host journal (tag cni-stray-sweep)."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#straycniaddress"
@@ -174,6 +186,7 @@ data:
             for: 90m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-straycnimetricsmissing"
               summary: "homelab_stray_cni_* metrics absent - cni-stray-sweep is not reporting"
               description: "Check the timer on the hosts (systemctl list-timers cni-stray-sweep) and that /var/lib/node-exporter/textfile/stray-cni.prom exists and is world-readable."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#straycnimetricsmissing"
@@ -182,6 +195,7 @@ data:
             for: 30m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-mediapoolfillingup"
               summary: "media pool (/mnt/media) >85% full"
               description: "{{ $value }}% used — reclaim space (arr cleanup) or add a disk before imports start failing."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolfillingup"
@@ -190,6 +204,7 @@ data:
             for: 15m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-mediapoolcritical"
               summary: "media pool (/mnt/media) >92% full — downloads/imports will fail"
               description: "{{ $value }}% used on the media library, now served from .82 over NFS (1.9 TB btrfs). Reclaim with *arr cleanup; growing it means a bigger disk on .82, not another branch."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolcritical"
@@ -205,6 +220,7 @@ data:
             for: 2m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-etcdnoleader"
               summary: "etcd {{ $labels.instance }} has no leader"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdnoleader"
           - alert: EtcdMemberUnreachable
@@ -212,6 +228,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-etcdmemberunreachable"
               summary: "only {{ $value }}/3 etcd members are reporting metrics"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdmemberunreachable"
           - alert: EtcdQuorumAtRisk
@@ -219,6 +236,7 @@ data:
             for: 5m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-etcdquorumatrisk"
               summary: "etcd quorum lost or at risk ({{ $value }}/3 leaders)"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdquorumatrisk"
           - alert: EtcdHighFsyncLatency
@@ -226,6 +244,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-etcdhighfsynclatency"
               summary: "etcd WAL fsync p99 > 500ms — disk is the bottleneck"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdhighfsynclatency"
           - alert: EtcdDbSizeNearQuota
@@ -233,6 +252,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-etcddbsizenearquota"
               summary: "etcd DB > 1.5GiB (2GiB quota) — compact/defrag or raise the quota"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcddbsizenearquota"
       - name: cloudflare
@@ -244,6 +264,7 @@ data:
             for: 5m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-cloudflaretunneldown"
               summary: "Cloudflare tunnel {{ $labels.tunnel }} is {{ $labels.status }}"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflaretunneldown"
           - alert: CloudflareTunnelSingleConnector
@@ -251,6 +272,7 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-cloudflaretunnelsingleconnector"
               summary: "cloudflare tunnel {{ $labels.tunnel }} has {{ $value }} connector(s), edge HA is degraded"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflaretunnelsingleconnector"
           - alert: CloudflareZoneNotActive
@@ -258,6 +280,7 @@ data:
             for: 10m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-cloudflarezonenotactive"
               summary: "zone {{ $labels.zone }} is not active in Cloudflare"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarezonenotactive"
           - alert: CloudflareZonePaused
@@ -265,6 +288,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-cloudflarezonepaused"
               summary: "zone {{ $labels.zone }} is paused, traffic bypasses Cloudflare"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarezonepaused"
           - alert: CloudflareCertificateInactive
@@ -272,6 +296,7 @@ data:
             for: 30m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-cloudflarecertificateinactive"
               summary: "universal certificate for {{ $labels.zone }} is {{ $labels.status }}"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarecertificateinactive"
           - alert: CloudflareExporterStale
@@ -279,6 +304,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-cloudflareexporterstale"
               summary: "cloudflare edge exporter has not refreshed in 10m: token expired or API unreachable"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterstale"
       - name: argocd
@@ -293,6 +319,7 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-argocdmetricsmissing"
               summary: "ArgoCD is exporting no application metrics"
               description: "argocd_app_info is gone, so ArgoCDAppUnhealthy, ArgoCDAppOutOfSync and the sync-failure rules are all blind until it returns: a broken vault-style green. Either the application controller is not running or its metrics endpoint stopped being scraped. Check the argocd namespace before trusting any ArgoCD dashboard."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdmetricsmissing"
@@ -301,6 +328,7 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-argocdappoutofsync"
               summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdappoutofsync"
           # Component health, not app health. Without this, ArgoCD can be
@@ -313,6 +341,7 @@ data:
             for: 10m
             labels: { severity: critical }
             annotations:
+              bakuran.dev/triage: "triage-argocdcomponentdown"
               summary: "ArgoCD {{ $labels.deployment }}{{ $labels.statefulset }} has no ready replica"
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdcomponentdown"
           - alert: ArgoCDAppUnhealthy
@@ -320,6 +349,7 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-argocdappunhealthy"
               summary: "ArgoCD {{ $labels.name }} health={{ $labels.health_status }}"
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdappunhealthy"
       - name: workloads
@@ -334,6 +364,7 @@ data:
             for: 5m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-kubepodcrashlooping"
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarted {{ $value | printf \"%.0f\" }} times in 15m"
               description: "Find the cause before deleting the pod: a crash loop with a clean exit is usually something killing it (probe, OOM, unreachable address)."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#kubepodcrashlooping"
@@ -344,6 +375,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-kubedeploymentreplicasmismatch"
               summary: "{{ $labels.namespace }}/{{ $labels.deployment }} is {{ $value | printf \"%.0f\" }} replica(s) short of desired"
               description: "Ten minutes is longer than a rollout: either a pod cannot become ready or the rollout is stuck. Check pod events for probe failures."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#kubedeploymentreplicasmismatch"
@@ -375,6 +407,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-cronjobfailed"
               summary: "CronJob failed: {{ $labels.namespace }}/{{ $labels.job_name }}"
               description: "A scheduled job's last run failed. Read its logs; it clears when the next run succeeds."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#cronjobfailed"
@@ -407,6 +440,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-jobpodsfailing"
               summary: "Job pods failing: {{ $labels.namespace }}/{{ $labels.owner_name }}"
               description: "Containers in this Job's pods terminated with an error and are being retried. CronJobFailed only fires once the Job gives up, so this is the earlier signal. Logs: kubectl -n {{ $labels.namespace }} logs job/{{ $labels.owner_name }}."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#jobpodsfailing"
@@ -431,6 +465,7 @@ data:
             labels:
               severity: critical
             annotations:
+              bakuran.dev/triage: "triage-routerheartbeatstale"
               summary: "the router's out-of-cluster witness has not reported for an hour"
               description: "homelab-heartbeat.sh on the OPNsense router has not reached /api/heartbeat in 12 runs. The switch that reports a total cluster loss may itself be dead. Check: ssh root@192.168.2.1 'tail -20 /var/log/homelab-heartbeat.log'."
               runbook_url: "https://runbook.bismigel.dev/runbook/15-alerts/#the-witness-outside-the-cluster-routerheartbeatstale"
@@ -441,6 +476,7 @@ data:
             labels:
               severity: critical
             annotations:
+              bakuran.dev/triage: "triage-prometheuswatchdogstale"
               summary: "prometheus-watchdog has not succeeded in 15+ minutes"
               description: "The dead-man switch for Prometheus is not running, so a silent Prometheus would now go unreported. Logs: kubectl -n monitoring logs -l app=prometheus-watchdog --tail=50."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#prometheuswatchdogstale"
@@ -463,6 +499,7 @@ data:
             for: 5m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-publicprobedown"
               summary: "public probe {{ $labels.instance }} is down"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicprobedown"
           - alert: PublicSLOFastBurn
@@ -475,6 +512,7 @@ data:
             for: 5m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-publicslofastburn"
               summary: "public SLO fast burn: {{ $labels.instance }} 1h availability {{ $value | humanizePercentage }}"
               description: "Below 99% over the last hour and still failing at the last scrape. Error budget is going fast."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicslofastburn"
@@ -487,6 +525,7 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-publicsloslowburn"
               summary: "public SLO slow burn: {{ $labels.instance }} 6h availability {{ $value | humanizePercentage }}"
               description: "Under the 99.5% objective across 6h and 1h, and still failing in the last 5m. A historic blip alone no longer fires this."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicsloslowburn"

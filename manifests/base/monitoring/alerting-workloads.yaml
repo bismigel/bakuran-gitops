@@ -23,6 +23,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-containerhighcpu"
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is using {{ printf \"%.2f\" $value }} cores"
               description: "Sustained above 0.8 core for 20 minutes. Either genuine load or a spin loop — check the Containers dashboard."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containerhighcpu"
@@ -40,6 +41,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-containercputhrottled"
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ humanizePercentage $value }} of periods"
               description: "The container is hitting its CPU limit. Raise the limit or find what is spinning."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containercputhrottled"
@@ -51,6 +53,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-containermemorynearlimit"
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] at {{ humanizePercentage $value }} of its memory limit"
               description: "Above 90% of the container memory limit for 10 minutes — OOMKill is next."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containermemorynearlimit"
@@ -65,6 +68,7 @@ data:
             for: 15m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-podstuckpending"
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} Pending for 15m"
               description: "Scheduling or mount failure. Check events: a hostPath type=Directory that does not exist on the selected node, an unschedulable nodeSelector, or a PVC that never bound."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podstuckpending"
@@ -74,6 +78,7 @@ data:
             for: 10m
             labels: { severity: warning }
             annotations:
+              bakuran.dev/triage: "triage-podcontainerconfigerror"
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} cannot create its container ({{ $labels.reason }})"
               description: "Usually a missing Secret/ConfigMap key, or a hostPath that does not exist on this node."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podcontainerconfigerror"
@@ -102,6 +107,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-podrestartingoften"
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] restarted {{ printf \"%.0f\" $value }} times in the last hour"
               description: "Crash loop or a failing probe. Check `kubectl describe pod` and the previous container log. Restarts caused by a node reboot are suppressed for 1h."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podrestartingoften"
@@ -111,6 +117,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-cadvisorscrapefailing"
               summary: "cAdvisor scrape failing on {{ $labels.instance }}"
               description: "No container CPU/memory data from this node. Container panels and the workload rules above are blind until this recovers."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#cadvisorscrapefailing"
@@ -127,6 +134,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-alertmanagernotificationfailing"
               summary: "Alertmanager cannot deliver via {{ $labels.integration }} ({{ $labels.reason }})"
               description: "Alerts are firing but the notification is not leaving the cluster. Telegram is the only channel - check the bot-token secret and chat_id, then `curl <am>/api/v2/status`."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#alertmanagernotificationfailing"
@@ -142,6 +150,7 @@ data:
             labels:
               severity: critical
             annotations:
+              bakuran.dev/triage: "triage-alertmanagernotreceivingalerts"
               summary: "Alertmanager is not receiving alerts while Prometheus is firing"
               description: "Either Alertmanager is down (its scrape target is absent) or nothing is reaching it while {{ $value }} alerts are firing in Prometheus."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#alertmanagernotreceivingalerts"
@@ -154,6 +163,7 @@ data:
               severity: none
               watchdog: "true"
             annotations:
+              bakuran.dev/triage: "triage-watchdog"
               summary: "Alerting pipeline heartbeat"
               description: "This alert always fires. Its only job is to prove Prometheus, Alertmanager and Telegram are still connected end to end. If these stop arriving, alerting is dead."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#watchdog"
@@ -170,6 +180,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-longhornvolumedegraded"
               summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.volume }}) is DEGRADED"
               description: "A replica is gone or rebuilding. Tolerated, but do not lose a second one."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumedegraded"
@@ -179,6 +190,7 @@ data:
             labels:
               severity: critical
             annotations:
+              bakuran.dev/triage: "triage-longhornvolumefaulted"
               summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.volume }}) is FAULTED"
               description: "Data unavailable to the workload using this PVC."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumefaulted"
@@ -196,6 +208,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-longhornvolumeunknown"
               summary: "Longhorn volume {{ $labels.pvc }} robustness is UNKNOWN"
               description: "Longhorn cannot determine replica health — check the volume in the Longhorn UI."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumeunknown"
@@ -207,6 +220,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-longhornnodestoragelow"
               summary: "Longhorn storage on {{ $labels.node }} is {{ humanizePercentage $value }} full"
               description: "Once a Longhorn node fills, replicas cannot rebuild and new PVCs stay Pending."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornnodestoragelow"
@@ -216,6 +230,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-longhorndiskstoragelow"
               summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }} full"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskstoragelow"
           # --- per-disk scheduling headroom (2026-10-30) ---------------------
@@ -301,6 +316,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-longhorndiskactualspacelow"
               summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has {{ humanizePercentage $value }} of its space free"
               description: "This is a filesystem holding Longhorn replicas, measured in actual bytes. Scheduling headroom is a promise; this is the disk."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
@@ -315,6 +331,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-longhorndiskschedulingheadroomlow"
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
               description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (docs/REBUILD.md)."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
@@ -329,6 +346,7 @@ data:
             labels:
               severity: critical
             annotations:
+              bakuran.dev/triage: "triage-longhorndiskschedulingovercommitted"
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} is fully committed ({{ humanizePercentage $value }} of free space claimed)"
               description: "There is no room for another replica of any size on this disk. Rebuilds targeting it will fail over or stay Pending."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingovercommitted"
@@ -354,6 +372,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-longhornscrapefailing"
               summary: "Longhorn metrics scrape failing on {{ $labels.instance }}"
               description: "Volume robustness rules are blind while this target is down."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornscrapefailing"
@@ -368,6 +387,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-statusapicheckfailing"
               summary: "{{ $labels.check }} fails its functional check"
               description: >-
                 status-api's check for {{ $labels.check }} has failed for 10 minutes.
@@ -382,6 +402,7 @@ data:
             labels:
               severity: critical
             annotations:
+              bakuran.dev/triage: "triage-statusapinotscraped"
               summary: "status-api reports nothing at all"
               description: >-
                 No status_api_check_ok series for 15 minutes: the checker, its scrape
@@ -403,6 +424,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-deploymentrolloutstalled"
               summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout is stalled"
               description: "Progressing=False for 15 minutes: the new ReplicaSet is not becoming Ready and the previous one is still serving. Check `kubectl -n <ns> rollout status deploy/<name>` and the new pod's events — a bad template, an unschedulable pod, or a pod that cannot reach the API."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#deploymentrolloutstalled"
@@ -412,6 +434,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-deploymentreplicasunavailable"
               summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ printf \"%.0f\" $value }} unavailable replicas"
               description: "Desired replicas that are not available for 15 minutes. Overlaps DeploymentRolloutStalled when the cause is a ReplicaSet that never becomes Ready; fires alone when pods cannot be scheduled at all."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#deploymentreplicasunavailable"
@@ -423,6 +446,7 @@ data:
             labels:
               severity: critical
             annotations:
+              bakuran.dev/triage: "triage-argocdredishapodnotready"
               summary: "ArgoCD Redis HA pod {{ $labels.pod }} is not ready"
               description: "A Redis/sentinel pod has been NotReady for 5 minutes. Sentinel quorum and ArgoCD cache availability may be degraded."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishapodnotready"
@@ -432,6 +456,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-argocdredishaendpointslow"
               summary: "ArgoCD Redis HA service {{ $labels.endpoint }} has {{ $value }}/3 endpoints"
               description: "Redis or HAProxy discovery is degraded. Check pod readiness, announce Services and sentinel logs."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishaendpointslow"
@@ -441,6 +466,7 @@ data:
             labels:
               severity: warning
             annotations:
+              bakuran.dev/triage: "triage-argocdredisharestartingoften"
               summary: "ArgoCD Redis HA pod {{ $labels.pod }} is restarting"
               description: "More than two restarts in an hour. Check sentinel CPU, quorum and the pod logs."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredisharestartingoften"

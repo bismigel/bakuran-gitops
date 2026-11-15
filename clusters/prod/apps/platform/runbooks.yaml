@@ -1,0 +1,19 @@
+# The generated triage workflows. Kept in their own Application so the runbook layer can be removed - or replaced by a
+# Flux Kustomization - without touching the alerts that point at it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: runbooks
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: prod
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/runbooks
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
