@@ -25,10 +25,10 @@ controller:
       memory: 256Mi
     limits:
       cpu: "1"
-        # 1Gi was enough for 42 Applications. Adding the runbook Application (72 WorkflowTemplates) pushed
-        # the controller into OOMKilled on 2026-11-15: it holds every object of every app in memory, so this
-        # limit tracks the size of the estate, not the size of the cluster.
-        memory: 2Gi
+      # 1Gi fit 42 Applications. The runbook Application added 72 WorkflowTemplates and pushed the
+      # controller into OOMKilled (exit 137) on 2026-11-15: it holds every object of every app in
+      # memory, so this limit tracks the size of the estate, not the size of the cluster.
+      memory: 2Gi
 server:
   replicas: 2
   # A drain must never take both replicas: with no PDB the eviction API may remove them in
