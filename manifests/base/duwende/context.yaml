@@ -1705,6 +1705,65 @@ data:
     4. `measured = <date>` — when you last proved the diagnosis. A condition without a date is a guess wearing a filename.
     5. `python3 scripts/check-conditions.py` — id must match the filename, cited docs must exist, and a remedy without
        `why_safe` fails.
+  docs_reference_agents.md: |
+    ---
+    type: reference
+    audience: both
+    owns: which agents run here, what each may touch, what each holds, and how to ask one something
+    ---
+    
+    # Agents — who can do what
+    
+    Four things act on this estate. Only one of them writes to the cluster, and it is not a model.
+    
+    | actor | where | reads | writes | holds | can it change the cluster? |
+    |---|---|---|---|---|---|
+    | **ArgoCD** | `argocd` | git | **the cluster** | repo read + cluster write | **yes — alone** |
+    | **Hermes** | `duwende` | cluster, repos, media APIs | PRs, Telegram replies | `DEEPSEEK_API_KEY`, `GH_TOKEN`, `TELEGRAM_BOT_TOKEN` | no — via PR only |
+    | **HolmesGPT** | `ops-advisor` | cluster: get/list/watch | nothing | `DEEPSEEK_API_KEY` only | **no** |
+    | **pi** (workstation) | your machine | everything | files, commits | deepseek + git + kubectl | via PR only |
+    
+    Verified 2026-11-15 with `kubectl auth can-i … --as=system:serviceaccount:ops-advisor:holmesgpt`:
+    `list pods`, `get nodes`, `list pvc`, `volumes.longhorn.io` → **yes**; `create/delete pods`,
+    `delete pvc`, `delete namespaces`, `patch deployments`, `get secrets` → **no**.
+    
+    ## Hermes — the agent you talk to
+    
+    Telegram bot and an HTTP dashboard, plus MCP clients for Kubernetes and Prometheus. It is the only
+    model-backed actor with a repository token, so it is the one that proposes changes. It reads this
+    document set through a generated ConfigMap (`duwende/homelab-context`) assembled from this repository
+    by `bakuran-gitops/scripts/generate-duwende-context.sh`.
+    
+    ## HolmesGPT — the investigator that cannot act
+    
+    Ask it a question and it reads the cluster with its own read-only credentials, then answers.
+    
+    ```bash
+    ops/ask "why is the media pod restarting?"
+    ops/ask --ns media "which pods have restarted most?"
+    ```
+    
+    It costs one DeepSeek call per question, so nothing calls it automatically. It holds no repository
+    token and cannot open a pull request — the boundary in
+    [ADR 0012](../decisions/adr-0012-an-engine-is-a-scheduler-not-a-record.md) expressed as RBAC rather
+    than as a prompt. Measured latency on this estate: 20–29 s per question.
+    
+    ## What no agent does
+    
+    - **Merge.** Every change goes through a pull request reviewed by a human. `bakuran-gitops` should
+      have branch protection on `main` for this to be structural rather than a habit; as of 2026-11-15 it
+      does not.
+    - **Delete stateful objects.** A PVC, PV or Namespace cannot be deleted at admission
+      ([ADR 0002](../decisions/adr-0002-never-delete-stateful-objects.md)), by anyone, for any reason short
+      of runbook 17.
+    - **Decide that an alert needs no diagnosis.** That is written down in `conditions/waivers.toml`, so
+      adding an alert forces the question in the pull request rather than during the incident.
+    
+    ## If an agent's answer looks wrong
+    
+    It probably is. The evidence to check it lives here: `docs/records/incidents/` for what actually
+    happened before, `conditions/*.toml` for the diagnoses already known, and `evals/` for whether the
+    agent reaches the same conclusion from the same symptoms (5 cases, `python3 scripts/run-evals.py`).
   docs_guides_cluster.md: |
     ---
     type: guide
