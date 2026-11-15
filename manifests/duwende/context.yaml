@@ -8,6 +8,12 @@ metadata:
   namespace: duwende
 data:
   README.md: |
+    ---
+    type: index
+    audience: both
+    owns: nothing — it is the map: which doc answers which question
+    ---
+    
     # Homelab Context
     
     ## How this repository is organised
@@ -112,7 +118,7 @@ data:
     | [`docs/reference/router.md`](docs/reference/router.md) | router, switch and AP: services, rules, vault layout |
     | [`NETWORK-AS-CODE.md`](NETWORK-AS-CODE.md) | what OpenTofu owns vs what stays manual |
     | [`HIGH-AVAILABILITY.md`](HIGH-AVAILABILITY.md) | what a node loss actually costs, per component |
-    | [`NETWORK-STATE.md`](NETWORK-STATE.md) | the measured state of the network, refreshed on demand |
+    | [`docs/records/network-state-2026-11.md`](docs/records/network-state-2026-11.md) | the measured state of the network, refreshed on demand |
     | [`POWER.md`](POWER.md) | power: what runs, what dies, and for how long |
     | [`STORAGE-PLAN.md`](STORAGE-PLAN.md) | where storage is going, and what is blocked on hardware |
     | [`REPOS.md`](REPOS.md) | which repo owns what, and where its plan lives |
@@ -122,9 +128,15 @@ data:
     
     Current-state documents are `NETWORK.md`, `STORAGE.md`, `SYSTEM.md`, `INVENTORY.md`,
     `HIGH-AVAILABILITY.md`, `ROADMAP.md`, `OPERATIONS.md`, `MEDIA.md`, `HARDENING.md`.
-    Dated records (`KNOWN-ISSUES.md`, `MIGRATION-LEARNINGS.md`,
+    Dated records (`KNOWN-ISSUES.md`, `docs/records/migration-learnings-2026-11.md`,
     `PLATFORM-MIGRATION.md`) are history: do not edit past entries to match today.
   AGENTS.md: |
+    ---
+    type: index
+    audience: agent
+    owns: nothing — routing, tiers, and the operating rules
+    ---
+    
     # Hermes homelab agent
     
     You operate the **Bakuran homelab** as an autonomous assistant.
@@ -164,8 +176,7 @@ data:
     ## Operating rules (IMPORTANT: follow these)
     - **Pull requests only.** Never push to `main`; do the work on a branch, open a
       PR, and let the human review/merge.
-    - **Be conservative with tokens.** Prefer the local model for simple tasks, keep
-      context small, avoid dumping large logs.
+    - **Be conservative with tokens.** Local model for simple tasks; small context; no log dumps.
     - **GitOps, not imperative.** Change desired state in `bismigel/bakuran-gitops`
       via PR; never hand-edit resources that ArgoCD manages.
     - **Ask before anything destructive** (cluster changes, deletes, data loss).
@@ -289,6 +300,12 @@ data:
     - **Media:** the *arr stack is on `.81`; anime comes from Nyaa (torrent-first),
       live-action falls back to Usenet. Gotchas live in `MEDIA.md`.
   SYSTEM.md: |
+    ---
+    type: reference
+    audience: operator
+    owns: the machines and what runs on them
+    ---
+    
     # System Architecture
     
     > Local-only. Last updated: 2026-10-17
@@ -548,6 +565,12 @@ data:
     - Install: `nixos-anywhere --flake .#<host> --target-host root@<ip>`.
     - `modules/`: `base.nix`, `k3s.nix` (WireGuard/ProtonVPN on `.81`), `backup.nix`.
   INVENTORY.md: |
+    ---
+    type: reference
+    audience: operator
+    owns: hosts, ports and services, end to end
+    ---
+    
     # Inventory: hosts, ports, services, endpoints
     
     > Local-only. Last updated: **2026-11-03** (router replaced; see "Router / network
@@ -778,6 +801,12 @@ data:
     | run or verify a backup | [`docs/guides/backups.md`](docs/guides/backups.md) |
     | read what the 2026-10-17 and 2026-10-23 passes added | [`docs/records/2026-10-17-operations-additions.md`](docs/records/2026-10-17-operations-additions.md) |
   MEDIA.md: |
+    ---
+    type: reference
+    audience: operator
+    owns: the media stack: components, paths, and its gotchas
+    ---
+    
     # MEDIA.md: the media stack
     
     All media services run on the **media node** (`calamansi-intel`, `192.168.2.81`).
@@ -1212,6 +1241,12 @@ data:
     `/Users/AuthenticateByName`. Check which header you used before concluding a secret
     has rotted.
   PLATFORM-MIGRATION.md: |
+    ---
+    type: plan
+    audience: operator
+    owns: the migration plan and its remaining steps
+    ---
+    
     # Platform migration plan
     
     > **Status lives in `ROADMAP.md`.** This file is the detail; the table there is
@@ -1219,7 +1254,7 @@ data:
     
     Last updated: 2026-10-18
     
-    Learnings and blog notes: [MIGRATION-LEARNINGS.md](MIGRATION-LEARNINGS.md)
+    Learnings and blog notes: [MIGRATION-LEARNINGS.md](docs/records/migration-learnings-2026-11.md)
     
     Goal: adopt the useful principles from the reference homelab without turning the
     lab into a rewrite. The reference is better at network isolation, environment
