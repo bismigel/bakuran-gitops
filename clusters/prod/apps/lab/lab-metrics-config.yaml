@@ -1,0 +1,22 @@
+# The kustomize half of the lab: the namespace and the scrape config the VictoriaMetrics chart mounts.
+# Separate from the chart because ArgoCD's Application here is one source, and a ConfigMap the chart
+# mounts has to exist first - the first sync failed with `configmap "vm-scrape-config" not found`,
+# which is the same shape as kagent's missing ExternalSecret.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lab-metrics-config
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: prod
+  source:
+    repoURL: git@github.com:bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/lab-metrics
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lab-metrics
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
