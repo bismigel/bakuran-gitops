@@ -49,6 +49,19 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kagent
 
+    # The collector. Excluding 10/8 also excluded observability: the agent exported traces, got
+    # StatusCode.UNAVAILABLE, and the collector received nothing - which from the outside is indistinguishable
+    # from "the SDK emits nothing". Second time this policy silently removed a path; the API server was the
+    # first. Two rules, both because a private-range exclusion is invisible until something tries to use it.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: otel-collector
+      toPorts:
+        - ports:
+            - {port: "4317", protocol: TCP}
+            - {port: "4318", protocol: TCP}
+
     # The loop's input.
     - toEndpoints:
         - matchLabels:
