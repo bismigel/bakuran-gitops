@@ -50,7 +50,7 @@ spec:
           - {name: text}
           - {name: cmd}
       container:
-        image: alpine/k8s:1.34.5@sha256:2757ed9328916879dded68cc467d54e675b64826f7566ecf14f54104646a79ff
+        image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
         command: [sh, -c]
         args:
           - |
@@ -61,7 +61,7 @@ spec:
       inputs:
         parameters: [{name: text}]
       container:
-        image: alpine/k8s:1.34.5@sha256:2757ed9328916879dded68cc467d54e675b64826f7566ecf14f54104646a79ff
+        image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
         command: [sh, -c]
         args:
           - |
