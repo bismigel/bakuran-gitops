@@ -18,7 +18,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
-      activeDeadlineSeconds: 600   # above the 300s agent timeout plus apk + the other calls
+      activeDeadlineSeconds: 900   # one alert: 420s agent timeout + apk install + the Telegram call
       template:
         spec:
           serviceAccountName: triage-runner
