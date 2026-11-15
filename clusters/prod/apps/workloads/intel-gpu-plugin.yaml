@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/intel-gpu-plugin
+    path: manifests/base/intel-gpu-plugin
   destination:
     # The plugin runs on calamansi-intel only (nodeSelector), but device plugins
     # conventionally live in kube-system.

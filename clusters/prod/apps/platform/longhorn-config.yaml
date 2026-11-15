@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: git@github.com:bismigel/bakuran-gitops.git
     targetRevision: main
-    path: manifests/longhorn-config
+    path: manifests/base/longhorn-config
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
