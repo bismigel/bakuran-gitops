@@ -27,7 +27,7 @@ data:
     | what is true *right now*, measured | [`STATE.md`](STATE.md), [`ops/`](ops) | nodes, pods, backup freshness |
     | what the infrastructure *is*, verified and dated | [`NETWORK.md`](NETWORK.md), [`STORAGE.md`](STORAGE.md), [`SYSTEM.md`](SYSTEM.md) | addressing, mounts, invariants |
     | *why* a decision was made, and what it costs | [`docs/decisions/`](docs/decisions/README.md) | why the tunnel unit holds no endpoint |
-    | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
+    | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) / [`PLAN.org`](PLAN.org) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
     | how to do a day-2 operation | [`OPERATIONS.md`](OPERATIONS.md) | one section per alert |
     | what an agent must obey every session | [`AGENTS.md`](AGENTS.md) | PR-only, verify first, never delete |
     
@@ -246,7 +246,7 @@ data:
     | "did I break any of the checks" | `scripts/verify-all.sh` — every checker, including those CI cannot run (they need the siblings, nix or kubectl) |
     | "what are the host facts" | `python3 scripts/facts.py hosts` — derived from `bakuran-infra`'s flake; never restate a host, address or mount in prose |
     | how to accept a story | comment `/approve` on its Forgejo issue (or close it), then `python3 scripts/board.py pull --write` — the comment's author becomes `accepted_by`; `/reject` takes it back |
-    | what work is planned, in flight, or awaiting acceptance | `PLAN.md` — generated from `plan/output/`, every story carries `repo:` (`REPOS.md` § "Where the plan lives") |
+    | what work is planned, in flight, or awaiting acceptance | `PLAN.md`/`PLAN.org` — generated from `plan/output/`, every story carries `repo:` (`REPOS.md` § "Where the plan lives") |
     | the same, as columns (Kanban) | `BOARD.md` — generated from the store by `scripts/render-board.py` |
     
     Rules that keep this cheap:
