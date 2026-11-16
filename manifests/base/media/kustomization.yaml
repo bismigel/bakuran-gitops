@@ -22,3 +22,4 @@ resources:
   - recyclarr.yaml
   - prowlarr-definitions.yaml
   - ghcr-secret.yaml
+  - registry-cred.yaml
