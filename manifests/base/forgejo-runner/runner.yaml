@@ -104,7 +104,8 @@ spec:
           #     clones the repository and then stops, with no error in the runner log. That cost one failed run to find.
           #   * yamllint - bakuran-gitops' first check, and it is a python module Alpine ships
           #   * curl, jq - diagnostics, and `curl` is the download path for anything not packaged
-          #   * kustomize, hugo - bismigel-site renders its manifests and builds its pages with them
+          #   * kustomize, hugo, pandoc - bismigel-site renders manifests, converts pages and builds them
+          #   * kubectl - render steps today, a server dry-run once the runner has a kubeconfig
           # NOT here, and therefore not in any workflow until their tickets close: trivy (14.3, not packaged by Alpine)
           # and kubeconform (no Alpine package; its check runs the kustomize half only).
           # The better end state is a purpose-built image (runner + python3 + pyyaml + node + trivy) built once and
@@ -118,7 +119,7 @@ spec:
             runAsUser: 0
           command: ["/bin/sh", "-c"]
           args:
-            - apk add --no-cache python3 py3-yaml nodejs yamllint curl jq kustomize hugo >/dev/null && exec forgejo-runner daemon --config /etc/runner/config.yml
+            - apk add --no-cache python3 py3-yaml nodejs yamllint curl jq kustomize hugo pandoc kubectl >/dev/null && exec forgejo-runner daemon --config /etc/runner/config.yml
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { memory: 1Gi }
