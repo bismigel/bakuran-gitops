@@ -1,0 +1,26 @@
+# Pull credential for the estate's registry, in the namespace the site runs in.
+#
+# The site's image now comes from registry.bismigel.dev, so this namespace needs the same credential media has. Same
+# Bitwarden keys, same template - one password, two places that pull.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: registry-cred
+  namespace: apps
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: registry-cred
+    template:
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: |
+          {"auths":{"registry.bismigel.dev":{"username":"{{ .username }}","password":"{{ .password }}","auth":"{{ printf "%s:%s" .username .password | b64enc }}"}}}
+  data:
+    - secretKey: username
+      remoteRef: { key: registry-username }
+    - secretKey: password
+      remoteRef: { key: registry-password }
