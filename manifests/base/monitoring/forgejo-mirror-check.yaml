@@ -55,7 +55,10 @@ spec:
                     AM="http://alertmanager.monitoring.svc:9093/api/v2/alerts"
                     BASE="http://forgejo.forgejo.svc.cluster.local:3000/api/v1"
                     TOKEN="$(cat /etc/forgejo/token)"
-                    HOST="$(cat /proc/sys/kernel/hostname)"
+                    # A stable identity, NOT the pod name. The pod name changes every run, so an alert posted by one run can never be
+# resolved by the next - they accumulate and expire after 24h. Six alerts were firing from a single old run for exactly
+# this reason, and the first run after the rewrite could not clear them for the same reason.
+HOST="forgejo-mirror-check"
                     MAX_AGE=259200          # 72h = three missed daily syncs
                     now=$(date -u +%s)
                     stale=0
