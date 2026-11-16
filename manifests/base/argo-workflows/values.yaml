@@ -34,9 +34,15 @@ artifactRepository: {}
 useDefaultArtifactRepo: false
 
 executor:
+  # The executor is a Go binary that runs as an init container and as a wait sidecar around EVERY step. 128Mi killed it
+  # at startup - OOMKilled, exit 137 - so no workflow in this cluster had ever completed a single step. Everything else
+  # about the runbook layer was correct and unexercised.
+  #
+  # 512Mi is a ceiling, not a target: the executor's measured need is a few hundred MiB at container start. The request
+  # stays small so a diagnostic workflow is cheap to schedule.
   resources:
-    requests: {cpu: 10m, memory: 32Mi}
-    limits: {memory: 128Mi}
+    requests: {cpu: 10m, memory: 64Mi}
+    limits: {memory: 512Mi}
 
 # The default service account is per-namespace; workflows run as `argo-workflow` and get the executor role only.
 workflow:
