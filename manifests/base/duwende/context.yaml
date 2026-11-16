@@ -179,12 +179,11 @@ data:
     - **Be conservative with tokens.** Local model for simple tasks; small context; no log dumps
     - **GitOps, not imperative.** Change desired state in `bismigel/bakuran-gitops`
       via PR; never hand-edit resources that ArgoCD manages.
-    - **Ask before anything destructive** (cluster changes, deletes, data loss).
-    - **Never delete a PVC, PV or Namespace** — not in staging, not with `--all`; the 2026-10-29
-      incident is in [ADR 0002](docs/decisions/adr-0002-never-delete-stateful-objects.md), not
-      repeated here. The API server refuses it (`protect-stateful-objects` guardrail) but a guard is
-      a backstop, not permission. Exception: one object, by name, with the annotation, after asking —
-      runbook 17.
+    - **Ask before anything destructive** — cluster changes, deletes, data loss.
+    - **Never delete a PVC, PV or Namespace** — not in staging, not with `--all`. The API server refuses
+      it (`protect-stateful-objects`), but a guard is a backstop, not permission; the 2026-10-29
+      incident is [ADR 0002](docs/decisions/adr-0002-never-delete-stateful-objects.md). Exception: one
+      object, by name, with the annotation, after asking — runbook 17.
     - **Read `network.md` before any network change** — §7 invariants are hard rules; fix a wrong
       fact there in the same PR.
     - **Verify before asserting.** Do not state a cause ("it's IPv6", "the endpoint is
@@ -231,6 +230,7 @@ data:
     | what is broken right now | `ops/broken` (≤15 lines, no headers) |
     | a diagnosis someone already made | `ops/run --list`, then `ops/run <id>` — run it, don't re-derive it |
     | is someone streaming right now | `ops/watching` — 0 means the media path is safe to touch; non-zero means wait |
+    | am I on Forgejo or GitHub, and did the mirror take it | `ops/where <repo>` — Forgejo is the origin, GitHub the mirror |
     | what a node drain can take down | `ops/workloads --strict` — multi-replica workloads with no PDB and no justification |
     | is mount X there / how full | `ops/mounts [host]` |
     | are backups current | `ops/backups` |
@@ -240,7 +240,7 @@ data:
     | router API / credentials | `network.md` §4b, Bitwarden `homelab-kube` (`opnsense-api-*`) |
     | an alert is firing | the alert's `runbook_url` — site runbook, one section |
     | which repo owns what, and where its plan lives | `repos.md` |
-    | what is planned / known-broken | `PLAN.md`, `known-issues.md` |
+    | what is planned / known-broken | `PLAN.md`, `known-issues.md`, `NEXT-STEPS.md` (a tombstone) |
     | day-2 procedures | `OPERATIONS.md` (the file formerly called RUNBOOK.md) |
     | "did I break any of the checks" | `scripts/verify-all.sh` — every checker, including those CI cannot run (they need the siblings, nix or kubectl) |
     | "what are the host facts" | `python3 scripts/facts.py hosts` — derived from `bakuran-infra`'s flake; never restate a host, address or mount in prose |
@@ -266,13 +266,9 @@ data:
     the exact change and its impact. Details in [docs/reference/hardening.md](docs/reference/hardening.md#cloudflare-plan-facts-verified).
     
     ## Context
-    Docs here: **`network.md` (authoritative network reference — read first)**,
-    `storage.md` (what every mount is for, and what protects it), `system.md`,
-    `inventory.md`, `OPERATIONS.md`, `known-issues.md`,
-    `NEXT-STEPS.md`, `media.md`, `hardening.md` (security posture + ops notes). Hosts: **sitaw-amd** (.82, control plane/ArgoCD,
-    ingress, cloudflared); **calamansi-intel** (.81, media). Media pool `/mnt/media`
-    (btrfs on `.82`, NFS4-exported to `.81`). MCP tools: `kubernetes__*` (one cluster), `github__*`, and
-    `media__*` (Sonarr/Radarr/Prowlarr/SABnzbd/qBittorrent/Jellyfin, see docs/reference/media.md).
+    Docs here: `network.md` is authoritative for the network; the rest are named in the routing table above and in
+    `docs/reference/`. Hosts: **sitaw-amd** (.82, control plane/ArgoCD, ingress, cloudflared); **calamansi-intel**
+    (.81, media). MCP tools: `kubernetes__*`, `github__*`, `media__*` (see `docs/reference/media.md`).
     
     ## The lab at a glance (permanent facts)
     - **Topology:** one **3-node k3s cluster** (embedded etcd, 3 members, no node tainted):
@@ -294,8 +290,7 @@ data:
       in git. Secrets surface as env vars to services.
     - **Everything is GitOps:** change the manifests and open a PR, never hand-edit
       resources ArgoCD manages.
-    - **Media:** the *arr stack is on `.81`; anime comes from Nyaa (torrent-first),
-      live-action falls back to Usenet. Gotchas live in `media.md`.
+    - **Media:** *arrs on `.81`; anime from Nyaa (torrent-first), live-action falls back to Usenet. Gotchas: `media.md`.
   OPERATIONS.md: |
     ---
     type: index
