@@ -121,7 +121,7 @@ data:
     | [`docs/reference/power.md`](docs/reference/power.md) | power: what runs, what dies, and for how long |
     | [`docs/reference/storage-plan.md`](docs/reference/storage-plan.md) | where storage is going, and what is blocked on hardware |
     | [`docs/reference/repos.md`](docs/reference/repos.md) | which repo owns what, and where its plan lives |
-    | [`docs/plans/roadmap.md`](docs/plans/roadmap.md) · [`docs/plans/forgejo.md`](docs/plans/forgejo.md) · [`docs/plans/staging-deck.md`](docs/plans/staging-deck.md) | longer-horizon plans |
+    | [`docs/plans/roadmap.md`](docs/plans/roadmap.md) · [`docs/plans/forgejo.md`](docs/plans/forgejo.md) · [`docs/plans/2026-11-15-forgejo-ci-migration.md`](docs/plans/2026-11-15-forgejo-ci-migration.md) · [`docs/plans/staging-deck.md`](docs/plans/staging-deck.md) | longer-horizon plans |
     | [`docs/reference/conditions.md`](docs/reference/conditions.md) | the safety model behind `ops/run` |
     | [`docs/records/`](docs/records/README.md) | dated accounts: what broke, what fixed it |
     
