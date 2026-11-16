@@ -7,14 +7,13 @@
 name: scan
 
 on:
+  # Deliberately NOT path-filtered, and this cost a blocked PR to learn: `scan / images` is one of the required checks on
+  # main, and a required check that does not run is a PR that can never merge. A README-only change sat with three
+  # successes and one context that would never arrive.
+  #
+  # The filter was there to save time. The trivy database and image layers persist in the runner pod, so a warm scan is
+  # ~60 s against a cold 500 s - cheap enough that correctness wins.
   pull_request:
-    paths:
-      - "manifests/**"
-      - "clusters/**"
-      - "scripts/scan-images.py"
-      - "scripts/scan-policy.yaml"
-      - "scripts/scan-baseline.json"
-      - ".forgejo/workflows/scan.yml"
   workflow_dispatch: {}
 
 concurrency:
