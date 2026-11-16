@@ -1702,8 +1702,10 @@ data:
     
     # Conditions — the safety model
     
-    `conditions/*.toml` turns a diagnosis that has already been done once into something you **run** instead of read. The format
-    and the four authoring rules are in [`conditions/README.md`](../../conditions/README.md); this page is the part a reviewer
+    The registry lives in `bakuran-gitops/manifests/base/runbooks/conditions/`, beside the alert rules it serves,
+    so a rule and its procedure can land in one PR - a procedure maintained in a different repository rots at the
+    rate the environment changes. `conditions/*.toml` turns a diagnosis that has already been done once into something you **run** instead of read. The format
+    and the four authoring rules are in [`conditions/README.md`](https://github.com/bismigel/bakuran-gitops/blob/main/manifests/base/runbooks/conditions/README.md); this page is the part a reviewer
     argues with, because it is what stops the registry becoming an agent with a gun.
     
     ## What may be automated, and what may not
@@ -1734,7 +1736,7 @@ data:
     
     ## Adding a condition
     
-    1. Copy the closest existing file in `conditions/`.
+    1. Copy the closest existing file in `bakuran-gitops/manifests/base/runbooks/conditions/`.
     2. `diagnose` first: what command decides this, and what does each answer mean? If you cannot write that sentence, the
        diagnosis is not finished.
     3. Only then a `remedy`, with `why_safe` in one sentence a reviewer can argue with.

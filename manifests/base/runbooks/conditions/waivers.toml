@@ -1,0 +1,66 @@
+# Alerts that are NOT diagnosed by a condition, grouped, each saying where the operator goes instead.
+#
+# A waiver is a decision, not a shrug: `scripts/check-alert-coverage.py` fails when an alert has neither a condition nor a
+# waiver, so adding a rule forces the question "what happens when this fires?" in the PR rather than during the incident.
+#
+# Adding a condition later: delete the name from its group and put `alerts = ["<Name>"]` in the condition. The check reports
+# waived alerts that no longer exist, so these lists cannot rot silently either.
+
+[[group]]
+reason = "Kubernetes state alerts: the object is named in the alert and `kubectl describe` is the diagnosis. runbook 25"
+alerts = [
+  "CronJobFailed", "DeploymentReplicasUnavailable", "DeploymentRolloutStalled", "JobPodsFailing",
+  "KubeDeploymentReplicasMismatch", "KubePodCrashLooping", "PodContainerConfigError", "PodRestartingOften",
+  "PodStuckPending", "ContainerCPUThrottled", "ContainerHighCPU", "ContainerMemoryNearLimit", "TargetDown",
+  "CAdvisorScrapeFailing", "StrayCNIAddress", "StrayCNIMetricsMissing", "NodeDown", "HostMemoryHigh",
+]
+
+[[group]]
+reason = "GitOps state: `argocd app diff <name>` is the diagnosis. runbook 25 (ArgoCD section)"
+alerts = ["ArgoCDAppOutOfSync", "ArgoCDAppUnhealthy", "ArgoCDComponentDown", "ArgoCDMetricsMissing"]
+
+[[group]]
+reason = "ArgoCD HA internals of a single component; runbook 25 and the argocd-ha manifests"
+alerts = ["ArgoCDRedisHAEndpointsLow", "ArgoCDRedisHAPodNotReady", "ArgoCDRedisHARestartingOften"]
+
+[[group]]
+reason = "etcd: the alert names the symptom and `ops/broken` plus runbook 26's etcd section is the procedure. Quorum cases go to a human immediately"
+alerts = ["EtcdDbSizeNearQuota", "EtcdHighFsyncLatency", "EtcdMemberUnreachable", "EtcdNoLeader", "EtcdQuorumAtRisk"]
+
+[[group]]
+reason = "Longhorn: capacity and scheduling alerts are answered by `ops/longhorn-air` and runbook 26 (storage). Story 10.11 right-sized the last one"
+alerts = [
+  "LonghornDiskActualSpaceLow", "LonghornDiskSchedulingHeadroomLow", "LonghornDiskSchedulingOverCommitted",
+  "LonghornDiskStorageLow", "LonghornNodeStorageLow", "LonghornScrapeFailing", "LonghornVolumeDegraded",
+  "LonghornVolumeFaulted", "LonghornVolumeUnknown",
+]
+
+[[group]]
+reason = "Media pool capacity and health: `ops/mounts` then MEDIA.md. A human decides what to delete, never a script (ADR 0002 in spirit: nothing is deleted automatically)"
+alerts = ["MediaPoolCritical", "MediaPoolDaysToFull", "MediaPoolFillingUp", "DiskFillingUp", "RootFilesystemDaysToFull", "BackupMountMissing"]
+
+[[group]]
+reason = "Cloudflare surface is read-only to this estate; the procedure is runbook 23 and the diagnostic is `curl` against the edge, which the export cannot do"
+alerts = [
+  "CloudflareCertificateInactive", "CloudflareExporterStale", "CloudflareTunnelDown",
+  "CloudflareTunnelSingleConnector", "CloudflareZoneNotActive", "CloudflareZonePaused",
+]
+
+[[group]]
+reason = "Router alerts: docs/reference/network.md §9 has the read-only checks; the box has no out-of-band console, so anything needing hands is a human decision (story 4.6)"
+alerts = [
+  "RouterHeartbeatStale", "RouterInterfaceErrors", "RouterMemoryHigh", "RouterPfStateTableHigh",
+  "RouterResolverDown", "NetworkDeviceTlsExpiringSoon", "NetworkDeviceUnreachable", "WanUnreachable",
+]
+
+[[group]]
+reason = "Public edge probes and SLOs: the alert carries the URL and `ops/public-surface` shows the whole surface; burn-rate alerts are forecasts whose action is capacity, not a fix"
+alerts = ["PublicProbeDown", "PublicSLOFastBurn", "PublicSLOSlowBurn", "StatusApiCheckFailing", "StatusApiNotScraped"]
+
+[[group]]
+reason = "Alert delivery itself: `ops/broken` plus the watchdog runbook; if Telegram is down the alert is the only symptom and the fix is in runbook 24"
+alerts = ["AlertmanagerNotificationFailing", "AlertmanagerNotReceivingAlerts", "PrometheusWatchdogStale", "Watchdog"]
+
+[[group]]
+reason = "The WireGuard alerts that are NOT egress: the exporter is missing, or the unit restarted. Both are read with `systemctl status` on .81; the egress conditions cover the interesting cases. Both are read with `systemctl status` on .81; the egress conditions cover the interesting cases"
+alerts = ["WireGuardMetricsMissing", "WireGuardRestarted"]

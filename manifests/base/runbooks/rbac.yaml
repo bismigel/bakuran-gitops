@@ -1,23 +1,43 @@
-# TODO(diag-rbac): this is deliberately far too permissive and must be scoped.
+# What the diagnostic workflows may do: read evidence, and nothing else.
 #
-# The diagnostic workflows read whatever the alert needs: pods, events, logs, configmaps, deployments, nodes, services.
-# The estate's rule is that the engine may look and report but never own the remedy (ADR 0012) - and this binding does
-# not enforce that, it just makes the workflows work.
+# R.9 closed 2026-11-16. The workflow ServiceAccount was bound to cluster-admin so the layer could be proved working at
+# all. That was deliberate debt with an annotation; this replaces it with the permissions the evidence workflow actually
+# uses - pods, events and pod logs - and nothing more.
 #
-# Tightening it means: a ClusterRole with get/list/watch on exactly the resources the templates query, no secrets, no
-# write verbs, and a note in ADR 0012 saying what the read access is for. Tracked as story 14.8 in the homelab-context
-# plan store. Until then: any workflow can do anything in this cluster, and only `argo-workflow` runs workflows.
+# Why not grant more. The condition registry's commands in `conditions/*.toml` need `kubectl exec` (arbitrary code inside
+# a container) and, in one case, read the WireGuard private key. Those are privileges ADR 0012 refuses to give a
+# scheduler: the engine may look and report, never touch. So procedures stay on a workstation or an agent, where the
+# operator has those rights deliberately, and this cluster grants the workflow only what a read-only investigation needs.
+#
+# Derived by reading the workflow, not from a template of "usual" rights: the diag workflow runs exactly
+#   kubectl -n <ns> get pods | get events | logs -l app.kubernetes.io/name
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflow-diagnose
+  annotations:
+    bakuran.dev/owner: "story R.9"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  # Argo's own executor needs this to report step results; it is not part of the investigation.
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtaskresults"]
+    verbs: ["create", "patch"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: argo-workflow-diag-permissive
-  annotations:
-    bakuran.dev/todo: "scope to read-only; see story 14.8"
+  name: argo-workflow-diagnose
 subjects:
   - kind: ServiceAccount
     name: argo-workflow
     namespace: argo
 roleRef:
   kind: ClusterRole
-  name: cluster-admin
+  name: argo-workflow-diagnose
   apiGroup: rbac.authorization.k8s.io
