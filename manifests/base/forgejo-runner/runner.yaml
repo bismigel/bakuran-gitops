@@ -106,8 +106,12 @@ spec:
           #   * curl, jq - diagnostics, and `curl` is the download path for anything not packaged
           #   * kustomize, hugo, pandoc - bismigel-site renders manifests, converts pages and builds them
           #   * kubectl - render steps today, a server dry-run once the runner has a kubeconfig
-          # NOT here, and therefore not in any workflow until their tickets close: trivy (14.3, not packaged by Alpine)
-          # and kubeconform (no Alpine package; its check runs the kustomize half only).
+          #   * buildah + netavark - container builds, closing 14.7's runtime gap. Measured in this pod 2026-11-16:
+          #     `buildah bud` builds media-mcp (python base) in 48 s with NO privileged flag, using --storage-driver vfs
+          #     (overlay-on-overlay is refused in a container), BUILDAH_ISOLATION=chroot, and TMPDIR on a disk-backed PVC
+          #     (tmpfs was tried first and ran out, because buildah writes blobs there too).
+          # NOT here: kubeconform (no Alpine package; its half is the kustomize render), nix (a decision about what the
+          # runner's job is, not a package to add).
           # The better end state is a purpose-built image (runner + python3 + pyyaml + node + trivy) built once and
           # pinned; this is the version that costs no build pipeline.
           #
@@ -121,7 +125,7 @@ spec:
           args:
             - |
               set -e
-              apk add --no-cache python3 py3-yaml nodejs yamllint curl jq kustomize hugo pandoc kubectl >/dev/null
+              apk add --no-cache python3 py3-yaml nodejs yamllint curl jq kustomize hugo pandoc kubectl buildah netavark >/dev/null
               # trivy is not packaged by Alpine, so it is fetched at container start from a pinned release. The pin
               # matters: an unpinned scanner turns into a scan that fails on a day nobody changed this repository.
               if [ ! -x /usr/local/bin/trivy ]; then
@@ -139,6 +143,7 @@ spec:
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: config, mountPath: /etc/runner }
+            - { name: build-scratch, mountPath: /var/lib/containers }
       volumes:
         - name: config
           configMap:
@@ -146,3 +151,22 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: forgejo-runner-data
+        # Buildah's storage on a real filesystem rather than the pod's overlay, because it must mount overlays inside
+        # it. 5 Gi is ~8x the largest build measured here (610 MB with the vfs driver, which copies layers).
+        - name: build-scratch
+          persistentVolumeClaim:
+            claimName: forgejo-build-scratch
+---
+# Scratch for container builds. local-path on patola, not Longhorn: transient, node-local work, and a replicated volume
+# would be three copies of a build cache. The Deployment's Recreate strategy means one pod owns it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: forgejo-build-scratch
+  namespace: forgejo
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
