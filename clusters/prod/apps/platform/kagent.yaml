@@ -14,7 +14,7 @@ spec:
         releaseName: kagent
         valueFiles:
           - $values/manifests/base/kagent/values.yaml
-    - repoURL: git@github.com:bismigel/bakuran-gitops.git
+    - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
       targetRevision: main
       ref: values
   destination:

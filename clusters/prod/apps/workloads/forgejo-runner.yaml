@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: forgejo-runner
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"      # after forgejo itself: a runner registers against a live instance
+    argocd.argoproj.io/sync-options: ServerSideApply=true
+spec:
+  project: prod
+  source:
+    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/forgejo-runner
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: forgejo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

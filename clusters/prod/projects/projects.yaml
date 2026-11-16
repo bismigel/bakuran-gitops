@@ -32,7 +32,7 @@ metadata:
 spec:
   description: Bakuran production cluster (.80/.81/.82)
   sourceRepos:
-    - git@github.com:bismigel/bakuran-gitops.git
+    - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
     - git@github.com:bismigel/private-api.git
     - https://github.com/bismigel/bismigel-site
     - https://github.com/bismigel/status-api
