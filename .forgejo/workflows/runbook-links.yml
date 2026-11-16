@@ -1,0 +1,29 @@
+# Every alert's runbook_url must point at a page and an anchor that exist. The pages live in another repository, so
+# this job checks out both - which is exactly why the check cannot run in a single-repo GitHub runner either.
+name: runbook-links
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  links:
+    runs-on: in-cluster
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # The pages live in another repository, and `actions/checkout` with `repository:` needs a token scoped to *that*
+      # repo - the runner's own token is scoped to this one, so it fails with "The target couldn't be found". An
+      # anonymous clone does not work either: this instance sets REQUIRE_SIGNIN_VIEW = true, so the clone hangs waiting
+      # for credentials until the job times out. Hence a read:repository token, stored as SITE_TOKEN.
+      - uses: actions/checkout@v4
+        with:
+          repository: bismigel/bismigel-site
+          token: ${{ secrets.SITE_TOKEN }}
+          path: site
+      - name: Check the alert -> runbook links
+        run: python3 scripts/check-runbook-links.py --gitops . --site site

@@ -1,0 +1,50 @@
+# CI on the estate's own hardware (ADR 0015: Forgejo is the origin, GitHub is a push mirror).
+#
+# runs-on is a fact about the cluster, not a preference: the label is what the in-cluster runner registered with
+# (manifests/base/forgejo-runner/runner.yaml). A label nobody hosts is a job that waits forever.
+#
+# WHAT IS NOT HERE, and why - silence about a missing check is how a check stops existing:
+#   scan (trivy)      trivy is not in Alpine's repositories and the runner image has no download path pinned; ticket 14.3
+#   renovate          needs a Forgejo platform token and a schedule; not a PR gate, and a job that pushes branches from
+#                     inside CI is a different argument than a job that checks one
+# The runner pod's toolset is declared in the Deployment, so a check that needs a new tool needs a manifest change too.
+name: checks
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    runs-on: in-cluster
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: yamllint every manifest
+        run: python3 -m yamllint -c .yamllint manifests clusters
+
+      - name: Image digests are pinned and current
+        run: |
+          bash scripts/check-image-digests.sh .
+
+  layout:
+    runs-on: in-cluster
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every Application points into the one manifest layout
+        run: python3 scripts/check-manifest-layout.py
+      - name: No object is defined twice
+        run: bash scripts/check-duplicate-objects.sh
+      - name: Every WorkflowTemplate validates against the API server
+        run: |
+          if kubectl version >/dev/null 2>&1; then
+            kubectl apply --dry-run=server -f manifests/base/runbooks/templates/ >/dev/null
+          else
+            echo "no kubeconfig on the runner: skipping the server dry-run (it is a workstation check too)"
+          fi
