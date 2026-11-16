@@ -1,0 +1,31 @@
+# Pull credential for the estate's own registry (2026-11-16).
+#
+# This replaces a Secret created by hand during the registry migration. The password lives in Bitwarden as
+# `registry-password`, the same store the ClusterSecretStore already reads, so there is no second copy anywhere.
+#
+# The host here is registry.bismigel.dev - the readable name the manifests use - not the ClusterIP containerd dials.
+# They must agree: kubelet looks the credential up by the name written in the image field.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: registry-cred
+  namespace: media
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: registry-cred
+    template:
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: |
+          {"auths":{"registry.bismigel.dev":{"username":"{{ .username }}","password":"{{ .password }}","auth":"{{ printf "%s:%s" .username .password | b64enc }}"}}}
+  data:
+    - secretKey: username
+      remoteRef:
+        key: registry-username
+    - secretKey: password
+      remoteRef:
+        key: registry-password
