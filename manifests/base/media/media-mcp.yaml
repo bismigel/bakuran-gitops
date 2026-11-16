@@ -19,10 +19,12 @@ spec:
         app: media-mcp
     spec:
       imagePullSecrets:
-        - name: ghcr-secret
+        # The estate's own registry (2026-11-16). The image name is the readable hostname; containerd resolves it to the
+        # registry's pinned ClusterIP through certs.d/hosts.toml, so nothing here depends on GitHub or on public DNS.
+        - name: registry-cred
       containers:
         - name: media-mcp
-          image: ghcr.io/bismigel/media-mcp:latest@sha256:95449362a5e23905356c130fbf9b7962ea6d5dcf7f9124e27fa1da9466ae30ac
+          image: registry.bismigel.dev/bismigel/media-mcp:4232b5185b3b@sha256:8cfea214c7dcf10468b22bb584c887b153782dc0ca463034bb3b036f98f73e93
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
