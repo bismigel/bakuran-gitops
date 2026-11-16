@@ -144,15 +144,16 @@ data:
     Plans live in `plan/`, decisions in ADRs, facts in docs (bare `x.md` = `docs/reference/x.md`).
     Rules that must hold every session:
     
-    - **Change flow:** branch → PR → CI green → squash merge. Never push to `main`, never merge on a
+    - **Change flow:** branch → PR → CI green → squash merge, on **Forgejo** (`git.bismigel.dev`), the source of truth
+      since 2026-11-16; GitHub is a push mirror that hiring managers read ([ADR 0015](docs/decisions/adr-0015-forgejo-is-the-origin.md)). Never push to `main`, never merge on a
       red check, and always pass the PR number *and* verify the branch it resolved to
       ([ADR 0001](docs/decisions/adr-0001-pr-only-change-flow.md)).
     - **Declare, never hand-edit.** Cluster state changes in `bakuran-gitops` via PR; if you fix
       runtime state by hand, say so and open the declarative PR in the same breath
       ([ADR 0003](docs/decisions/adr-0003-tunnel-unit-has-no-endpoint.md) is what that cost once).
     - **Verify before asserting**, with a command, and cite the anchor rather than a transcript.
-    - **A check that cannot fail is worthless.** Prove a guard in both directions before trusting it,
-      and prove the *probe* too: give it a positive control and a negative control in the same breath.
+    - **A check that cannot fail is worthless.** Prove a guard in both directions, and prove the *probe*
+      too: a positive and a negative control in the same breath.
       Two failures in one session came from a probe that could never succeed (bash cannot open a unix
       socket with `<>`) and a query against a name that did not exist (`mymaster` for a chart whose
       master is `argocd`). `scripts/test-guards.py` mutation-tests the guards themselves.
@@ -160,7 +161,7 @@ data:
       `sed 's/^/  /'` output was miscounted three times in one session and briefly made two guards
       wrong; use `cat -A`, `repr()`, or a YAML/TOML parse instead.
     - **Never delete** a PVC, PV or Namespace ([ADR 0002](docs/decisions/adr-0002-never-delete-stateful-objects.md)).
-    - **Read the config before writing a rule about it** — including this repo's own docs.
+    - **Read the config before writing a rule about it**, this repo's docs included.
     
     Where work and reasons live:
     
@@ -186,10 +187,9 @@ data:
       runbook 17.
     - **Read `network.md` before any network change** — §7 invariants are hard rules; fix a wrong
       fact there in the same PR.
-    - **Verify before asserting.** Do not state a cause ("the endpoint is dead",
-      "it's IPv6", "the deploy won't restart the tunnel") unless a command in
-      `network.md` §9 backs it up. Unverified network beliefs caused seven outages
-      on 2026-10-25.
+    - **Verify before asserting.** Do not state a cause ("it's IPv6", "the endpoint is
+      dead") unless a command in `network.md` §9 backs it up: unverified network
+      beliefs caused seven outages on 2026-10-25.
     - **After a structural change, update this block by hand** — a mistake worth remembering goes in
       `guides/agents-pitfalls.md`; a block that stopped matching the repo is a bug in the block.
     - **Flips need `scripts/preflight-flip.sh <story>`** — no rehearsal record, no flip.
@@ -201,14 +201,12 @@ data:
     - **Every "do not" rule names its exceptions in the same sentence**, plus the
       date and the command that proves it. Rules without exceptions drift, and the
       exception is usually the part that prevents an outage.
-    - **Run `scripts/preflight-wg.sh` before any deploy touching `.81`.**
     - **Rehearse datapath changes in staging first.** Anything touching the CNI, WireGuard, node
       networking or the `.81` egress path goes through `bakuran-infra/staging/` before production. Staging
       costs nothing; three items are still deferred *because* nobody rehearsed them. If a change cannot be
       rehearsed, say so in the PR and get agreement first. `preflight-wg.sh` exits non-zero if the deploy
       would restart the tunnel.
-    - **Cite sources.** If a fix or fact comes from a URL, include the link in your
-      report, docs, and PR descriptions.
+    - **Cite sources.** A fact from a URL carries the link in the report, docs and PR.
     - Never expose secrets. `CREDENTIALS.md` is a **local plaintext store** — gitignored and never
       committed; `scripts/check-credentials.py` fails the build if either stops being true. Never
       copy it into a chat, doc, commit or log. Everything else arrives as env (Bitwarden + ESO).
@@ -263,7 +261,7 @@ data:
     
     ## Cloudflare: guarded (READ ONLY)
     Cloudflare can expose the network, so it is **read-only**: read with
-    `curl http://127.0.0.1:8788/client/v4/<path>` (the proxy injects the token you do not have);
+    `curl http://127.0.0.1:8788/client/v4/<path>` (the proxy injects the token);
     **every write returns 403**. Do not attempt DNS, tunnel, Access or rule changes — STOP and state
     the exact change and its impact. Details in [docs/reference/hardening.md](docs/reference/hardening.md#cloudflare-plan-facts-verified).
     
