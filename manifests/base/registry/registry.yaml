@@ -61,11 +61,14 @@ spec:
             - { name: data, mountPath: /var/lib/registry }
             - { name: auth, mountPath: /auth, readOnly: true }
             - { name: config, mountPath: /etc/zot, readOnly: true }
+          # A TCP probe, not an HTTP one: with htpasswd enabled /v2/ answers 401 by design, so an httpGet probe can
+          # never pass and the pod never becomes Ready - the registry was answering requests the whole time while
+          # Kubernetes called it unhealthy. A socket probe asserts what is meant: the process is listening.
           readinessProbe:
-            httpGet: { path: /v2/, port: 5000 }
+            tcpSocket: { port: 5000 }
             initialDelaySeconds: 3
           livenessProbe:
-            httpGet: { path: /v2/, port: 5000 }
+            tcpSocket: { port: 5000 }
             initialDelaySeconds: 10
       volumes:
         - name: data
