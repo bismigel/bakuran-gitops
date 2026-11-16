@@ -1,0 +1,27 @@
+# ArgoCD's read credential for the site repository.
+#
+# Needed the moment bismigel-site became private again: ArgoCD was reading it anonymously over HTTPS, so the Application
+# went Unknown with "failed to list refs" and the site stopped being reconciled - source pushes were fine, the cluster
+# simply could not see them.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-forgejo-bismigel-site
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: repo-forgejo-bismigel-site
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bismigel-site.git
+        username: bismigel
+        password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef: { key: forgejo-read-token }
