@@ -143,7 +143,9 @@ spec:
             - { name: GITEA__security__INSTALL_LOCK, value: "true" }
             - { name: GITEA__service__DISABLE_REGISTRATION, value: "true" }
             - { name: GITEA__service__REQUIRE_SIGNIN_VIEW, value: "true" }
-            - { name: GITEA__actions__ENABLED, value: "false" }
+            # Actions on (2026-11-15): GitHub Actions hit its monthly minute ceiling, and this instance is the
+            # estate's own hardware. The runner is a separate workload; this is what lets it register.
+            - { name: GITEA__actions__ENABLED, value: "true" }
             # --- mirrors ---
             - { name: GITEA__mirror__DEFAULT_INTERVAL, value: 24h0m0s }
             - { name: GITEA__mirror__MIN_INTERVAL, value: 10m0s }
