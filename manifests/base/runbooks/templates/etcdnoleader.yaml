@@ -19,36 +19,49 @@ spec:
   templates:
     - name: triage
       steps:
+        # pods not running
         - - name: pods
-            template: collect
-            arguments:
-              parameters:
-                - {name: text, value: "pods not running"}
-                - {name: cmd, value: "get pods {{selector}} -o wide --field-selector status.phase!=Running,status.phase!=Succeeded"}
+            inline:
+              container:
+                image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
+                command: [/bin/kubectl]
+                args:
+                  - "-n"
+                  - "{{workflow.parameters.namespace}}"
+                  - "get"
+                  - "pods"
+                  - "-o"
+                  - "wide"
+                  - "--field-selector"
+                  - "status.phase!=Running,status.phase!=Succeeded"
+        # recent warning events
         - - name: events
-            template: collect
-            arguments:
-              parameters:
-                - {name: text, value: "recent warning events"}
-                - {name: cmd, value: "get events --field-selector type=Warning --sort-by=.lastTimestamp"}
+            inline:
+              container:
+                image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
+                command: [/bin/kubectl]
+                args:
+                  - "-n"
+                  - "{{workflow.parameters.namespace}}"
+                  - "get"
+                  - "events"
+                  - "--field-selector"
+                  - "type=Warning"
+                  - "--sort-by=.lastTimestamp"
+        # recent container logs
         - - name: logs
-            template: collect
-            arguments:
-              parameters:
-                - {name: text, value: "last 200 lines, previous container if restarted"}
-                - {name: cmd, value: "logs -l app --tail=200 --previous --prefix --ignore-errors"}
-    - name: collect
-      inputs:
-        parameters:
-          - {name: text}
-          - {name: cmd}
-      container:
-        image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
-        command: [/bin/kubectl]
-        args:
-          - "-n"
-          - "{{workflow.parameters.namespace}}"
-          - "{{inputs.parameters.cmd}}"
+            inline:
+              container:
+                image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
+                command: [/bin/kubectl]
+                args:
+                  - "-n"
+                  - "{{workflow.parameters.namespace}}"
+                  - "logs"
+                  - "-l"
+                  - "app.kubernetes.io/name"
+                  - "--tail=100"
+                  - "--ignore-errors"
     - name: note
       inputs:
         parameters: [{name: text}]

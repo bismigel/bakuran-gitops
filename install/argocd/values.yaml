@@ -28,7 +28,15 @@ controller:
       # 1Gi fit 42 Applications. The runbook Application added 72 WorkflowTemplates and pushed the
       # controller into OOMKilled (exit 137) on 2026-11-15: it holds every object of every app in
       # memory, so this limit tracks the size of the estate, not the size of the cluster.
-      memory: 2Gi
+      #
+      # 2Gi covered 47 Applications but not 47 plus 72 WorkflowTemplates: replica 0 reached 25 restarts, all
+      # OOMKilled, and its shard stopped reconciling. That is why the runbooks Application showed "Running"
+      # forever with 72 resources OutOfSync while every manifest in it was valid - a crashing controller and a slow
+      # sync look identical from outside.
+      #
+      # 4Gi. If this stops being enough the answer is fewer objects per controller (split the WorkflowTemplates
+      # onto their own shard), not another doubling.
+      memory: 4Gi
 server:
   replicas: 2
   # A drain must never take both replicas: with no PDB the eviction API may remove them in
