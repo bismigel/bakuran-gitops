@@ -47,10 +47,14 @@ spec:
       containers:
         - name: registry
           # zot, not distribution/registry: the official registry image carries CRITICALs in its Go stdlib (2.8.3 has
-          # two, 3.0.0 has four), and this estate's scan refuses to add debt it can avoid. zot scanned clean on
+          # two, 3.0.0 has four), and this estate's scan refuses to add debt it can avoid. zot v2.1.23 scanned clean on
           # 2026-11-16 and is OCI-native. If a future bump is not clean, the answer is an exception with an owner and an
           # expiry in scripts/scan-policy.yaml, not a quiet baseline entry.
-          image: ghcr.io/project-zot/zot-linux-amd64@sha256:b68f727fe35c1eb45b2ae91519dfb0e33192d69b5104882c3e7809b7146c4a02
+          #
+          # The tag is written out even though the digest already pins the bytes: a digest gives reproducibility and
+          # says nothing about provenance. The first version of this pinned `latest` by digest, and it turned out to be
+          # v2.1.23 byte for byte - correct content, unreadable answer to "what is running and what changed".
+          image: ghcr.io/project-zot/zot-linux-amd64:v2.1.23@sha256:b68f727fe35c1eb45b2ae91519dfb0e33192d69b5104882c3e7809b7146c4a02
           args: ["serve", "/etc/zot/config.json"]
           ports:
             - { name: registry, containerPort: 5000 }
