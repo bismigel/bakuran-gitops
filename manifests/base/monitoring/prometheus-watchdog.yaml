@@ -31,6 +31,11 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      # A failed run leaves an Error pod behind, and ArgoCD counts that pod as an unhealthy resource - so one transient
+      # failure at 2026-11-15T17:04 (alertmanager unreachable during a restart) kept this Application Degraded for 25
+      # hours and fired ArgoCDAppUnhealthy. The failure is in the log for the alert to read; the pod does not need to
+      # stay on the floor to prove it.
+      ttlSecondsAfterFinished: 600
       backoffLimit: 0
       activeDeadlineSeconds: 60
       template:
