@@ -231,8 +231,9 @@ data:
     |---|---|
     | what is broken right now | `ops/broken` (≤15 lines, no headers) |
     | a diagnosis someone already made | `ops/run --list`, then `ops/run <id>` — run it, don't re-derive it |
+    | run one alert's diagnostic in the cluster | `ops-diag <alert>` (Go, built by nix: `nix build .#ops-diag`) |
     | is someone streaming right now | `ops/watching` — 0 means the media path is safe to touch; non-zero means wait |
-    | am I on Forgejo or GitHub, and did the mirror take it | `ops/where <repo>` — Forgejo is the origin, GitHub the mirror |
+    | am I on Forgejo or GitHub, and did the mirror take it | `ops/where <repo>` — origin is Forgejo, GitHub the mirror |
     | what a node drain can take down | `ops/workloads --strict` — multi-replica workloads with no PDB and no justification |
     | is mount X there / how full | `ops/mounts [host]` |
     | are backups current | `ops/backups` |
