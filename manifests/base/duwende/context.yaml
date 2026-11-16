@@ -1143,6 +1143,47 @@ data:
        `curl -o /dev/null -w '%{http_code}' -A 'Mozilla/5.0 (X11; Linux x86_64)' https://audiobookbay.lu/`
        from the pod before blaming the config.
     
+    ## Transcoding is broken while direct play works (2026-11-16)
+    
+    The shape of this fault is the dangerous part: **everything that direct-plays works, so nothing looks wrong.** A web
+    player direct-plays or direct-streams and the household notices nothing; the Xbox, which needs a real transcode, plays
+    nothing at all. The natural conclusion - "this episode is encoded badly" - was wrong three times over.
+    
+    Diagnosis, from the logs rather than the file:
+    
+    ```
+    FFmpeg exited with code 218
+      [vost#0:0/h264_qsv] Task finished with error code: -22 (Invalid argument)
+      Error reinitializing filters!  -38 (Function not implemented)
+    ```
+    
+    34 of 56 transcode logs carried it, across 34 different items. **The trigger is 10-bit sources**, isolated by running the
+    same commands in the pod:
+    
+    | path | 8-bit h264 source | 10-bit HEVC source |
+    |---|---|---|
+    | hardware decode + `scale_vaapi` (Jellyfin's default) | works | **fails** −38 |
+    | software decode → hardware encode | works | works |
+    
+    The iHD driver refuses `scale_vaapi` from a P010 surface, so hardware-decoded 10-bit HEVC produces no frames.
+    
+    **Fix:** remove `hevc` from `HardwareDecodingCodecs` in `/config/config/encoding.xml`, keep hardware *encoding*.
+    Software-decoding HEVC at 1080p is cheap; the expensive half is the encode, which still runs on the iGPU.
+    
+    ```
+    kubectl -n default exec deploy/jellyfin -- sh -c 'cd /config/config && cp -n encoding.xml encoding.xml.bak && \
+      sed -i "/<string>hevc<\/string>/d" encoding.xml'
+    kubectl -n default rollout restart deploy/jellyfin
+    ```
+    
+    Verified 2026-11-16: the newest transcode afterwards encodes the *same* 10-bit item (`S09E08`) at 1.18x with no `hwaccel
+    vaapi` in the command and no errors, and the Xbox started playing. `ops/run` condition: `jellyfin-transcode-broken`.
+    
+    Two things that made this slow to find, both worth not repeating: the log filename per-day meant I first searched a
+    whole day's log (pre-fix failures included, so a fixed box still looked broken), and the item id in the ffmpeg log
+    (`0971e5e2…`) belonged to **S09E08**, not the episode being reported — checking the item id against the file path cost
+    one wrong turn.
+    
     ## Not an issue: Sonarr's search is slow for shows with many titles
     
     Sonarr's interactive release search (`/release`) can take **several minutes**
