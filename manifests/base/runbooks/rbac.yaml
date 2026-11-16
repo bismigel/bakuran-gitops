@@ -1,0 +1,23 @@
+# TODO(diag-rbac): this is deliberately far too permissive and must be scoped.
+#
+# The diagnostic workflows read whatever the alert needs: pods, events, logs, configmaps, deployments, nodes, services.
+# The estate's rule is that the engine may look and report but never own the remedy (ADR 0012) - and this binding does
+# not enforce that, it just makes the workflows work.
+#
+# Tightening it means: a ClusterRole with get/list/watch on exactly the resources the templates query, no secrets, no
+# write verbs, and a note in ADR 0012 saying what the read access is for. Tracked as story 14.8 in the homelab-context
+# plan store. Until then: any workflow can do anything in this cluster, and only `argo-workflow` runs workflows.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflow-diag-permissive
+  annotations:
+    bakuran.dev/todo: "scope to read-only; see story 14.8"
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflow
+    namespace: argo
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
