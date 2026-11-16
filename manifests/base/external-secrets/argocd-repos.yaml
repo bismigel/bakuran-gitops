@@ -23,6 +23,9 @@ spec:
         type: git
         url: git@github.com:bismigel/bakuran-gitops.git
         name: bakuran-gitops
+        # With a template, ESO writes ONLY what the template renders. Omitting this line produced a repository secret
+        # with no key at all, and every Application went Unknown with "authentication required: Unauthorized".
+        sshPrivateKey: "{{ .sshPrivateKey }}"
   data:
     - secretKey: sshPrivateKey
       remoteRef: { key: argocd-repo-bakuran-gitops }
@@ -44,6 +47,7 @@ spec:
       data:
         type: git
         url: git@github.com:bismigel/private-api.git
+        sshPrivateKey: "{{ .sshPrivateKey }}"
   data:
     - secretKey: sshPrivateKey
       remoteRef: { key: argocd-repo-private-api }
@@ -66,6 +70,7 @@ spec:
         type: git
         url: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
         username: bismigel
+        password: "{{ .password }}"
   data:
     - secretKey: password
       remoteRef: { key: forgejo-read-token }
