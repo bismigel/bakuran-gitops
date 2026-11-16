@@ -71,7 +71,7 @@ spec:
         # Registration writes /data/.runner. Doing it in an init container means a pod that is restarted does not need
         # anybody to remember a command - and a runner whose token was revoked re-registers instead of failing silently.
         - name: register
-          image: data.forgejo.org/forgejo/runner:12@sha256:eb6e7bc21973382d261e6eb883dbd27b8cb56939d33a3bfd79a1352b7f9a33a0
+          image: data.forgejo.org/forgejo/runner:13@sha256:568cea8c15ddc01fc8f330124892f572af7db37fa28344a2c1914405793bf61d
           command: ["/bin/sh", "-c"]
           args:
             - |
@@ -97,7 +97,7 @@ spec:
             - { name: config, mountPath: /etc/runner }
       containers:
         - name: runner
-          image: data.forgejo.org/forgejo/runner:12@sha256:eb6e7bc21973382d261e6eb883dbd27b8cb56939d33a3bfd79a1352b7f9a33a0
+          image: data.forgejo.org/forgejo/runner:13@sha256:568cea8c15ddc01fc8f330124892f572af7db37fa28344a2c1914405793bf61d
           # Measured in the pod on 2026-11-16: the runner image carries git and bash, and none of the rest.
           #   * python3 + py3-yaml - every checker in these repos is python3
           #   * nodejs - `actions/checkout` and every other action/* is a JavaScript action; without node the job

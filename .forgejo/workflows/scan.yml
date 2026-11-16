@@ -1,0 +1,35 @@
+# The image scan: the check whose absence had the sharpest edge in the migration, because scripts/scan-baseline.json
+# holds 218 CRITICAL findings across 34 images as a ratchet and the only thing enforcing it was a GitHub workflow that
+# can no longer run.
+#
+# Runs on PRs that can change an image reference, not on every PR: scanning 48 images pulls every manifest and takes
+# minutes, and a documentation change cannot move a digest.
+name: scan
+
+on:
+  pull_request:
+    paths:
+      - "manifests/**"
+      - "clusters/**"
+      - "scripts/scan-images.py"
+      - "scripts/scan-policy.yaml"
+      - "scripts/scan-baseline.json"
+      - ".forgejo/workflows/scan.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  images:
+    runs-on: in-cluster
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: trivy is present and pinned
+        run: trivy --version
+      # Exits 1 on a finding that is not in the baseline, and also on a baseline entry for an image no longer deployed,
+      # so the recorded debt can only go down. Any exception still needs an owner and an expiry in scan-policy.yaml.
+      - name: Every image is no worse than it was on 2026-11-15
+        run: python3 scripts/scan-images.py
