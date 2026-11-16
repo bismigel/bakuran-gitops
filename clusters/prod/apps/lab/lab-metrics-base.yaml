@@ -1,0 +1,25 @@
+# The namespace and scrape ConfigMap for the lab VictoriaMetrics instance.
+#
+# These were in manifests/base/lab-metrics/ with no Application pointing at them. The Helm Application next door creates
+# the StatefulSet, which mounts the ConfigMap - so the pod sat Pending for 25 hours on
+# `configmap "vm-scrape-config" not found` while everything reported Synced, because "Synced" only ever described the
+# resources an Application owns.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lab-metrics-base
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"      # before the Helm chart that mounts it
+spec:
+  project: prod
+  source:
+    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/lab-metrics
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lab-metrics
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]

@@ -38,60 +38,88 @@ spec:
               image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
               command: ["/bin/sh", "-c"]
               args:
-                - |
-                  set -u
-                  AM="http://alertmanager.monitoring.svc:9093/api/v2/alerts"
-                  BASE="http://forgejo.forgejo.svc.cluster.local:3000/api/v1"
-                  TOKEN="$(cat /etc/forgejo/token)"
-                  HOST="$(cat /proc/sys/kernel/hostname)"
-                  # 72h = three missed daily syncs.
-                  MAX_AGE=259200
-                  now=$(date -u +%s)
-                  stale=0
-
-                  repos=$(curl -sf -m 20 -H "Authorization: token $TOKEN" \
-                            "$BASE/repos/search?limit=100&mirror=true" \
-                          | tr ',' '\n' | grep -o '"full_name":"[^"]*/[^"]*"' \
-                          | cut -d'"' -f4 | cut -d/ -f2 | sort -u)
-
-                  if [ -z "$repos" ]; then
-                    echo "FAIL: no mirrors returned by the API"
-                    curl -s -m 10 -X POST -H 'Content-Type: application/json' \
-                      -d "[{\"labels\":{\"alertname\":\"ForgejoMirrorCheckBroken\",\"severity\":\"warning\",\"instance\":\"$HOST\"},\"annotations\":{\"summary\":\"Forgejo returned no mirrors to the freshness check\",\"description\":\"Either the API is down or the token lost read access. Auto-resolves when the next run sees repositories again.\"}}]" \
-                      "$AM" || true
-                    exit 1
-                  fi
-
-                  for r in $repos; do
-                    ts=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r" \
-                         | tr ',' '\n' | grep -o '"mirror_updated":"[^"]*"' | cut -d'"' -f4)
-                    iso=$(echo "$ts" | tr 'T' ' ' | tr -d 'Z')
-                    epoch=$(date -u -d "$iso" +%s 2>/dev/null || echo 0)
-                    if [ "$epoch" -eq 0 ]; then
-                      echo "FAIL $r: no usable mirror_updated ('$ts')"
-                      stale=$((stale+1))
-                      curl -s -m 10 -X POST -H 'Content-Type: application/json' \
-                        -d "[{\"labels\":{\"alertname\":\"ForgejoMirrorStale\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$r\"},\"annotations\":{\"summary\":\"$r has no mirror timestamp\",\"description\":\"The mirror exists but Forgejo reports no last-sync time.\"}}]" \
-                        "$AM" || true
-                      continue
+                  - |
+                    #!/bin/sh
+                    # Are the git mirrors still syncing?
+                    #
+                    # Rewritten 2026-11-16. The first version only knew about *pull* mirrors: it read `mirror_updated` and treated a missing
+                    # value as stale. That was correct while GitHub was the origin and Forgejo pulled from it. After the migration these
+                    # repositories are origins with a *push* mirror to GitHub, so `mirror_updated` is empty, the age arithmetic produced an
+                    # absurd number, and six repositories fired "has not mirrored in 17758458h" while every one of them was mirroring fine.
+                    #
+                    # A monitor that reports a nonsense age is worse than no monitor: it teaches people to ignore the alert.
+                    #
+                    # Now: take the newest of the two timestamps a repository can have - `mirror_updated` (pull) and the push mirror's
+                    # `last_update` - and only alert when a repository has neither, or when the newest one is older than 72h.
+                    set -u
+                    AM="http://alertmanager.monitoring.svc:9093/api/v2/alerts"
+                    BASE="http://forgejo.forgejo.svc.cluster.local:3000/api/v1"
+                    TOKEN="$(cat /etc/forgejo/token)"
+                    HOST="$(cat /proc/sys/kernel/hostname)"
+                    MAX_AGE=259200          # 72h = three missed daily syncs
+                    now=$(date -u +%s)
+                    stale=0
+                    checked=0
+                    
+                    fire() {
+                      curl -s -m 10 -X POST -H 'Content-Type: application/json' -d "$1" "$AM" || true
+                    }
+                    
+                    alert() {   # alert <repo> <summary>
+                      fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorStale\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"annotations\":{\"summary\":\"$2\"}}]"
+                    }
+                    
+                    resolve() {
+                      fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorStale\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"endsAt\":\"$(date -u -d @0 +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo 1970-01-01T00:00:00Z)\"}]" >/dev/null 2>&1 || true
+                    }
+                    
+                    # Every repository this instance mirrors, in either direction.
+                    repos=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/search?limit=100" \
+                      | tr ',' '\n' | grep -o '"full_name":"[^"]*/[^"]*"' | cut -d'"' -f4 | cut -d/ -f2 | sort -u)
+                    
+                    if [ -z "$repos" ]; then
+                      echo "FAIL: no repositories returned by the API"
+                      fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorCheckBroken\",\"severity\":\"warning\",\"instance\":\"$HOST\"},\"annotations\":{\"summary\":\"the Forgejo mirror check cannot list repositories\"}}]"
+                      exit 1
                     fi
-                    age=$((now - epoch))
-                    if [ "$age" -gt "$MAX_AGE" ]; then
-                      echo "STALE $r: ${age}s since last sync"
-                      stale=$((stale+1))
-                      curl -s -m 10 -X POST -H 'Content-Type: application/json' \
-                        -d "[{\"labels\":{\"alertname\":\"ForgejoMirrorStale\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$r\"},\"annotations\":{\"summary\":\"$r has not mirrored from GitHub in $((age/3600))h\",\"description\":\"Forgejo pull mirrors sync daily. Three missed syncs means the GitHub credential, the network path, or the mirror itself is broken. Auto-resolves when the mirror syncs again.\"},\"endsAt\":\"$(date -u -d @$((now+43200)) +%Y-%m-%dT%H:%M:%SZ)\"}]" \
-                        "$AM" || true
-                    else
-                      # Explicit resolve: same labels, endsAt now.
-                      curl -s -m 5 -X POST -H 'Content-Type: application/json' \
-                        -d "[{\"labels\":{\"alertname\":\"ForgejoMirrorStale\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$r\"},\"endsAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]" \
-                        "$AM" >/dev/null 2>&1 || true
-                    fi
-                  done
-
-                  echo "checked $(echo "$repos" | wc -w) mirror(s), stale: $stale"
-                  [ "$stale" -eq 0 ]
+                    
+                    for r in $repos; do
+                      ts=""
+                      # Pull mirror (the mirror-of-GitHub case): mirror_updated on the repository.
+                      pull=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r" \
+                             | tr ',' '\n' | grep -o '"mirror_updated":"[^"]*"' | cut -d'"' -f4)
+                      # Push mirror (the origin-with-a-mirror case): last_update on the mirror entry.
+                      push=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r/push_mirrors" \
+                             | tr ',' '\n' | grep -o '"last_update":"[^"]*"' | head -1 | cut -d'"' -f4)
+                    
+                      for cand in "$pull" "$push"; do
+                        case "$cand" in ""|1970*) continue;; esac
+                        e=$(date -u -d "$(echo "$cand" | tr 'T' ' ' | tr -d 'Z')" +%s 2>/dev/null || echo 0)
+                        [ "$e" -gt 0 ] || continue
+                        if [ -z "$ts" ] || [ "$e" -gt "$ts" ]; then ts=$e; fi
+                      done
+                    
+                      checked=$((checked+1))
+                      if [ -z "$ts" ]; then
+                        echo "NO-TIMESTAMP $r: neither mirror_updated nor a push mirror last_update"
+                        alert "$r" "$r has no mirror timestamp: it is neither a pull mirror nor pushing to one"
+                        stale=$((stale+1))
+                        continue
+                      fi
+                      age=$((now - ts))
+                      if [ "$age" -gt "$MAX_AGE" ]; then
+                        hours=$((age / 3600))
+                        echo "STALE $r: last sync ${hours}h ago"
+                        alert "$r" "$r last synced ${hours}h ago (threshold 72h)"
+                        stale=$((stale+1))
+                      else
+                        echo "ok $r: $((age / 3600))h ago"
+                        resolve "$r"
+                      fi
+                    done
+                    
+                    echo "checked ${checked} repo(s), stale: ${stale}"
+                    [ "$stale" -eq 0 ]
               volumeMounts:
                 - name: token
                   mountPath: /etc/forgejo
