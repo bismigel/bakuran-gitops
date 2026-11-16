@@ -1,0 +1,35 @@
+# The runner's registration token, from Bitwarden.
+#
+# It is consumed once, by the init container, which writes /data/.runner and never needs it again - but a pod recreated
+# with a fresh volume does, and a token that lived only in a terminal is a token nobody has when that day comes.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: forgejo-runner-registration
+  namespace: forgejo
+spec:
+  refreshInterval: 24h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: forgejo-runner-registration }
+  data:
+    - secretKey: token
+      remoteRef: { key: forgejo-runner-registration }
+---
+# The triage agent's configuration: two JSON files that carry the Telegram bot token and the agent definition.
+#
+# Stored whole rather than decomposed, because they are files the agent reads verbatim; splitting them into key/value
+# pairs would mean re-implementing their structure here and drifting from it.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: triage
+  namespace: kagent
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: triage }
+  data:
+    - secretKey: config.json
+      remoteRef: { key: kagent-triage-config }
+    - secretKey: agent-card.json
+      remoteRef: { key: kagent-triage-agent-card }

@@ -1,0 +1,35 @@
+# The media stack's shared credential Secret, from Bitwarden.
+#
+# These values were mirrored into this Secret by bakuran-infra/scripts/media-setup-secret.sh, which prefers Bitwarden and
+# falls back to scraping each app's /config. That fallback is why the copy could drift from the vault: after a PVC
+# restore an app regenerates its own API key and the vault's copy is stale. ESO makes the vault the only writer, and
+# makes staleness visible (the ExternalSecret stops syncing) instead of silent.
+#
+# qbt-password maps to the vault's qbittorrent-password: the Secret's key name predates the vault's naming and is kept so
+# nothing that reads it has to change.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: media-setup
+  namespace: media
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: media-setup }
+  data:
+    - { secretKey: jellyfin-admin-pass,   remoteRef: { key: jellyfin-admin-pass } }
+    - { secretKey: jellyfin-admin-user,   remoteRef: { key: jellyfin-admin-user } }
+    - { secretKey: jellyfin-anton,        remoteRef: { key: jellyfin-anton } }
+    - { secretKey: jellyfin-ciceley,      remoteRef: { key: jellyfin-ciceley } }
+    - { secretKey: jellyfin-delfin,       remoteRef: { key: jellyfin-delfin } }
+    - { secretKey: jellyfin-guest,        remoteRef: { key: jellyfin-guest } }
+    - { secretKey: jellyfin-trish,        remoteRef: { key: jellyfin-trish } }
+    - { secretKey: lazylibrarian-api-key, remoteRef: { key: lazylibrarian-api-key } }
+    - { secretKey: nzbgeek_api,           remoteRef: { key: nzbgeek_api } }
+    - { secretKey: opensubtitles-pass,    remoteRef: { key: opensubtitles-pass } }
+    - { secretKey: opensubtitles-user,    remoteRef: { key: opensubtitles-user } }
+    - { secretKey: prowlarr-api-key,      remoteRef: { key: prowlarr-api-key } }
+    - { secretKey: qbt-password,          remoteRef: { key: qbittorrent-password } }
+    - { secretKey: radarr-api-key,        remoteRef: { key: radarr-api-key } }
+    - { secretKey: sabnzbd-api-key,       remoteRef: { key: sabnzbd-api-key } }
+    - { secretKey: sonarr-api-key,        remoteRef: { key: sonarr-api-key } }

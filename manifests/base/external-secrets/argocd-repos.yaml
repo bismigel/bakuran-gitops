@@ -1,0 +1,71 @@
+# ArgoCD's repository credentials, from Bitwarden.
+#
+# Three of these were created by hand during setup. They are the most dangerous secrets in the estate to lose by
+# accident: without them ArgoCD cannot read the repository, so nothing deploys and nothing self-heals.
+#
+# sshPrivateKey is the deploy key for the GitHub-side repos; the Forgejo one uses an HTTP read token, because Forgejo's
+# own git server is inside the cluster and a token is simpler than a key there.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-bakuran-gitops
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: repo-bakuran-gitops
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: git@github.com:bismigel/bakuran-gitops.git
+        name: bakuran-gitops
+  data:
+    - secretKey: sshPrivateKey
+      remoteRef: { key: argocd-repo-bakuran-gitops }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-private-api
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: repo-private-api
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: git@github.com:bismigel/private-api.git
+  data:
+    - secretKey: sshPrivateKey
+      remoteRef: { key: argocd-repo-private-api }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-forgejo-bakuran-gitops
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: repo-forgejo-bakuran-gitops
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+        username: bismigel
+  data:
+    - secretKey: password
+      remoteRef: { key: forgejo-read-token }

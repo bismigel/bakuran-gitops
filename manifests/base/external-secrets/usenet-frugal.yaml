@@ -1,0 +1,30 @@
+# Usenet provider credentials for the downloads namespace, from Bitwarden.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: usenet-frugal
+  namespace: downloads
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: usenet-frugal }
+  data:
+    - secretKey: user
+      remoteRef: { key: usenet_frugal_user }
+    - secretKey: pass
+      remoteRef: { key: usenet_frugal_pass }
+---
+# The mirror monitor's token: it only needs to read mirror state, and it is a separate credential from the admin token on
+# purpose - a monitor that holds a deployment credential is a monitor that can deploy.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: forgejo-mirror-token
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: forgejo-mirror-token }
+  data:
+    - secretKey: token
+      remoteRef: { key: forgejo-monitor-token }
