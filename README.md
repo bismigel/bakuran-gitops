@@ -18,6 +18,19 @@ personal, and safe to break on purpose.
   ArgoCD is the Helm release `argocd`, chart `argo-cd` 10.10.5, not a raw manifest
   install.
 
+## What is in here
+
+| | |
+|---|---|
+| 29 app groups | one Application each; a linter fails the build if any path leaves `manifests/base/` |
+| 72 WorkflowTemplates | one per alert, **generated** from the Prometheus rules - a new alert arrives with a runbook in the same PR |
+| 4 required checks | manifest layout, image digests, alert-to-runbook links, and an image scan |
+| 50 images, 143 baselined findings | the scan fails on a finding that is **not** in the baseline, and on a baseline entry for an image nobody deploys, so the number can only go down |
+| 0 privileged workload containers | the 24 privileged pods in the cluster are Cilium (eBPF), Longhorn (storage) and Kepler (power); nothing in this repository asks for the flag |
+
+The runbook in each template is a command, not a paragraph: an alert fires, a workflow runs `ops/run`, and the runbook
+page is linked from the alert itself.
+
 ## Layout
 
 ```
