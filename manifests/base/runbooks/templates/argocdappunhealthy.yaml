@@ -44,7 +44,7 @@ spec:
           - {name: cmd}
       container:
         image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
-        command: [/kubectl]
+        command: [/bin/kubectl]
         args:
           - "-n"
           - "{{workflow.parameters.namespace}}"
