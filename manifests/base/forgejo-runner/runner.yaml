@@ -119,7 +119,20 @@ spec:
             runAsUser: 0
           command: ["/bin/sh", "-c"]
           args:
-            - apk add --no-cache python3 py3-yaml nodejs yamllint curl jq kustomize hugo pandoc kubectl >/dev/null && exec forgejo-runner daemon --config /etc/runner/config.yml
+            - |
+              set -e
+              apk add --no-cache python3 py3-yaml nodejs yamllint curl jq kustomize hugo pandoc kubectl >/dev/null
+              # trivy is not packaged by Alpine, so it is fetched at container start from a pinned release. The pin
+              # matters: an unpinned scanner turns into a scan that fails on a day nobody changed this repository.
+              if [ ! -x /usr/local/bin/trivy ]; then
+                curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+                  | tar -xz -C /usr/local/bin trivy
+              fi
+              exec forgejo-runner daemon --config /etc/runner/config.yml
+          env:
+            - name: TRIVY_VERSION
+              value: "0.76.2"
+
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { memory: 1Gi }
