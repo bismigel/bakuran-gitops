@@ -1,0 +1,26 @@
+# The most expensive failure of 2026-11-14: everything healthy, no egress. Seen five times, twice in one evening.
+#
+# YAML, not TOML: this is infrastructure-as-code and the estate has one config format.
+id: egress-map-stale-ifindex
+title: Selected pods cannot egress although the tunnel is up - Cilium's egress map holds a stale interface index
+severity: high
+blast_radius: node
+reversible: true
+runbook: docs/WIREGUARD-ROTATION.md
+runbook_repo: bakuran-infra
+measured: '2026-11-14'
+alerts:
+- WireGuardNoEgress
+detect:
+  commands:
+  - kubectl -n media exec $(kubectl -n media get pods -l egress-probe=true -o name | head -1 | cut -d/ -f2) -- wget -qO- -T 10 https://ifconfig.me
+  expect: any-fail
+diagnose:
+  commands:
+  - ssh root@192.168.2.81 'cat /sys/class/net/proton0/ifindex'
+  - kubectl -n kube-system exec $(kubectl -n kube-system get pods -l k8s-app=cilium --field-selector spec.nodeName=calamansi-intel -o name | head -1 | cut -d/ -f2) -c cilium-agent -- cilium-dbg bpf egress list | head -4
+  verdict: If the map's 'Egress Ifindex' differs from the live ifindex, this is it. Recreating proton0 changes the index and Cilium does not re-resolve it, so every selected pod is dropped while reporting Running and Healthy.
+remedy:
+  commands:
+  - kubectl -n kube-system delete pod -l k8s-app=cilium --field-selector spec.nodeName=calamansi-intel
+  why_safe: Deleting the Cilium agent pod makes it restart and re-resolve the interface. Datapath churn on one node for a few seconds; no state is touched and the agent comes back on its own.

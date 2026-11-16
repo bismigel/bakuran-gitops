@@ -1,0 +1,26 @@
+# The gate working as designed: the elector refuses to advertise a gateway whose tunnel does not handshake.
+#
+# YAML, not TOML: this is infrastructure-as-code and the estate has one config format.
+id: handshake-gate-refusing-label
+title: The tunnel election holds the lease but refuses egress-node - the tunnel does not handshake
+severity: medium
+blast_radius: node
+reversible: true
+runbook: docs/WIREGUARD-ROTATION.md
+runbook_repo: bakuran-infra
+measured: '2026-11-14'
+alerts:
+- WireGuardNoHandshake
+detect:
+  commands:
+  - ssh root@192.168.2.81 'journalctl -u tunnel-election --since "15 min ago" | grep -c "did not handshake"'
+  expect: contains:1
+diagnose:
+  commands:
+  - ssh root@192.168.2.81 'wg show proton0 latest-handshakes; wg show proton0 | grep -E "endpoint|allowed"'
+  - kubectl -n kube-system get secret wg-proton-private-key -o jsonpath='{.data.private-key}' | base64 -d | wg pubkey
+  - ssh root@192.168.2.81 'wg show proton0 public-key'
+  verdict: 'No handshake, or a public key from the Secret that differs from the live interface, means the key in the cluster is stale. A second concurrent tunnel cannot be the answer: Proton allows one session per account (measured 2026-11-13).'
+remedy:
+  commands: []
+  why_safe: No automatic remedy on purpose. The fix is replacing the key in Bitwarden (the ESO machine token can write) and letting the elector retry - a script that edits secrets on its own is the wrong thing to build.
