@@ -152,12 +152,13 @@ data:
     - **Declare, never hand-edit.** Cluster state changes in `bakuran-gitops` via PR; if you fix
       runtime state by hand, say so and open the declarative PR in the same breath
       ([ADR 0003](docs/decisions/adr-0003-tunnel-unit-has-no-endpoint.md) is what that cost once).
+    - **Executable code is Go** ([ADR 0016](docs/decisions/adr-0016-executable-code-is-go.md)): no new
+      Python, no new shell, no per-task debate. TOML/YAML/Nix are data and config, not code.
     - **Verify before asserting**, with a command, and cite the anchor rather than a transcript.
-    - **A check that cannot fail is worthless.** Prove a guard in both directions, and prove the *probe*
-      too: a positive and a negative control in the same breath.
-      Two failures in one session came from a probe that could never succeed (bash cannot open a unix
-      socket with `<>`) and a query against a name that did not exist (`mymaster` for a chart whose
-      master is `argocd`). `scripts/test-guards.py` mutation-tests the guards themselves.
+    - **A check that cannot fail is worthless.** Prove a guard in both directions, and the *probe* too:
+      a positive and a negative control in the same breath. Two failures came from a probe that could
+      never succeed and a query against a name that did not exist. `scripts/test-guards.py`
+      mutation-tests the guards themselves.
     - **Read structure from a parser, not from prettified output.** Counting indentation in
       `sed 's/^/  /'` output was miscounted three times in one session and briefly made two guards
       wrong; use `cat -A`, `repr()`, or a YAML/TOML parse instead.
