@@ -18,19 +18,6 @@ personal, and safe to break on purpose.
   ArgoCD is the Helm release `argocd`, chart `argo-cd` 10.10.5, not a raw manifest
   install.
 
-## What is in here
-
-| | |
-|---|---|
-| 29 app groups | one Application each; a linter fails the build if any path leaves `manifests/base/` |
-| 72 WorkflowTemplates | one per alert, **generated** from the Prometheus rules - a new alert arrives with a runbook in the same PR |
-| 4 required checks | manifest layout, image digests, alert-to-runbook links, and an image scan |
-| 50 images, 143 baselined findings | the scan fails on a finding that is **not** in the baseline, and on a baseline entry for an image nobody deploys, so the number can only go down |
-| 0 privileged workload containers | the 24 privileged pods in the cluster are Cilium (eBPF), Longhorn (storage) and Kepler (power); nothing in this repository asks for the flag |
-
-The runbook in each template is a command, not a paragraph: an alert fires, a workflow runs `ops/run`, and the runbook
-page is linked from the alert itself.
-
 ## Layout
 
 ```
@@ -138,11 +125,18 @@ Homelab Agent, Runbook and Grafana at a **24h** session, Homelab Media at **730h
 Four layers, each of which turns a class of mistake into something loud rather than
 silent. They are listed in the order they catch things:
 
-1. **CI (before merge)** — every kustomization is built; the render is checked with
-   `kubeconform`; `conftest`/OPA runs policy **on the rendered output** (so a patch
-   cannot smuggle past it); `gitleaks` scans for secrets; `promtool` parses the
-   Prometheus rules. A glob that matches nothing is a **hard error** — one check had
-   silently validated nothing for days because its glob was empty after a move.
+1. **CI (before merge)** — four required checks: `yamllint` over every manifest and the image
+   digests are pinned and current; the manifest layout and duplicate objects; every alert's
+   `runbook_url` resolves to a page and an anchor in the site repo; and an image scan against
+   `scripts/scan-baseline.json`, which fails on a finding that is not baselined *and* on a
+   baseline entry for an image nobody deploys, so the count can only go down.
+   A glob that matches nothing is a **hard error** — one check had silently validated nothing
+   for days because its glob was empty after a move.
+
+   Workstation-only, and named here rather than implied: `kubeconform`, `conftest`/OPA policy on
+   the rendered output, `gitleaks` and `promtool` all need tools the CI runner does not carry, so
+   they are run by hand before a change leaves the laptop. That is weaker than a gate and this
+   paragraph used to claim otherwise.
 2. **AppProject (blast radius)** — every Application runs in `prod` or `staging`, never
    `default`. The project lists exactly the namespaces and source repos an app may
    touch, so a wrong `destination.namespace` is an API rejection instead of an
