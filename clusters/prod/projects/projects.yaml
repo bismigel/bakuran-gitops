@@ -35,9 +35,9 @@ spec:
     - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
     - git@github.com:bismigel/private-api.git
     - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bismigel-site.git
-    - https://github.com/bismigel/status-api
+    - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/status-api.git
     - https://github.com/Ciceley/ciceleywebsite
-    - https://github.com/bismigel/tools-site
+    - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/tools-site.git
     # chart repositories
     - https://helm.cilium.io
     - https://charts.jetstack.io

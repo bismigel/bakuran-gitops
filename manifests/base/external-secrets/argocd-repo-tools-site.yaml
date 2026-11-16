@@ -1,0 +1,23 @@
+# ArgoCD's read credential for the tools-site repository, now that it lives on Forgejo.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-forgejo-tools-site
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: repo-forgejo-tools-site
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/tools-site.git
+        username: bismigel
+        password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef: { key: forgejo-read-token }
