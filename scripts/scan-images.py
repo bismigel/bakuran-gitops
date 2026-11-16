@@ -9,6 +9,7 @@ Exit codes: 0 clean (or only accepted findings), 1 policy violated, 2 could not 
 from __future__ import annotations
 
 import datetime
+import pathlib
 import json
 import re
 import subprocess
@@ -61,8 +62,26 @@ def scan(image: str) -> list[dict]:
     return out
 
 
+BASELINE = pathlib.Path(__file__).resolve().parent / "scan-baseline.json"
+
+
+def load_baseline() -> dict[str, set[str]]:
+    """Findings that existed before the scan had a working trigger.
+
+    Why a baseline instead of exceptions: 218 CRITICAL findings across 34 images on 2026-11-15 - burning that down is a
+    series of image upgrades, not 218 waivers in a YAML file. The baseline makes the scan a RATCHET: today's debt is
+    recorded, anything new fails, and an entry for an image that is no longer deployed also fails - so the number can
+    only go down.
+    """
+    if not BASELINE.is_file():
+        return {}
+    data = json.loads(BASELINE.read_text())
+    return {img: {cve.split(" ")[0] for cve in cves} for img, cves in (data.get("images") or {}).items()}
+
+
 def main() -> int:
     policy = load_policy()
+    baseline = load_baseline()
     fail_on = set(policy.get("fail_on") or [])
     report = set(policy.get("report") or [])
     skip = {s["image"] for s in (policy.get("skip") or [])}
@@ -75,13 +94,16 @@ def main() -> int:
         return 2
     print(f"  {len(refs)} distinct image references, failing on {sorted(fail_on)}")
 
-    violations, accepted, expired = [], [], []
+    violations, accepted, expired, baselined = [], [], [], []
     for image in refs:
         if image in skip:
             continue
         findings = scan(image)
         for f in findings:
             if f["severity"] not in fail_on | report:
+                continue
+            if f["id"] in baseline.get(image.split("@")[0], set()) and f["severity"] in fail_on:
+                baselined.append((image, f))
                 continue
             match = next((e for e in exceptions
                           if e["id"] == f["id"] and (e.get("image") in (None, image))), None)
@@ -97,6 +119,10 @@ def main() -> int:
             else:
                 accepted.append((image, f, None))
 
+    for image, f in baselined[:3]:
+        print(f"  {f['severity']:8} {image.split('@')[0]} {f['id']} ({f['package']}) — baselined 2026-11-15")
+    if len(baselined) > 3:
+        print(f"  … {len(baselined) - 3} more baselined finding(s)")
     for image, f, match in accepted:
         tag = f"accepted by exception until {match['expires']}" if match else "reported only"
         print(f"  {f['severity']:8} {image.split('@')[0]} {f['id']} ({f['package']}) — {tag}")
@@ -106,10 +132,15 @@ def main() -> int:
     for image, f, match in expired:
         print(f"  EXPIRED exception {match['id']} on {image.split('@')[0]} (expired {match['expires']})")
 
-    if violations or expired:
-        print(f"  {len(violations)} violation(s), {len(expired)} expired exception(s)")
+    # a baseline entry for an image nobody deploys any more is debt that was quietly forgotten
+    deployed = {i.split("@")[0] for i in refs}
+    stale = sorted(img for img in baseline if img not in deployed and img not in skip)
+    for img in stale[:5]:
+        print(f"  STALE baseline entry for {img} — the image is no longer deployed; remove it from scan-baseline.json")
+    if violations or expired or stale:
+        print(f"  {len(violations)} violation(s), {len(expired)} expired exception(s), {len(stale)} stale baseline entr(ies)")
         return 1
-    print("  no policy violations")
+    print(f"  no violations beyond the baseline ({len(baselined)} baselined finding(s) on {len(baseline)} image(s))")
     return 0
 
 

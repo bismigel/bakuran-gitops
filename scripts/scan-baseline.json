@@ -1,0 +1,217 @@
+{
+  "_comment": "CRITICAL findings that predate the scan having a working trigger (2026-11-15). Each image lists the CVEs known at baseline time. A finding NOT in this list fails the build; an entry here for an image no longer deployed fails too, so the baseline cannot rot. Burn it down by bumping images and removing entries.",
+  "generated": "2026-11-15",
+  "images": {
+    "alpine/socat:1.8.0.0": [
+      "CVE-2026-31789"
+    ],
+    "codeberg.org/forgejo/forgejo": [
+      "CVE-2026-123158"
+    ],
+    "curlimages/curl:8.11.1": [
+      "CVE-2026-111497",
+      "CVE-2026-31789"
+    ],
+    "docker.io/curlimages/curl:8.11.1": [
+      "CVE-2026-111497",
+      "CVE-2026-31789"
+    ],
+    "docker.io/vaultwarden/server:1.37.5": [
+      "CVE-2026-44172",
+      "CVE-2026-49261"
+    ],
+    "getmeili/meilisearch:v1.41.0": [
+      "CVE-2026-31789"
+    ],
+    "ghcr.io/advplyr/audiobookshelf:2.19.0": [
+      "CVE-2024-11403",
+      "CVE-2024-56171",
+      "CVE-2025-47917",
+      "CVE-2025-7783",
+      "CVE-2026-111497",
+      "CVE-2026-31789",
+      "CVE-2026-59873",
+      "CVE-2026-69240",
+      "CVE-2026-90711"
+    ],
+    "ghcr.io/flaresolverr/flaresolverr:v3.5.2": [
+      "CVE-2023-45853",
+      "CVE-2025-7458",
+      "CVE-2026-106195",
+      "CVE-2026-106237",
+      "CVE-2026-111497",
+      "CVE-2026-115905",
+      "CVE-2026-118333",
+      "CVE-2026-118337",
+      "CVE-2026-13221",
+      "CVE-2026-42496",
+      "CVE-2026-58016",
+      "CVE-2026-6653",
+      "CVE-2026-8376",
+      "CVE-2026-87500",
+      "CVE-2026-87512",
+      "CVE-2026-87534",
+      "CVE-2026-87544",
+      "CVE-2026-87621",
+      "CVE-2026-87654",
+      "CVE-2026-91729",
+      "GHSA-6q48-6c7w-9gw2"
+    ],
+    "ghcr.io/immich-app/immich-machine-learning:v3.3.4": [
+      "CVE-2026-112393",
+      "CVE-2026-112398",
+      "CVE-2026-112403",
+      "CVE-2026-112900",
+      "CVE-2026-13221",
+      "CVE-2026-42496",
+      "CVE-2026-63374",
+      "CVE-2026-8376",
+      "CVE-2026-96639",
+      "GHSA-6q48-6c7w-9gw2"
+    ],
+    "ghcr.io/immich-app/immich-server:v3.3.4": [
+      "CVE-2026-106445",
+      "CVE-2026-106446",
+      "CVE-2026-111497",
+      "CVE-2026-42216",
+      "CVE-2026-42217",
+      "CVE-2026-59873",
+      "CVE-2026-6653",
+      "CVE-2026-90711"
+    ],
+    "ghcr.io/karakeep-app/karakeep-chrome:release": [
+      "CVE-2026-6653"
+    ],
+    "ghcr.io/karakeep-app/karakeep:0.34.1": [
+      "CVE-2023-45853",
+      "CVE-2023-6879",
+      "CVE-2024-24790",
+      "CVE-2025-47917",
+      "CVE-2025-68121",
+      "CVE-2026-111497",
+      "CVE-2026-34873",
+      "CVE-2026-34875",
+      "CVE-2026-58016",
+      "CVE-2026-6653",
+      "GHSA-cg2g-xh64-v4q7"
+    ],
+    "ghcr.io/kube-vip/kube-vip:v0.8.7": [
+      "CVE-2025-68121",
+      "CVE-2026-33186"
+    ],
+    "ghcr.io/pab1it0/prometheus-mcp-server": [
+      "CVE-2023-45853",
+      "CVE-2025-7458",
+      "CVE-2026-102268",
+      "CVE-2026-111497",
+      "CVE-2026-13221",
+      "CVE-2026-42496",
+      "CVE-2026-63374",
+      "CVE-2026-8376",
+      "CVE-2026-96760",
+      "GHSA-6q48-6c7w-9gw2"
+    ],
+    "ghcr.io/recyclarr/recyclarr:7.4.0": [
+      "CVE-2026-31789"
+    ],
+    "grafana/grafana:10.4.0": [
+      "CVE-2024-24790",
+      "CVE-2024-8986",
+      "CVE-2025-68121",
+      "CVE-2026-33186",
+      "GHSA-r277-6w6q-xmqw"
+    ],
+    "jellyfin/jellyfin:12.2": [
+      "CVE-2026-111497",
+      "CVE-2026-6653",
+      "CVE-2026-70188",
+      "CVE-2026-88092"
+    ],
+    "linuxserver/bazarr": [
+      "CVE-2026-111497",
+      "CVE-2026-112393",
+      "CVE-2026-112398",
+      "CVE-2026-112403",
+      "CVE-2026-112900",
+      "CVE-2026-58016",
+      "CVE-2026-96639",
+      "GHSA-6q48-6c7w-9gw2"
+    ],
+    "linuxserver/kavita:version-v0.9.1.4": [
+      "CVE-2026-70188",
+      "CVE-2026-88092"
+    ],
+    "linuxserver/lazylibrarian:version-754d0eb6": [
+      "GHSA-6q48-6c7w-9gw2"
+    ],
+    "linuxserver/prowlarr:develop": [
+      "CVE-2026-111497",
+      "CVE-2026-70188",
+      "CVE-2026-88092"
+    ],
+    "linuxserver/radarr": [
+      "CVE-2026-111497",
+      "CVE-2026-70188",
+      "CVE-2026-88092"
+    ],
+    "linuxserver/sabnzbd": [
+      "CVE-2026-102268",
+      "CVE-2026-111497",
+      "GHSA-6q48-6c7w-9gw2"
+    ],
+    "linuxserver/sonarr": [
+      "CVE-2026-111497"
+    ],
+    "lscr.io/linuxserver/qbittorrent:4.6.7-r0-ls353": [
+      "CVE-2025-58050",
+      "CVE-2026-111497",
+      "CVE-2026-31789"
+    ],
+    "nginx:alpine": [
+      "CVE-2026-111497"
+    ],
+    "nousresearch/hermes-agent:stable": [
+      "CVE-2026-60002",
+      "CVE-2026-6653",
+      "CVE-2026-99083"
+    ],
+    "otel/opentelemetry-collector-contrib:0.110.0": [
+      "CVE-2025-68121",
+      "CVE-2026-33186",
+      "CVE-2026-33815",
+      "CVE-2026-33816",
+      "CVE-2026-77405",
+      "CVE-2026-77408",
+      "CVE-2026-77411"
+    ],
+    "otel/opentelemetry-collector-contrib:0.140.0": [
+      "CVE-2025-68121",
+      "CVE-2026-33186",
+      "CVE-2026-33815",
+      "CVE-2026-33816",
+      "CVE-2026-77405",
+      "CVE-2026-77408",
+      "CVE-2026-77411"
+    ],
+    "postgres:16-alpine": [
+      "CVE-2025-68121"
+    ],
+    "prom/alertmanager:v0.27.0": [
+      "CVE-2024-24790",
+      "CVE-2025-68121"
+    ],
+    "prom/node-exporter:v1.7.0": [
+      "CVE-2024-24790",
+      "CVE-2025-68121"
+    ],
+    "prom/prometheus:v2.51.0": [
+      "CVE-2024-24790",
+      "CVE-2024-41110",
+      "CVE-2025-68121",
+      "CVE-2026-33186"
+    ],
+    "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0": [
+      "CVE-2025-68121"
+    ]
+  }
+}
