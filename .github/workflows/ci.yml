@@ -1,13 +1,22 @@
+# Image digests and Prometheus rules: a manifest, a script or a workflow. A docs-only PR has nothing to prove here.
 name: gitops-ci
 
 on:
   pull_request:
-  push:
-    branches: [main]
+    paths:
+      - "manifests/**"
+      - "clusters/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+      - "install/**"
 
 permissions:
   contents: read
 
+# No push trigger: a squash merge lands exactly the content the PR already proved, so the post-merge run
+# repeated a check that had just passed (story 13.2 measured 61 post-merge runs against 37 PR runs).
+# guard-main.yml still runs on every push, so a direct push to main is still caught.
+#
 # A fixup push cancels the run it superseded instead of paying for both. GitHub bills a minimum of one minute
 # per job, so a review conversation with five pushes used to cost five runs of every workflow. Only pull-request
 # runs cancel; a push to main always runs to completion.
