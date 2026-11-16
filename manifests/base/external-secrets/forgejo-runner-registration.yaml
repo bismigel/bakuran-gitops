@@ -14,22 +14,6 @@ spec:
   data:
     - secretKey: token
       remoteRef: { key: forgejo-runner-registration }
----
-# The triage agent's configuration: two JSON files that carry the Telegram bot token and the agent definition.
-#
-# Stored whole rather than decomposed, because they are files the agent reads verbatim; splitting them into key/value
-# pairs would mean re-implementing their structure here and drifting from it.
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: triage
-  namespace: kagent
-spec:
-  refreshInterval: 1h
-  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
-  target: { name: triage }
-  data:
-    - secretKey: config.json
-      remoteRef: { key: kagent-triage-config }
-    - secretKey: agent-card.json
-      remoteRef: { key: kagent-triage-agent-card }
+# NOT HERE: kagent/triage. It looks like a hand-made secret and is not one - kagent's Agent controller owns it, and ESO
+# refuses to take ownership (`already owned by another Agent controller triage`). Measured 2026-11-16. Its contents are
+# generated from the Agent resource, so the token it carries comes from that resource, not from a terminal.
