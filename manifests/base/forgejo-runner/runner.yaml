@@ -98,10 +98,12 @@ spec:
       containers:
         - name: runner
           image: data.forgejo.org/forgejo/runner:12@sha256:eb6e7bc21973382d261e6eb883dbd27b8cb56939d33a3bfd79a1352b7f9a33a0
-          # Measured in the pod on 2026-11-16: the runner image carries git and bash, and NOT python3 - which is what
-          # every checker in these repos is written in. Installing the two packages the checks need keeps the executor
-          # honest without a privileged Docker daemon. The better end state is a purpose-built image (runner + python3 +
-          # pyyaml + trivy) built once and pinned; this is the version that costs no build pipeline.
+          # Measured in the pod on 2026-11-16: the runner image carries git and bash, and neither python3 nor node.
+          #   * python3 + py3-yaml - every checker in these repos is python3
+          #   * nodejs - `actions/checkout` and every other action/* is a JavaScript action; without node the job
+          #     clones the repository and then stops, with no error in the runner log. That cost one failed run to find.
+          # The better end state is a purpose-built image (runner + python3 + pyyaml + node + trivy) built once and
+          # pinned; this is the version that costs no build pipeline.
           #
           # The image runs as uid 1000, which cannot apk-add anything. The container is therefore root - and that is
           # contained deliberately: no privileged flag, no hostPath, no host network, so uid 0 in this pod reaches a
@@ -111,7 +113,7 @@ spec:
             runAsUser: 0
           command: ["/bin/sh", "-c"]
           args:
-            - apk add --no-cache python3 py3-yaml >/dev/null && exec forgejo-runner daemon --config /etc/runner/config.yml
+            - apk add --no-cache python3 py3-yaml nodejs >/dev/null && exec forgejo-runner daemon --config /etc/runner/config.yml
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { memory: 1Gi }
