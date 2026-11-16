@@ -44,17 +44,16 @@ spec:
           - {name: cmd}
       container:
         image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
-        command: [sh, -c]
+        command: [/kubectl]
         args:
-          - |
-            echo "== {{inputs.parameters.text}}"
-            kubectl -n {{workflow.parameters.namespace}} {{inputs.parameters.cmd}} 2>&1 | head -80
-            echo
+          - "-n"
+          - "{{workflow.parameters.namespace}}"
+          - "{{inputs.parameters.cmd}}"
     - name: note
       inputs:
         parameters: [{name: text}]
       container:
-        image: registry.k8s.io/kubectl:v1.34.5@sha256:c7bf8cf6e79f474fda2623a7b98572a1b909c4d912b05062b444ffe79883fdbe
+        image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
         command: [sh, -c]
         args:
           - |
