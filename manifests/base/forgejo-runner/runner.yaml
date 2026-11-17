@@ -23,6 +23,13 @@ data:
       # `scan.yml` 27 s and `runbook-links.yml` 34 s, with one run waiting **649 s** (10.8 min). The cause is not throughput
       # (341 runs a week is 2 an hour) but collision: `release.yml` peaks at 672 s and `scan.yml` at 503 s, and on two slots a
       # pair of those blocks every 30-second check behind them.
+      # NOT autoscaled, and this is the measurement that says why: peak **concurrent** jobs in the seven days to
+      # 2026-11-17 was **2**, against a capacity of 4. An autoscaler here would idle, and it is not free —
+      # forgejo-runner v13.2.1 has no scaler of its own (its `one-job` command exists so something else can drive ephemeral
+      # runners), driving that means a controller holding a registration token, and the runner file is on a RWO PVC so
+      # replicas cannot share it. If the peak ever approaches capacity the order is: capacity first (one line, no cost),
+      # then a second runner labelled `heavy:host` so an eleven-minute release build cannot sit in front of a
+      # thirty-second check, and only then scale-out. The query that answers "am I close" is on PR #60.
       capacity: 4
       timeout: 30m
       fetch_timeout: 5m
