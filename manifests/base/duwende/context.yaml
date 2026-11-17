@@ -24,7 +24,7 @@ data:
     
     | Claim | Where | Example |
     |---|---|---|
-    | what is true *right now*, measured | [`STATE.md`](STATE.md), [`ops/`](ops) | nodes, pods, backup freshness |
+    | what is true *right now*, measured | [`STATE.md`](STATE.md) — regenerate with `state` | nodes, pods, backup freshness |
     | what the infrastructure *is*, verified and dated | [`docs/reference/network.md`](docs/reference/network.md), [`docs/reference/storage.md`](docs/reference/storage.md), [`docs/reference/system.md`](docs/reference/system.md) | addressing, mounts, invariants |
     | *why* a decision was made, and what it costs | [`docs/decisions/`](docs/decisions/README.md) | why the tunnel unit holds no endpoint |
     | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) / [`PLAN.org`](PLAN.org) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
@@ -233,10 +233,10 @@ data:
     | a diagnosis someone already made | `ops-run --list`, then `ops-run <id>` — run it, don't re-derive it |
     | run one alert's diagnostic in the cluster | `ops-diag <alert>` (Go, built by nix: `nix build .#ops-diag`) |
     | is someone streaming right now | `watching` — 0 means the media path is safe to touch; non-zero means wait |
-    | am I on Forgejo or GitHub, and did the mirror take it | `ops/where <repo>` — origin is Forgejo, GitHub the mirror |
+    | am I on Forgejo or GitHub, and did the mirror take it | `where <repo>` — origin is Forgejo, GitHub the mirror |
     | what a node drain can take down | `audit-workloads --strict` — multi-replica workloads with no PDB and no justification |
     | is mount X there / how full | `mounts [host]` |
-    | are backups current | `ops/backups` |
+    | are backups current | `backups` |
     | what does a mount hold, what protects it | `storage.md` (one row per mount) |
     | network, VLAN, addressing, invariants | `network.md` |
     | change the router | `opentofu/opnsense` (plan first) + runbook 22; **never** hand-edit `config.xml` |
@@ -1784,8 +1784,8 @@ data:
     Ask it a question and it reads the cluster with its own read-only credentials, then answers.
     
     ```bash
-    ops/ask "why is the media pod restarting?"
-    ops/ask --ns media "which pods have restarted most?"
+    ask "why is the media pod restarting?"
+    ask --ns media "which pods have restarted most?"
     ```
     
     It costs one DeepSeek call per question, so nothing calls it automatically. It holds no repository
