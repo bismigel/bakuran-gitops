@@ -193,7 +193,7 @@ data:
       beliefs caused seven outages on 2026-10-25.
     - **After a structural change, update this block by hand** — a mistake worth remembering goes in
       `guides/agents-pitfalls.md`; a block that stopped matching the repo is a bug in the block.
-    - **Flips need `scripts/preflight-flip.sh <story>`** — no rehearsal record, no flip.
+    - **Flips need `preflight-flip <story>`** (dev shell) — no rehearsal record, no flip.
     - **Read the config before writing a rule about it.** An invariant must be
       written from the file it constrains (and the line quoted), never from live
       state or memory. A "do not re-add `::/0`" rule written from the runtime state
@@ -222,7 +222,7 @@ data:
     | 1 | one `ops/*` output, one section of `storage.md`/`network.md`, one runbook page | ~1 500 | by anchor |
     | 2 | whole reference docs, `docs/records/` | unbounded | only when the question is *about* them |
     
-    **Start every session with `STATE.md`** (generated; regenerate with `scripts/state.sh`).
+    **Start every session with `STATE.md`** (generated; regenerate with `state`).
     It answers nodes, pods, apps, alerts, volumes, mounts and backup freshness in ~26 lines.
     
     Route by question:
