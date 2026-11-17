@@ -1,5 +1,8 @@
 # Login alerts for externally exposed apps.
 #
+# It lives in checks/ and not rules/ because it is a **CronJob**, not a Prometheus rule: it polls Cloudflare Access's log
+# and posts each login to Alertmanager. `rules/` is what Prometheus evaluates; `checks/` is what produces or pushes.
+#
 # Every public hostname sits behind Cloudflare Access, so the Access
 # authentication log is a single source of "who logged into what". A CronJob
 # polls it and posts each recent login to Alertmanager, which dedupes by
