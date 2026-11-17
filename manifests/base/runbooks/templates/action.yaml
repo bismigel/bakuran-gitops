@@ -3,11 +3,12 @@
 # One object, not one per alert: measured 2026-11-16, the 72 generated templates carried 3 distinct step bodies and the
 # ArgoCD controller had been OOM-killed 25 times carrying that table as API objects.
 #
-# A step group appears here only when **every** diagnose command of that action can run in a pod. An action that needs a
-# shell to expand a nested kubectl call, or needs the host over ssh, runs on a workstation instead - `ops-diag` says
-# so and does not submit, because a step that cannot answer is worse than a sentence that says where to look.
+# A step group appears here only when **every** diagnose command of that action can run in a pod. An action that needs the host
+# over ssh, or kubectl exec to borrow somebody else's container, runs on a workstation instead - ops-diag says so and does
+# not submit, because a step that cannot answer is worse than a sentence that says where to look.
 #
-# Read-only by construction: diagnose only. A remedy is never run in-cluster (ADR 0012).
+# Read-only by construction: diagnose only, and the role it runs under refuses every write verb. A remedy is never run in-cluster
+# (ADR 0012).
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -25,86 +26,90 @@ spec:
   templates:
     - name: run-action
       steps:
-        # argocd-app-out-of-sync - An Application is OutOfSync although self-heal is on - the cluster is refusing the update, or the comparison is stale
         - - name: argocd-app-out-of-sync
             when: '"{{workflow.parameters.action}}" == "argocd-app-out-of-sync"'
-            inline:
-              container:
-                image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
-                command: [/bin/sh, -c]
-                args:
-                  - |
-                    (
-                    kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status --no-headers | awk '$2=="OutOfSync"'
-                    kubectl -n argocd get application -o json | jq -r '.items[] | select(.status.sync.status=="OutOfSync") | "\(.metadata.name): \(.status.conditions[0].message // "no condition")"'
-                    kubectl -n argocd logs deploy/argocd-application-controller --tail=40 | grep -iE 'error|refus|denied|invalid' | tail -10
-                    
-                    printf '\nverdict: %s\n' 'A message naming a refused field or a denied request means the cluster is rejecting the manifest and the diff will never converge. No message, and a recent manifest change, points at the comparison being stale - refresh the Application before touching anything else.'
-                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
-                outputs:
-                  parameters:
-                    - name: verdict
-                      valueFrom:
-                        path: /tmp/verdict.txt
-        # deployment-replicas-unavailable - A Deployment has unavailable replicas - the pods cannot be scheduled, pulled or started
+            template: run-argocd-app-out-of-sync
         - - name: deployment-replicas-unavailable
             when: '"{{workflow.parameters.action}}" == "deployment-replicas-unavailable"'
-            inline:
-              container:
-                image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
-                command: [/bin/sh, -c]
-                args:
-                  - |
-                    (
-                    kubectl get deployments -A -o json | jq -r '.items[] | select((.status.unavailableReplicas // 0) > 0) | "\(.metadata.namespace)/\(.metadata.name)"'
-                    kubectl get pods -A -o wide --field-selector status.phase!=Running,status.phase!=Succeeded
-                    kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp | tail -15
-                    
-                    printf '\nverdict: %s\n' 'Unschedulable pods name a resource (cpu, memory, a nodeSelector with no matching node); ImagePullBackOff names the registry or the pull secret; CrashLoopBackOff needs the pod log rather than the event. The event text decides which of those it is.'
-                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
-                outputs:
-                  parameters:
-                    - name: verdict
-                      valueFrom:
-                        path: /tmp/verdict.txt
-        # jellyfin-transcode-broken - Jellyfin cannot transcode - hardware decode of 10-bit HEVC produces no frames
+            template: run-deployment-replicas-unavailable
         - - name: jellyfin-transcode-broken
             when: '"{{workflow.parameters.action}}" == "jellyfin-transcode-broken"'
-            inline:
-              container:
-                image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
-                command: [/bin/sh, -c]
-                args:
-                  - |
-                    (
-                    kubectl -n default exec deploy/jellyfin -- sh -c 'grep -l "error code: -38" /config/log/FFmpeg.Transcode*.log | tail -3'
-                    kubectl -n default exec deploy/jellyfin -- sh -c 'grep -A5 HardwareDecodingCodecs /config/config/encoding.xml'
-                    
-                    printf '\nverdict: %s\n' 'If '\''hevc'\'' is in HardwareDecodingCodecs, this is it: 10-bit HEVC is hardware-decoded into a P010 surface and scale_vaapi refuses it. Removing '\''hevc'\'' from that list keeps hardware *encoding* (the expensive half) and software-decodes HEVC (cheap at 1080p).'
-                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
-                outputs:
-                  parameters:
-                    - name: verdict
-                      valueFrom:
-                        path: /tmp/verdict.txt
-        # pod-stuck-pending - A pod is Pending - the scheduler will not place it, and its events say why
+            template: run-jellyfin-transcode-broken
         - - name: pod-stuck-pending
             when: '"{{workflow.parameters.action}}" == "pod-stuck-pending"'
-            inline:
-              container:
-                image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
-                command: [/bin/sh, -c]
-                args:
-                  - |
-                    (
-                    kubectl get pods -A -o json | jq -r '.items[] | select(.status.phase=="Pending") | "\(.metadata.namespace)/\(.metadata.name)"'
-                    kubectl get events -A --field-selector reason=FailedScheduling --sort-by=.lastTimestamp | tail -10
-                    kubectl describe nodes | grep -A4 'Allocated resources' | head -20
-                    
-                    printf '\nverdict: %s\n' 'FailedScheduling names the constraint (insufficient cpu/memory, node affinity, a taint, a volume in the wrong zone). If the message says the volume is not attachable, the pod is not the problem - the PVC is.'
-                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
-                outputs:
-                  parameters:
-                    - name: verdict
-                      valueFrom:
-                        path: /tmp/verdict.txt
+            template: run-pod-stuck-pending
+
+    # argocd-app-out-of-sync - An Application is OutOfSync although self-heal is on - the cluster is refusing the update, or the comparison is stale
+    - name: run-argocd-app-out-of-sync
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status --no-headers | awk '$2=="OutOfSync"'
+          kubectl -n argocd get application -o json | jq -r '.items[] | select(.status.sync.status=="OutOfSync") | "\(.metadata.name): \(.status.conditions[0].message // "no condition")"'
+          kubectl -n argocd logs -l app.kubernetes.io/name=argocd-application-controller --tail=40 | grep -iE 'error|refus|denied|invalid' | tail -10
+          
+          printf '\nverdict: %s\n' 'A message naming a refused field or a denied request means the cluster is rejecting the manifest and the diff will never converge. No message, and a recent manifest change, points at the comparison being stale - refresh the Application before touching anything else.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # deployment-replicas-unavailable - A Deployment has unavailable replicas - the pods cannot be scheduled, pulled or started
+    - name: run-deployment-replicas-unavailable
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl get deployments -A -o json | jq -r '.items[] | select((.status.unavailableReplicas // 0) > 0) | "\(.metadata.namespace)/\(.metadata.name)"'
+          kubectl get pods -A -o wide --field-selector status.phase!=Running,status.phase!=Succeeded
+          kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp | tail -15
+          
+          printf '\nverdict: %s\n' 'Unschedulable pods name a resource (cpu, memory, a nodeSelector with no matching node); ImagePullBackOff names the registry or the pull secret; CrashLoopBackOff needs the pod log rather than the event. The event text decides which of those it is.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # jellyfin-transcode-broken - Jellyfin cannot transcode - hardware decode of 10-bit HEVC produces no frames
+    - name: run-jellyfin-transcode-broken
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n default exec deploy/jellyfin -- sh -c 'grep -l "error code: -38" /config/log/FFmpeg.Transcode*.log | tail -3'
+          kubectl -n default exec deploy/jellyfin -- sh -c 'grep -A5 HardwareDecodingCodecs /config/config/encoding.xml'
+          
+          printf '\nverdict: %s\n' 'If '\''hevc'\'' is in HardwareDecodingCodecs, this is it: 10-bit HEVC is hardware-decoded into a P010 surface and scale_vaapi refuses it. Removing '\''hevc'\'' from that list keeps hardware *encoding* (the expensive half) and software-decodes HEVC (cheap at 1080p).'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # pod-stuck-pending - A pod is Pending - the scheduler will not place it, and its events say why
+    - name: run-pod-stuck-pending
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl get pods -A -o json | jq -r '.items[] | select(.status.phase=="Pending") | "\(.metadata.namespace)/\(.metadata.name)"'
+          kubectl get events -A --field-selector reason=FailedScheduling --sort-by=.lastTimestamp | tail -10
+          kubectl describe nodes | grep -A4 'Allocated resources' | head -20
+          
+          printf '\nverdict: %s\n' 'FailedScheduling names the constraint (insufficient cpu/memory, node affinity, a taint, a volume in the wrong zone). If the message says the volume is not attachable, the pod is not the problem - the PVC is.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
