@@ -219,7 +219,9 @@ Two things that catch people out:
 
 - **`clusters/prod/projects/projects.yaml` gates everything.** A new repo needs a `sourceRepos` entry and a new namespace a
   `destinations` entry, or the Application fails to sync with a message that looks like a permissions bug.
-- **`manifests/duwende/context.yaml` is generated** from the private `homelab-context` repo and must not be edited. It is
-  checked by `check-context-bundle` (Go, in `homelab-context`), which generates it in-process from the private docs and compares — a
-  CI runner cannot do that (the source is private), so it runs from `homelab-context`'s `verify-all` on a workstation.
+- **`manifests/duwende/context.yaml` is generated, and it is deliberately a republication.** 143 KB of *selected* documents from the
+  private `homelab-context` (reference pages, the runbook router, the live known-issues list), mounted so the in-cluster agent can read
+  them. It excludes the credentials file, it must not be edited by hand, and `check-context-bundle` (Go, in `homelab-context`) fails
+  when it drifts from the documents it copies. It is here on purpose — a reader who finds private prose in a public repository should
+  know that rather than wonder.
 
