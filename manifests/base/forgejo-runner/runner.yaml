@@ -106,6 +106,10 @@ spec:
           #   * curl, jq - diagnostics, and `curl` is the download path for anything not packaged
           #   * kustomize, hugo, pandoc - bismigel-site renders manifests, converts pages and builds them
           #   * kubectl - render steps today, a server dry-run once the runner has a kubeconfig
+          #   * go - ADR 0016 made executable code Go, and the port cannot wait for nix to build artefacts: the runner is
+          #     where the checks CI runs are executed. Alpine's go is ~180 MiB, which is exactly the transition cost the
+          #     ADR named ("CI runs go build, or the runner gains the package"). Measured in this pod 2026-11-16:
+          #     `go build ./...` of homelab-context takes ~6 s warm, and the module cache lives on the workspace PVC.
           #   * buildah + netavark - container builds, closing 14.7's runtime gap. Measured in this pod 2026-11-16:
           #     `buildah bud` builds media-mcp (python base) in 48 s with NO privileged flag, using --storage-driver vfs
           #     (overlay-on-overlay is refused in a container), BUILDAH_ISOLATION=chroot, and TMPDIR on a disk-backed PVC
@@ -125,7 +129,7 @@ spec:
           args:
             - |
               set -e
-              apk add --no-cache python3 py3-yaml nodejs yamllint curl jq kustomize hugo pandoc kubectl buildah netavark >/dev/null
+              apk add --no-cache python3 py3-yaml go nodejs yamllint curl jq kustomize hugo pandoc kubectl buildah netavark >/dev/null
               # trivy is not packaged by Alpine, so it is fetched at container start from a pinned release. The pin
               # matters: an unpinned scanner turns into a scan that fails on a day nobody changed this repository.
               if [ ! -x /usr/local/bin/trivy ]; then
