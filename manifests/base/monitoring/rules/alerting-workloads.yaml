@@ -316,7 +316,7 @@ data:
               severity: warning
             annotations:
               summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
-              description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (docs/REBUILD.md)."
+              description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (bakuran-infra/docs/REBUILD.md)."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
           # Over-commitment is measured against the *over-provisioning allowance*, not against free
           # bytes, since 2026-11-05 (`storage-over-provisioning-percentage: 200`). At that setting

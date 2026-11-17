@@ -6,7 +6,7 @@ title: The tunnel election holds the lease but refuses egress-node - the tunnel 
 severity: medium
 blast_radius: node
 reversible: true
-runbook: docs/WIREGUARD-ROTATION.md
+runbook: bakuran-infra/docs/WIREGUARD-ROTATION.md
 runbook_repo: bakuran-infra
 measured: '2026-11-14'
 alerts:

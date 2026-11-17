@@ -1,0 +1,2 @@
+# References that are deliberately not files here. One per line, "path  # reason".
+manifests/base/duwende/context.yaml  # generated: its text is copied verbatim from homelab-context/docs, where the citations are checked against the documents they name

@@ -25,7 +25,7 @@ spec:
         # and the existing Longhorn/ArgoCD dashboards are hand-declared. Monitoring comes from
         # the operator's own metrics endpoint, scraped below by the ServiceMonitor the chart
         # creates only if `monitoring` is on — so it is off, and Prometheus scrapes the
-        # operator's Service directly (see manifests/base/monitoring/alerting-workloads.yaml).
+        # operator's Service directly (see manifests/base/monitoring/rules/alerting-workloads.yaml).
         monitoring:
           grafanaDashboard:
             create: false

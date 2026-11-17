@@ -6,7 +6,7 @@ title: Selected pods cannot egress although the tunnel is up - Cilium's egress m
 severity: high
 blast_radius: node
 reversible: true
-runbook: docs/WIREGUARD-ROTATION.md
+runbook: bakuran-infra/docs/WIREGUARD-ROTATION.md
 runbook_repo: bakuran-infra
 measured: '2026-11-14'
 alerts:
