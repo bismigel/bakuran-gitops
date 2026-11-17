@@ -15,8 +15,10 @@ metadata:
   namespace: argo
 spec:
   entrypoint: run-action
-  imagePullSecrets:
-    - name: registry-pull
+  # The pods need the registry credential, and Kubernetes takes imagePullSecrets from the *service account*, not from the workflow.
+  # Naming the account here does both jobs: the pull secret comes with it, and the RBAC in rbac.yaml is bound to the account the steps
+  # actually run as - the first version ran as the default account, which had neither.
+  serviceAccountName: argo-workflow
   arguments:
     parameters:
       - {name: action, value: none}
