@@ -22,6 +22,31 @@ manifests/base/<component>/       # cluster-agnostic definitions
 manifests/overlays/<env>/<c>/     # what one environment changes: placement, storage, refs
 ```
 
+## The shape of it
+
+```mermaid
+flowchart TB
+  user([browser]) --> cf[Cloudflare<br/>DNS · Tunnel · Access]
+  cf -->|admin hostnames| adm[ingress-nginx-admin<br/>.82]
+  cf -->|public hostnames| pub[ingress-nginx<br/>.82]
+  adm --> argo[ArgoCD<br/>the only one]
+  pub --> apps
+
+  subgraph cluster["k3s · 3 nodes · embedded etcd"]
+    argo -->|reconciles this repository| apps
+    apps[workloads] --> media[media stack<br/>.81 · /mnt/media]
+    apps --> immich[Immich<br/>.80 · Postgres + Redis]
+    apps --> sites[sites and APIs<br/>.82]
+    prom[Prometheus + Alertmanager] -.->|alert → runbook_url| apps
+  end
+
+  argo -.->|image digests| ghcr[(GHCR)]
+  prom -.->|offsite copy| r2[(R2)]
+```
+
+Three nodes, no node special: losing any one leaves etcd quorum and a working API at a floating address (`192.168.2.100`). The edge is a
+Cloudflare Tunnel — there is no inbound port forward anywhere.
+
 ## How it works
 
 1. `clusters/<cluster>/root.yaml` is applied **once** — the only hand-applied object left.

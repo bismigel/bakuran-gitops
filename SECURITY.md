@@ -18,7 +18,11 @@ serve one household, not a service. Anything you find there is welcome as a repo
 
 ## Reporting
 
-Open a private report, or write to **security@bismigel.dev**. Please do not open a public issue for a live exposure.
+Open an issue in this repository, marked clearly, and say if it is a live exposure — that is the channel that exists today. Please do not
+paste a working exploit or a credential into it.
+
+A dedicated address (`security@bismigel.dev`) is being set up; it is written here only once it delivers, because an address that bounces
+silently is worse than none.
 
 Expect an answer from one person, not a team: this is a homelab. What you will get is an honest reply about whether it is fixed, being
 fixed, or accepted with the reason — the estate records accepted risks in its own ADRs, including one about a disk image in this
