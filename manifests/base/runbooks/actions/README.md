@@ -56,7 +56,7 @@ why_safe = "one sentence a reviewer can argue with"
 `scripts/check-alert-coverage.py` reads the alert rules out of `bakuran-gitops` and fails unless every one is either
 
 - **claimed by a condition** — `alerts = ["WireGuardNoEgress"]` in the condition file, or
-- **waived in `conditions/waivers.toml`**, in a group whose `reason` says where the operator goes instead.
+- **waived in `runbooks/waivers.yaml`**, in a group whose `reason` says where the operator goes instead.
 
 Today: 72 rules, 2 claimed by three conditions, 70 waived in eleven groups, 0 undecided. Adding a rule without either fails
 the build, which moves *"what happens when this fires?"* into the PR that adds it. The check also fails on a **waiver whose
