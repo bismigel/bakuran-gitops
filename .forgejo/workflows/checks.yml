@@ -57,6 +57,13 @@ jobs:
         run: |
           CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
           cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-manifest-layout --root "$GITHUB_WORKSPACE"
+      # The structural half of the rules check, which is the half that can run here: `promtool` is not in the image, so the
+      # command says so and still enforces "nothing found is a failure". The predecessor exited 0 while reading nothing at all.
+      - name: The Prometheus rules and scrape config are structurally valid
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-prometheus-rules --root "$GITHUB_WORKSPACE" --promtool ""
+
       - name: No object is defined twice
         run: |
           CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
