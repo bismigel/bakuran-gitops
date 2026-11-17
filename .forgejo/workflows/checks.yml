@@ -44,12 +44,23 @@ jobs:
       # A token, because homelab-context is private: an anonymous clone answers 401 (measured from the runner pod with
       # `curl .../info/refs?service=git-upload-pack`, and the per-run token is scoped to *this* repository). `CONTEXT_READ_TOKEN`
       # is a read-only token for that one repository, stored as a repository secret so it never reaches a log or this file.
+      #
+      # The path is per-job, not `/tmp/ctx`: the `host` executor runs every job in one container, so four concurrent jobs were
+      # racing for one directory and `git clone` failed outright once it existed ("destination path already exists"). Each step
+      # recomputes the same path from the environment rather than relying on state passed between steps.
       - name: Check out the checks (executable code is Go, ADR 0016)
-        run: git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" /tmp/ctx
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          rm -rf "$CTX"
+          git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" "$CTX"
       - name: Every Application points into the one manifest layout
-        run: cd /tmp/ctx && CGO_ENABLED=0 go run ./cmd/check-manifest-layout --root "$GITHUB_WORKSPACE"
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-manifest-layout --root "$GITHUB_WORKSPACE"
       - name: No object is defined twice
-        run: cd /tmp/ctx && CGO_ENABLED=0 go run ./cmd/check-duplicate-objects --root "$GITHUB_WORKSPACE"
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-duplicate-objects --root "$GITHUB_WORKSPACE"
       # No server-side dry-run here, deliberately. The runner is a pod with the default service account and no RBAC -
       # that is a security property worth keeping, not a gap to close - so `kubectl apply --dry-run=server` answers
       # "Forbidden" and the job fails for a reason that has nothing to do with the manifests being wrong. The templates
