@@ -40,7 +40,7 @@ spec:
                     kubectl -n argocd logs deploy/argocd-application-controller --tail=40 | grep -iE 'error|refus|denied|invalid' | tail -10
                     
                     printf '\nverdict: %s\n' 'A message naming a refused field or a denied request means the cluster is rejecting the manifest and the diff will never converge. No message, and a recent manifest change, points at the comparison being stale - refresh the Application before touching anything else.'
-                    ) 2>&1 | tee /tmp/verdict.txt
+                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
                 outputs:
                   parameters:
                     - name: verdict
@@ -61,7 +61,7 @@ spec:
                     kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp | tail -15
                     
                     printf '\nverdict: %s\n' 'Unschedulable pods name a resource (cpu, memory, a nodeSelector with no matching node); ImagePullBackOff names the registry or the pull secret; CrashLoopBackOff needs the pod log rather than the event. The event text decides which of those it is.'
-                    ) 2>&1 | tee /tmp/verdict.txt
+                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
                 outputs:
                   parameters:
                     - name: verdict
@@ -81,7 +81,7 @@ spec:
                     kubectl -n default exec deploy/jellyfin -- sh -c 'grep -A5 HardwareDecodingCodecs /config/config/encoding.xml'
                     
                     printf '\nverdict: %s\n' 'If '\''hevc'\'' is in HardwareDecodingCodecs, this is it: 10-bit HEVC is hardware-decoded into a P010 surface and scale_vaapi refuses it. Removing '\''hevc'\'' from that list keeps hardware *encoding* (the expensive half) and software-decodes HEVC (cheap at 1080p).'
-                    ) 2>&1 | tee /tmp/verdict.txt
+                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
                 outputs:
                   parameters:
                     - name: verdict
@@ -102,7 +102,7 @@ spec:
                     kubectl describe nodes | grep -A4 'Allocated resources' | head -20
                     
                     printf '\nverdict: %s\n' 'FailedScheduling names the constraint (insufficient cpu/memory, node affinity, a taint, a volume in the wrong zone). If the message says the volume is not attachable, the pod is not the problem - the PVC is.'
-                    ) 2>&1 | tee /tmp/verdict.txt
+                    ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
                 outputs:
                   parameters:
                     - name: verdict
