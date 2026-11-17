@@ -10,7 +10,12 @@ metadata:
 spec:
   project: prod
   source:
-    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/private-api.git
+    # WHY GITHUB, when every other app of ours clones from Forgejo (ADR 0015): the copy of this repository on Forgejo is a
+    # **pull-mirror**, read-only, and its sync from GitHub fails ("failed to update mirror repository", forgejo logs, measured
+    # 2026-11-17). Pointing this Application at it deployed the pre-PDB revision and an older image - a regression, not a
+    # migration. Fixing it properly is story 14.6: make Forgejo the origin for the app repos and delete their GitHub workflows,
+    # which is also why PRs on this repository have been happening on the mirror.
+    repoURL: git@github.com:bismigel/private-api.git
     targetRevision: main
     path: deploy/k8s
   destination:
