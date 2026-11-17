@@ -30,5 +30,16 @@ jobs:
         run: trivy --version
       # Exits 1 on a finding that is not in the baseline, and also on a baseline entry for an image no longer deployed,
       # so the recorded debt can only go down. Any exception still needs an owner and an expiry in scan-policy.yaml.
+      # The ratchet is Go (ADR 0016) and lives in homelab-context; `trivy` is the only external tool, and it is the runner's.
+      - name: Check out the ratchet
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          rm -rf "$CTX"
+          git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" "$CTX"
       - name: Every image is no worse than it was on 2026-11-15
-        run: python3 scripts/scan-images.py
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/scan-images \
+            --root "$GITHUB_WORKSPACE" \
+            --policy "$GITHUB_WORKSPACE/scripts/scan-policy.yaml" \
+            --baseline "$GITHUB_WORKSPACE/scripts/scan-baseline.json"
