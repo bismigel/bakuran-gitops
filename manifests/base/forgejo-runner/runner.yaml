@@ -19,7 +19,11 @@ data:
       level: info
     runner:
       file: /data/.runner
-      capacity: 2
+      # Four, not two: measured 2026-11-17 from Forgejo's own action_run table — `docs.yml` queues 1.0 s, `checks.yml` 19 s,
+      # `scan.yml` 27 s and `runbook-links.yml` 34 s, with one run waiting **649 s** (10.8 min). The cause is not throughput
+      # (341 runs a week is 2 an hour) but collision: `release.yml` peaks at 672 s and `scan.yml` at 503 s, and on two slots a
+      # pair of those blocks every 30-second check behind them.
+      capacity: 4
       timeout: 30m
       fetch_timeout: 5m
       fetch_interval: 3s
@@ -143,7 +147,9 @@ spec:
 
           resources:
             requests: { cpu: 100m, memory: 128Mi }
-            limits: { memory: 1Gi }
+            # 3 Gi, because the host executor runs every job inside this container: the 1 Gi limit was shared by
+            # concurrent `scan` (trivy, image layers) and `buildah` steps, which is where an `Init:OOMKilled` comes from.
+            limits: { memory: 3Gi }
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: config, mountPath: /etc/runner }
