@@ -30,27 +30,31 @@ spec:
     - secretKey: sshPrivateKey
       remoteRef: { key: argocd-repo-bakuran-gitops }
 ---
+# private-api sources from Forgejo like every other app of ours (ADR 0015). It used to clone from GitHub with its own deploy key,
+# which made it the only estate-owned Application still reading the mirror; the read token below is the same one the other Forgejo
+# secrets use, so nothing new had to be stored.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: repo-private-api
+  name: repo-forgejo-private-api
   namespace: argocd
 spec:
   refreshInterval: 1h
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
   target:
-    name: repo-private-api
+    name: repo-forgejo-private-api
     template:
       metadata:
         labels:
           argocd.argoproj.io/secret-type: repository
       data:
         type: git
-        url: git@github.com:bismigel/private-api.git
-        sshPrivateKey: "{{ .sshPrivateKey }}"
+        url: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/private-api.git
+        username: bismigel
+        password: "{{ .password }}"
   data:
-    - secretKey: sshPrivateKey
-      remoteRef: { key: argocd-repo-private-api }
+    - secretKey: password
+      remoteRef: { key: forgejo-read-token }
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
