@@ -1,6 +1,10 @@
-# The trigger. Alertmanager has no webhook receiver in this cluster, so the loop is pull-based: every five
-# minutes, ask the triage agent about every alert that is firing and not silenced, print the answer and send
-# it to the chat the alert came from.
+# The trigger. Alertmanager has no webhook receiver in this cluster, so the loop is pull-based: every ten
+# minutes, ask the triage agent about an alert that is firing, not silenced, and **not already triaged with the
+# same `startsAt`**, then send the answer to the chat the alert came from.
+#
+# Every ten, not every five, and the dedupe is what makes the interval a detail rather than a cost: a six-hour
+# alert used to produce ~72 agent runs and ~72 Telegram messages; it now produces one, and the schedule only
+# decides how quickly a *new* alert is picked up.
 #
 # Why a poll and not a receiver: a webhook means an ingress, a shared secret and something that must be up at
 # 03:00. A poll cannot be spoofed and fails the way every other Job fails - visibly, in `ops/broken`.
@@ -10,7 +14,7 @@ metadata:
   name: triage
   namespace: kagent
 spec:
-  schedule: "*/5 * * * *"
+  schedule: "*/10 * * * *"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 120
   successfulJobsHistoryLimit: 3
@@ -33,6 +37,11 @@ spec:
                 secretName: kagent-telegram
                 items: [{key: bot-token, path: bot-token}]
                 defaultMode: 0400
+            # The loop's memory. Without it every run is a fresh pod that cannot answer "have I looked at this
+            # already?" - which is how one stuck alert cost ~100 agent runs in six hours (2026-11-17).
+            - name: state
+              persistentVolumeClaim:
+                claimName: triage-state
           containers:
             - name: triage
               image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
@@ -45,6 +54,7 @@ spec:
               volumeMounts:
                 - {name: script, mountPath: /scripts}
                 - {name: telegram, mountPath: /etc/telegram, readOnly: true}
+                - {name: state, mountPath: /state}
               resources:
                 requests: {cpu: 20m, memory: 64Mi}
                 limits: {memory: 256Mi}

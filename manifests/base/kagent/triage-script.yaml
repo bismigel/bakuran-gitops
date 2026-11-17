@@ -1,5 +1,3 @@
-# The loop's script, in a ConfigMap rather than inline in the CronJob: an inline block scalar is where YAML
-# ends and shell begins, and quoting that wrong is invisible until the Job runs.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,22 +6,74 @@ metadata:
 data:
   triage.sh: |
     #!/bin/sh
+    # One alert per run, one run per distinct alert instance, and a daily ceiling.
+    #
+    # Three things this loop learned the expensive way (2026-11-17):
+    #
+    #   1. **No dedupe.** The same firing alert was triaged every five minutes for as long as it fired, and each
+    #      triage sent another Telegram message. One stuck pushed alert (`ForgejoMirrorStale`, which is fired by
+    #      monitoring/checks/forgejo-mirror-check.yaml rather than by a rule) produced ~100 agent runs in six hours:
+    #      an estimated 5-10M tokens and ~100 chat messages for one symptom nobody needed re-read.
+    #   2. **No ceiling.** Nothing bounded a day's spend. A loop that cannot say "that is enough for today" is a loop
+    #      that will answer a flapping alert until the bill arrives.
+    #   3. **No memory between runs.** Each Job is a new pod, so "have I already looked at this?" had no answer.
+    #
+    # The state lives in a small PVC (`triage-state`): keyed by alertname+instance, valued by the alert's `startsAt`.
+    # Alertmanager gives the same instance the same `startsAt` for as long as it stays active, so an unchanged key means
+    # "already triaged, nothing new to say" and the run exits without a model call. When the alert resolves and fires
+    # again, `startsAt` changes and it is triaged once more - which is the behaviour a human actually wants.
     set -u
     AM="http://alertmanager.monitoring.svc:9093/api/v2/alerts?active=true&silenced=false&inhibited=false"
+    STATE=/state/seen
+    BUDGET=/state/budget
+    MAX_PER_DAY="${MAX_PER_DAY:-20}"
 
-    # Watchdog is a permanent test alert: always firing, says nothing. Triaging it would spend five model calls
-    # an hour on a heartbeat. Filtered here rather than muted in Alertmanager, because muting it would also stop
-    # WatchdogMissing from noticing that delivery is dead - which is the only job it has.
+    mkdir -p /state
+    today=$(date -u +%Y-%m-%d)
+    touch "$STATE"
+
+    # --- the daily ceiling, checked before anything else costs a token
+    # `DATE COUNT` is the counter; `told DATE` is the once-a-day notice marker. The counter must read only its own
+    # shape: the first version appended `DATE told` and `[ "$count" -ge N ]` then failed with "integer expected",
+    # which quietly disabled the ceiling - the exact failure mode this patch exists to remove.
+    count=$(awk -v d="$today" '$1==d && $2 ~ /^[0-9]+$/ {print $2}' "$BUDGET" 2>/dev/null | tail -1)
+    count=${count:-0}
+    if [ "$count" -ge "$MAX_PER_DAY" ]; then
+      # Say it once a day, not once a run: a budget notice that repeats is the same noise at a lower price.
+      if ! grep -qs "^told $today$" "$BUDGET"; then
+        token=$(cat /etc/telegram/bot-token)
+        curl -s -m 25 -X POST "https://api.telegram.org/bot${token}/sendMessage" \
+          -d chat_id="${TELEGRAM_CHAT_ID}" \
+          --data-urlencode "text=[triage] paused for today: ${count} triages is the ceiling (MAX_PER_DAY=${MAX_PER_DAY}). Silent until 00:00 UTC; the alerts are still firing and still in Alertmanager." \
+          >/dev/null 2>&1 || true
+        printf 'told %s\n' "$today" >> "$BUDGET"
+      fi
+      echo "daily ceiling reached (${count}/${MAX_PER_DAY}) - not triaging"
+      exit 0
+    fi
+
+    # Watchdog is a permanent test alert: always firing, says nothing. Filtered here rather than muted in Alertmanager,
+    # because muting it would also stop WatchdogMissing from noticing that delivery is dead - the only job it has.
     alerts=$(curl -sf "$AM" 2>/dev/null | jq '[.[] | select(.labels.alertname != "Watchdog")]' 2>/dev/null)
     [ -z "$alerts" ] && { echo "alertmanager unreachable or empty"; exit 0; }
     n=$(echo "$alerts" | jq 'length')
     echo "firing alerts (excluding Watchdog): $n"
     [ "$n" -eq 0 ] && exit 0
 
-    # One alert per run. Three was the original plan and it meant a Job could outlive its own deadline and
-    # process nothing: measured 2026-11-15, one triage took 3m20s.
+    # One alert per run. Three was the original plan and it meant a Job could outlive its own deadline and process
+    # nothing: measured 2026-11-15, one triage took 3m20s.
     echo "$alerts" | jq -c '.[0:1][]' | while read -r a; do
       name=$(echo "$a" | jq -r '.labels.alertname')
+      instance=$(echo "$a" | jq -r '.labels.instance // .labels.repo // "-"')
+      starts=$(echo "$a" | jq -r '.startsAt // "-"')
+      key="${name}|${instance}"
+
+      seen=$(awk -v k="$key" -F'\t' '$1==k{print $2}' "$STATE" 2>/dev/null | tail -1)
+      if [ "$seen" = "$starts" ]; then
+        echo "--- ${name} (${instance}) already triaged at ${starts} - nothing new"
+        exit 0
+      fi
+
       summary=$(echo "$a" | jq -r '.annotations.summary // .annotations.description // ""')
       text="Alert firing in the Bakuran homelab.
 
@@ -41,6 +91,17 @@ data:
       echo "--- ${name}"
       echo "$ans"
 
+      # Recorded *after* the answer, not before: a run that dies mid-flight must be retried, and a marker written
+      # first would make a failed triage look done.
+      printf '%s\t%s\n' "$key" "$starts" >> "$STATE.new"
+      awk -v k="$key" -F'\t' '$1!=k' "$STATE" >> "$STATE.new" 2>/dev/null || true
+      sort -u "$STATE.new" | tail -200 > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
+      rm -f "$STATE.new"
+
+      printf '%s %d\n' "$today" "$((count + 1))" > "$BUDGET.new"
+      awk -v d="$today" '!($1==d && $2 ~ /^[0-9]+$/)' "$BUDGET" >> "$BUDGET.new" 2>/dev/null || true
+      mv "$BUDGET.new" "$BUDGET"
+
       # Straight to the chat the alert arrived in: a diagnosis nobody reads is a log line. Prefixed so it is clear
       # this is a model's reading of the cluster, not a measurement.
       #
@@ -48,8 +109,7 @@ data:
       # first run failed exactly that way, silently, because `-f` hides the body. Truncated to fit, with the full
       # text left in the Job log, and the response body printed when it still fails.
       # `cut -c` counts CHARACTERS; Telegram's limit is 4096 BYTES, and this agent's prose is full of em dashes
-      # and arrows at three bytes each. The first truncation still came back "message is too long". head -c counts
-      # bytes, so 3000 is safe whatever the text contains.
+      # and arrows at three bytes each. head -c counts bytes, so 3000 is safe whatever the text contains.
       short=$(printf '%s' "${ans}" | head -c 3000)
       token=$(cat /etc/telegram/bot-token)
       code=$(curl -s -m 25 -o /tmp/tg.json -w '%{http_code}' -X POST \

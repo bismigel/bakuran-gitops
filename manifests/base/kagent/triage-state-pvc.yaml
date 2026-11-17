@@ -1,0 +1,19 @@
+# The triage loop's memory: one line per alert instance already triaged, and today's count against the ceiling.
+#
+# 64 Mi is not a typo - the file is a few hundred bytes, capped at 200 lines by the script. It is a PVC rather
+# than a ConfigMap because the runner has no RBAC (deliberately: ADR 0014 fences kagent's writes, and a Job that
+# can write ConfigMaps is a Job that can rewrite its own instructions), and rather than an emptyDir because the
+# whole point is to survive the pod. Longhorn is the estate's default class and this is exactly the kind of tiny
+# volume it exists for: no backup, no replica gymnastics needed for a checkpoint.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: triage-state
+  namespace: kagent
+spec:
+  accessModes: ["ReadWriteOnce"]
+  # RWO is correct here: `concurrencyPolicy: Forbid` means one Job at a time, and the Job mounts it once.
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 64Mi

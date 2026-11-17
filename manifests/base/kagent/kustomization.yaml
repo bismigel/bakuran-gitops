@@ -6,6 +6,7 @@ resources:
   - telegram-key.yaml
   - agent-triage.yaml
   - triage-runner-rbac.yaml
+  - triage-state-pvc.yaml
   - triage-script.yaml
   - triage-cronjob.yaml
   - guard-vap.yaml
