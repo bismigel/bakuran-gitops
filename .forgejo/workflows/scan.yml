@@ -1,4 +1,4 @@
-# The image scan: the check whose absence had the sharpest edge in the migration, because scripts/scan-baseline.json
+# The image scan: the check whose absence had the sharpest edge in the migration, because policy/scan-baseline.json
 # holds 218 CRITICAL findings across 34 images as a ratchet and the only thing enforcing it was a GitHub workflow that
 # can no longer run.
 #
@@ -41,5 +41,5 @@ jobs:
           CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
           cd "$CTX" && CGO_ENABLED=0 go run ./cmd/scan-images \
             --root "$GITHUB_WORKSPACE" \
-            --policy "$GITHUB_WORKSPACE/scripts/scan-policy.yaml" \
-            --baseline "$GITHUB_WORKSPACE/scripts/scan-baseline.json"
+            --policy "$GITHUB_WORKSPACE/policy/scan-policy.yaml" \
+            --baseline "$GITHUB_WORKSPACE/policy/scan-baseline.json"
