@@ -1,5 +1,8 @@
 # bakuran-gitops
 
+This repository's own decisions live in [`docs/`](docs/README.md); the estate's are in
+`homelab-context/docs/decisions/`.
+
 > **This repository's origin is Forgejo** ([git.bismigel.dev](https://git.bismigel.dev)). GitHub receives a push mirror,
 > so what you read here is current, but pull requests, CI and reviews happen there. Everything below describes the
 > repository itself and is the same on both sides.
