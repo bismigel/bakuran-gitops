@@ -24,6 +24,20 @@ controller:
 server:
   replicas: 1
   authMode: server          # no SSO: there is one operator, and Access/Cloudflare is the outer boundary
+  # Story 7.5: the human pane is Argo's *own* UI, behind the admin ingress and Cloudflare Access — not a second
+  # dashboard over the same templates. `authMode: server` is what makes that possible: in `client` mode the UI has no
+  # server-side session, so a reverse proxy in front of it cannot carry an identity.
+  #
+  # The admin ingress is `nginx-admin` (the class every Access-gated surface uses), and `argo.bismigel.dev` is declared
+  # in bakuran-infra's `cloudflare/sync.sh` both as an admin hostname and as an Access app with a 24h session.
+  ingress:
+    enabled: true
+    ingressClassName: nginx-admin
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    hosts:
+      - argo.bismigel.dev
   resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {memory: 256Mi}
