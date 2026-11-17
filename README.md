@@ -1,11 +1,28 @@
-# bakuran-gitops
+# bakuran-gitops — the cluster's desired state
 
-This repository's own decisions live in [`docs/`](docs/README.md); the estate's are in
-`homelab-context/docs/decisions/`.
+The GitOps repository for a **three-node k3s homelab**: NixOS hosts, one ArgoCD, and every workload declared here rather than applied
+by hand. Nothing in this repository is a screenshot of a cluster — it *is* what the cluster reconciles to, and the cluster is
+reconciled from it.
 
-> **This repository's origin is Forgejo** ([git.bismigel.dev](https://git.bismigel.dev)). GitHub receives a push mirror,
-> so what you read here is current, but pull requests, CI and reviews happen there. Everything below describes the
-> repository itself and is the same on both sides.
+### Start here
+
+| if you have | read |
+|---|---|
+| 2 minutes | the layout below, then `clusters/prod/apps/platform/` — one file per Application |
+| 10 minutes | [`docs/adr/0001-argocd-ownership.md`](docs/adr/0001-argocd-ownership.md) — what this repository owns, and what it deliberately does not |
+| an hour | the incidents and design notes at **[bismigel.dev](https://bismigel.dev)** — every outage below turned into a post |
+| a question | `manifests/base/monitoring/rules/` — the alerts, each with a `runbook_url` that resolves |
+
+### Where the evidence is
+
+Every claim below is checkable: this repository is public and current on both mirrors. The **checks** are Go and live in
+`homelab-context` (`check-*`, `verify-all`); the **reasoning** lives there too, in ADRs; and the **incidents** are written up on the
+site. What is *not* visible from outside is the CI itself — it runs on the estate's own Forgejo, which is behind Cloudflare Access.
+That is a deliberate trade (the estate owns its build hardware), and the cost is that a visitor cannot watch a run; the checks are
+therefore described in `docs/` and reproducible with `homelab-context`'s `verify-all`.
+
+> **Origin.** Forgejo ([git.bismigel.dev](https://git.bismigel.dev)) is the source of truth; GitHub receives a push mirror, so what you
+> read here is current — but pull requests and CI happen there.
 
 
 ## Why "Bakuran"
@@ -33,7 +50,6 @@ clusters/<name>/apps/            # one ArgoCD Application per workload (recursed
 clusters/<name>/projects/        # the AppProject objects (root's SECOND source)
 manifests/base/<component>/      # cluster-agnostic definitions
 manifests/overlays/<env>/<c>/    # what one environment changes: placement, storage, refs
-scripts/                         # generators (e.g. generate-duwende-context.sh)
 ```
 
 **Three components have been split into base + overlay** (`media`, `books`,
@@ -97,14 +113,16 @@ Immich historically lived on `/mnt/data` on `.83`; it moved to Longhorn on `.80`
 `kamatis-mbp`, it is pre-2026-10-28.
 
 All workloads target `destination.server: https://kubernetes.default.svc` — there
-are **no external cluster registrations**. Networking is Cilium VXLAN with
-kube-proxy retained.
+are **no external cluster registrations**. Networking is Cilium VXLAN, and
+**kube-proxy is disabled on all three hosts** (`--disable-kube-proxy` in each
+`hosts/*/default.nix`). This line said "retained" until 2026-11-18: the last stale
+sentence in the repository, and the one an outside reviewer caught.
 
 ## ArgoCD and Redis
 
   Redis HA runs three Redis/sentinel pods and three HAProxy pods. The chart
   hardcodes the per-pod announce Services as ClusterIP, so the Helm post-renderer
-  `scripts/argocd-redis-ha-post-renderer.sh` makes them headless. Keep it on every
+  `argocd-redis-ha-post-renderer` (Go, in `homelab-context`) makes them headless. Keep it on every
   ArgoCD upgrade. The Redis endpoint is `argocd-redis-ha-haproxy:6379`.
 
 ## Edge (Cloudflare)
@@ -113,9 +131,9 @@ The edge is declared in **`bakuran-infra/opentofu/cloudflare/`** (OpenTofu): DNS
 records, tunnel ingress, Access apps, zone settings and R2 lifecycle, planned and
 applied with `tofu` against state in the R2 backend.
 
-`bakuran-infra/cloudflare/sync.sh` is **retired** — a manual rollback path only —
-and the daily `cloudflare-sync.timer` is gone, so it cannot fight the OpenTofu
-state. A new hostname means a record in `records_all.tf` **and** an ingress entry
+`bakuran-infra/cloudflare/sync.sh` was **deleted** on 2026-11-17: it was a second declaration of the same edge, it had drifted
+from the accounts it described, and one run would have deleted Forgejo's Access app. The rollback path is `git revert` plus
+`tofu apply`. A new hostname means a record in `records_all.tf` **and** an ingress entry
 in `tunnel.tf`.
 
 Jellyfin, Immich, Kavita and Audiobookshelf are intentionally **not** behind
@@ -155,7 +173,7 @@ silent. They are listed in the order they catch things:
    level (`enforce: baseline` or `privileged` with a recorded reason), and CI fails on
    silence, so "no label" can never be mistaken for "decided".
 
-Details and the exact commands: `homelab-context/HARDENING.md`, and runbook 17 for the
+Details and the exact commands: `homelab-context/docs/reference/hardening.md`, and runbook 17 for the
 deletion policy.
 
 ## Secrets
@@ -182,7 +200,8 @@ kubectl -n argocd get application <name> -o jsonpath='{.status.sync.status}'
 kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite
 
 # regenerate the Duwende knowledge base after editing ~/projects/homelab-context
-./scripts/generate-duwende-context.sh
+# (Go command, in homelab-context)
+gen-context-bundle --out manifests/base/duwende/context.yaml
 ```
 
 ## What owns what
@@ -194,13 +213,13 @@ kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --
 | `clusters/prod/projects/` | the `prod` AppProject: destinations, `sourceRepos`, cluster-scoped whitelist | the root app |
 | `manifests/base/<component>/` | the manifests for a component | its `Application` |
 | `manifests/overlays/prod/<component>/` | what differs in production (placement, replicas, patches) | its `Application` |
-| `scripts/` | checks that run in CI and by hand (`generate-duwende-context.sh`, `check-runbook-links.py`, …) | you, and `.github/workflows/` |
+| — | this repository contains **no scripts**: every check is Go, in `homelab-context`, and runs from there | CI, and `homelab-context`'s `verify-all` |
 
 Two things that catch people out:
 
 - **`clusters/prod/projects/projects.yaml` gates everything.** A new repo needs a `sourceRepos` entry and a new namespace a
   `destinations` entry, or the Application fails to sync with a message that looks like a permissions bug.
 - **`manifests/duwende/context.yaml` is generated** from the private `homelab-context` repo and must not be edited. It is
-  checked by `scripts/generate-duwende-context.sh --check`, which a CI runner cannot run (the source is private) — so it is
-  run from `homelab-context`'s `verify-all.sh` on a workstation.
+  checked by `check-context-bundle` (Go, in `homelab-context`), which generates it in-process from the private docs and compares — a
+  CI runner cannot do that (the source is private), so it runs from `homelab-context`'s `verify-all` on a workstation.
 
