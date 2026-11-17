@@ -6,4 +6,3 @@ resources:
   - templates/diag.yaml
   - templates/action.yaml
   - rbac.yaml
-  - registry-pull.yaml

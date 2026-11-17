@@ -25,7 +25,7 @@ spec:
       steps:
         # argocd-app-out-of-sync - An Application is OutOfSync although self-heal is on - the cluster is refusing the update, or the comparison is stale
         - - name: argocd-app-out-of-sync
-            when: '{{workflow.parameters.action}} == "argocd-app-out-of-sync"'
+            when: '"{{workflow.parameters.action}}" == "argocd-app-out-of-sync"'
             inline:
               container:
                 image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
@@ -46,7 +46,7 @@ spec:
                         path: /tmp/verdict.txt
         # deployment-replicas-unavailable - A Deployment has unavailable replicas - the pods cannot be scheduled, pulled or started
         - - name: deployment-replicas-unavailable
-            when: '{{workflow.parameters.action}} == "deployment-replicas-unavailable"'
+            when: '"{{workflow.parameters.action}}" == "deployment-replicas-unavailable"'
             inline:
               container:
                 image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
@@ -67,7 +67,7 @@ spec:
                         path: /tmp/verdict.txt
         # jellyfin-transcode-broken - Jellyfin cannot transcode - hardware decode of 10-bit HEVC produces no frames
         - - name: jellyfin-transcode-broken
-            when: '{{workflow.parameters.action}} == "jellyfin-transcode-broken"'
+            when: '"{{workflow.parameters.action}}" == "jellyfin-transcode-broken"'
             inline:
               container:
                 image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
@@ -87,7 +87,7 @@ spec:
                         path: /tmp/verdict.txt
         # pod-stuck-pending - A pod is Pending - the scheduler will not place it, and its events say why
         - - name: pod-stuck-pending
-            when: '{{workflow.parameters.action}} == "pod-stuck-pending"'
+            when: '"{{workflow.parameters.action}}" == "pod-stuck-pending"'
             inline:
               container:
                 image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
