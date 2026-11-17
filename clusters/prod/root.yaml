@@ -3,7 +3,7 @@
 # Why clusters/<name>/ instead of one shared root: a cluster only sees the paths
 # its own root names, so an environment-specific Application can never leak into
 # another cluster by sitting in a directory that the other root happens to recurse.
-# Before this, bootstrap/root-app.yaml recursed all of applications/ and quietly
+# Before this, the old bootstrap Application recursed all of applications/ and quietly
 # deployed a *staging* app (status-api-staging) into production.
 #
 # Applied once per cluster: kubectl apply -f clusters/<name>/root.yaml

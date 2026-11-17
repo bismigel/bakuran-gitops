@@ -5,7 +5,7 @@
 # account (default, no RBAC) rather than a node.
 #
 # The trade-off is that a job can only use the tools in this image, which is the runner's own Alpine image. What that
-# image actually carries is measured after the first deploy and recorded in docs/plans/2026-11-15-forgejo-ci-migration.md;
+# image actually carries is measured after the first deploy and recorded in homelab-context/docs/plans/2026-11-15-forgejo-ci-migration.md;
 # if the python checks need more, the answer is a smaller purpose-built image (runner + python3 + git + trivy), not a
 # privileged Docker daemon.
 apiVersion: v1

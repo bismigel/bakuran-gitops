@@ -12,7 +12,7 @@ title: Jellyfin cannot transcode - hardware decode of 10-bit HEVC produces no fr
 severity: medium
 blast_radius: node
 reversible: true
-runbook: docs/reference/media.md
+runbook: homelab-context/docs/reference/media.md
 measured: '2026-11-16'
 detect:
   commands:

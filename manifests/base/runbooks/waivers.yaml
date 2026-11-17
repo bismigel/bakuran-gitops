@@ -1,6 +1,6 @@
 # Alerts that are NOT diagnosed by a condition, grouped, each saying where the operator goes instead.
 #
-# A waiver is a decision, not a shrug: `scripts/check-alert-coverage.py` fails when an alert has neither a condition nor a
+# A waiver is a decision, not a shrug: `check-alert-coverage` (Go, in homelab-context) fails when an alert has neither a condition nor a
 # waiver, so adding a rule forces the question "what happens when this fires?" in the PR rather than during the incident.
 #
 # Adding a condition later: delete the name from its group and put `alerts = ["<Name>"]` in the condition. The check reports
@@ -73,7 +73,7 @@ group:
   - CloudflareTunnelSingleConnector
   - CloudflareZoneNotActive
   - CloudflareZonePaused
-- reason: 'Router alerts: docs/reference/network.md §9 has the read-only checks; the box has no out-of-band console, so anything needing hands is a human decision (story 4.6)'
+- reason: 'Router alerts: homelab-context/docs/reference/network.md §9 has the read-only checks; the box has no out-of-band console, so anything needing hands is a human decision (story 4.6)'
   alerts:
   - RouterHeartbeatStale
   - RouterInterfaceErrors

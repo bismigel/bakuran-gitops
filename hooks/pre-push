@@ -3,10 +3,10 @@
 #
 # Why a local hook: GitHub does not offer branch protection on private repositories without a paid plan
 # (measured 2026-11-15: the API answers "Upgrade to GitHub Pro or make this repository public"). So the
-# server cannot refuse. This refuses instead, and `.github/workflows/guard-main.yml` detects the case
+# server cannot refuse. This refuses instead, and the server-side branch rule detects the case
 # where someone bypassed it with --no-verify or pushed from another machine.
 #
-# Install once per clone:  scripts/install-hooks.sh
+# Install once per clone:  go run ./cmd/install-hooks --dir .   (homelab-context)
 #
 # Bypass is possible and deliberate: this is a guard against the ordinary mistake, not a security
 # control. The detection workflow is what makes a bypass visible.
@@ -21,13 +21,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   refusing to push to '$b'
 
     Every change goes through a pull request: branch -> PR -> CI green -> merge.
-    See docs/decisions/adr-0001-pr-only-change-flow.md in homelab-context.
+    See homelab-context/docs/decisions/adr-0001-pr-only-change-flow.md.
 
     git switch -c <branch>            # if you are on $b now
     git push -u origin <branch>       # then open the PR
 
     If this is the accidental-push case: the commit is already local, so nothing is lost.
-    If you truly must override: git push --no-verify  (the guard-main workflow will record it)
+    If you truly must override: git push --no-verify  (the bypass is visible in the Forgejo push log)
 
 EOF
       exit 1

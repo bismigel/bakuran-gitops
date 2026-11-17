@@ -302,7 +302,7 @@ spec:
                   optional: true
             # LazyLibrarian's own API key (32 chars). Same value media-mcp uses
             # as LAZYLIBRARIAN_API_KEY.
-            # SABnzbd API key; seeded by bakuran-infra scripts/lazylibrarian-secrets.sh
+            # SABnzbd API key; reconciled by ESO from Bitwarden (manifests/base/external-secrets/media-setup.yaml)
             - name: SAB_API
               valueFrom:
                 secretKeyRef:
