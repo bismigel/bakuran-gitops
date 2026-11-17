@@ -5,7 +5,7 @@
 id: argocd-app-out-of-sync
 title: An Application is OutOfSync although self-heal is on - the cluster is refusing the update, or the comparison is stale
 severity: medium
-blast_radius: workload
+blast_radius: cluster
 reversible: true
 runbook: homelab-context/docs/reference/high-availability.md
 runbook_repo: homelab-context
