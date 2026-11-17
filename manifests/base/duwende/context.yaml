@@ -24,7 +24,7 @@ data:
     
     | Claim | Where | Example |
     |---|---|---|
-    | what is true *right now*, measured | [`STATE.md`](STATE.md), [`ops/`](ops) | nodes, pods, backup freshness |
+    | what is true *right now*, measured | [`STATE.md`](STATE.md) — regenerate with `state` | nodes, pods, backup freshness |
     | what the infrastructure *is*, verified and dated | [`docs/reference/network.md`](docs/reference/network.md), [`docs/reference/storage.md`](docs/reference/storage.md), [`docs/reference/system.md`](docs/reference/system.md) | addressing, mounts, invariants |
     | *why* a decision was made, and what it costs | [`docs/decisions/`](docs/decisions/README.md) | why the tunnel unit holds no endpoint |
     | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) / [`PLAN.org`](PLAN.org) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
@@ -123,7 +123,7 @@ data:
     | [`docs/reference/repos.md`](docs/reference/repos.md) | which repo owns what, and where its plan lives |
     | [`docs/plans/roadmap.md`](docs/plans/roadmap.md) · [`docs/plans/forgejo.md`](docs/plans/forgejo.md) · [`docs/plans/2026-11-15-forgejo-ci-migration.md`](docs/plans/2026-11-15-forgejo-ci-migration.md) · [`docs/plans/staging-deck.md`](docs/plans/staging-deck.md) | longer-horizon plans |
     | [`docs/guides/lift-and-shift.md`](docs/guides/lift-and-shift.md) | moving a repo between Forgejo and GitHub, and what it costs |
-    | [`docs/reference/conditions.md`](docs/reference/conditions.md) | the safety model behind `ops/run` |
+    | [`docs/reference/conditions.md`](docs/reference/conditions.md) | the safety model behind `ops-run` |
     | [`docs/records/`](docs/records/README.md) | dated accounts: what broke, what fixed it |
     
     Current-state documents are `docs/reference/network.md`, `docs/reference/storage.md`, `docs/reference/system.md`, `docs/reference/inventory.md`,
@@ -193,7 +193,7 @@ data:
       beliefs caused seven outages on 2026-10-25.
     - **After a structural change, update this block by hand** — a mistake worth remembering goes in
       `guides/agents-pitfalls.md`; a block that stopped matching the repo is a bug in the block.
-    - **Flips need `scripts/preflight-flip.sh <story>`** — no rehearsal record, no flip.
+    - **Flips need `preflight-flip <story>`** (dev shell) — no rehearsal record, no flip.
     - **Read the config before writing a rule about it.** An invariant must be
       written from the file it constrains (and the line quoted), never from live
       state or memory. A "do not re-add `::/0`" rule written from the runtime state
@@ -222,21 +222,21 @@ data:
     | 1 | one `ops/*` output, one section of `storage.md`/`network.md`, one runbook page | ~1 500 | by anchor |
     | 2 | whole reference docs, `docs/records/` | unbounded | only when the question is *about* them |
     
-    **Start every session with `STATE.md`** (generated; regenerate with `scripts/state.sh`).
+    **Start every session with `STATE.md`** (generated; regenerate with `state`).
     It answers nodes, pods, apps, alerts, volumes, mounts and backup freshness in ~26 lines.
     
     Route by question:
     
     | question | go to |
     |---|---|
-    | what is broken right now | `ops/broken` (≤15 lines, no headers) |
-    | a diagnosis someone already made | `ops/run --list`, then `ops/run <id>` — run it, don't re-derive it |
+    | what is broken right now | `broken` (≤15 lines, no headers) |
+    | a diagnosis someone already made | `ops-run --list`, then `ops-run <id>` — run it, don't re-derive it |
     | run one alert's diagnostic in the cluster | `ops-diag <alert>` (Go, built by nix: `nix build .#ops-diag`) |
-    | is someone streaming right now | `ops/watching` — 0 means the media path is safe to touch; non-zero means wait |
-    | am I on Forgejo or GitHub, and did the mirror take it | `ops/where <repo>` — origin is Forgejo, GitHub the mirror |
-    | what a node drain can take down | `ops/workloads --strict` — multi-replica workloads with no PDB and no justification |
-    | is mount X there / how full | `ops/mounts [host]` |
-    | are backups current | `ops/backups` |
+    | is someone streaming right now | `watching` — 0 means the media path is safe to touch; non-zero means wait |
+    | am I on Forgejo or GitHub, and did the mirror take it | `where <repo>` — origin is Forgejo, GitHub the mirror |
+    | what a node drain can take down | `audit-workloads --strict` — multi-replica workloads with no PDB and no justification |
+    | is mount X there / how full | `mounts [host]` |
+    | are backups current | `backups` |
     | what does a mount hold, what protects it | `storage.md` (one row per mount) |
     | network, VLAN, addressing, invariants | `network.md` |
     | change the router | `opentofu/opnsense` (plan first) + runbook 22; **never** hand-edit `config.xml` |
@@ -246,9 +246,9 @@ data:
     | what is planned / known-broken | `PLAN.md`, `known-issues.md`, `NEXT-STEPS.md` (a tombstone) |
     | day-2 procedures | `OPERATIONS.md` (the file formerly called RUNBOOK.md) |
     | what an alert needs, and where a procedure lives | `runbook-actions.md` (ADR 0018) |
-    | "did I break any of the checks" | `scripts/verify-all.sh` — every checker, including the ones CI cannot run (they need the siblings, nix or kubectl) |
+    | "did I break any of the checks" | `verify-all` (nix dev shell) — every checker, including the ones CI cannot run (they need the siblings or nix) |
     | "what are the host facts" | `python3 scripts/facts.py hosts` — derived from `bakuran-infra`'s flake; never restate a host, address or mount in prose |
-    | how to accept a story | `/approve` on its Forgejo issue (or close it), then `python3 scripts/board.py pull --write` — the comment's author becomes `accepted_by`; `/reject` takes it back |
+    | how to accept a story | `/approve` on its Forgejo issue (or close it), then `board pull --write` — the comment's author becomes `accepted_by`; `/reject` takes it back |
     | what work is planned, in flight, or awaiting acceptance | `PLAN.md`/`PLAN.org` — generated from `plan/output/`, every story carries `repo:` (`repos.md` § "Where the plan lives") |
     | the same, as columns (Kanban) | `BOARD.md` — generated by `scripts/render-board.py` |
     
@@ -325,7 +325,7 @@ data:
     
     ## Hosts
     
-    <!-- BEGIN facts:hosts — generated by `scripts/facts.py render`, do not edit -->
+    <!-- BEGIN facts:hosts — generated by `cmd/facts render`, do not edit -->
     | Host | IP | k3s node | declared `/mnt` mounts |
     |---|---|---|---|
     | `patola-thinkcentre` | 192.168.2.80 | yes | data |
@@ -336,7 +336,7 @@ data:
     
     That table is **derived**, not typed: `scripts/facts.py` reads `bakuran-infra`'s flake
     (`nixosConfigurations`, `deploy.nodes.*.hostname`, `services.k3s.enable`,
-    `config.fileSystems`) and `scripts/verify-all.sh` fails when it drifts. `declared` mounts
+    `config.fileSystems`) and `cmd/verify-all` fails when it drifts. `declared` mounts
     are what the flake says should be mounted — they are not a measurement of what *is*
     mounted, and the two have disagreed: `/mnt/backup-usb` stayed declared for a day after its
     stick was retired, which is how the backlog ticket that removed it was found (2026-11-04).
@@ -1174,7 +1174,7 @@ data:
     ```
     
     Verified 2026-11-16: the newest transcode afterwards encodes the *same* 10-bit item (`S09E08`) at 1.18x with no `hwaccel
-    vaapi` in the command and no errors, and the Xbox started playing. `ops/run` condition: `jellyfin-transcode-broken`.
+    vaapi` in the command and no errors, and the Xbox started playing. `ops-run` condition: `jellyfin-transcode-broken`.
     
     Two things that made this slow to find, both worth not repeating: the log filename per-day meant I first searched a
     whole day's log (pre-fix failures included, so a fixed box still looked broken), and the item id in the ffmpeg log
@@ -1698,7 +1698,7 @@ data:
     ---
     type: reference
     audience: agent
-    owns: the safety model for ops/run — blast radius, the three lines that do not move, why no engine
+    owns: the safety model for ops-run — blast radius, the three lines that do not move, why no engine
     ---
     
     # Conditions — the safety model
@@ -1723,7 +1723,7 @@ data:
        is a registry that has stopped reading its own estate.
     2. **Nothing restarts the tunnel or changes routing** without `preflight-wg.sh` having passed in the same breath. That
        script exists because the operation has stranded a node seven times.
-    3. **Nothing runs on a timer.** `ops/run` is invoked by a human or an agent that has read the diagnosis. A condition that
+    3. **Nothing runs on a timer.** `ops-run` is invoked by a human or an agent that has read the diagnosis. A condition that
        fires by itself is an incident generator with no owner.
     
     ## Why there is no engine, yet
@@ -1731,8 +1731,8 @@ data:
     An n8n-style engine is the obvious next thought — visual flows, retries, schedules — and it is also a stateful service holding
     credentials, with the logic in a database instead of git. That is the opposite of this estate's one non-negotiable.
     
-    So the shape is: **the registry is git, execution is `ops/run`, and an engine may later be a scheduler and notifier that
-    calls `ops/run`** — never the place the remedy is written. Story 12.4 records that decision properly; this page is the reason
+    So the shape is: **the registry is git, execution is `ops-run`, and an engine may later be a scheduler and notifier that
+    calls `ops-run`** — never the place the remedy is written. Story 12.4 records that decision properly; this page is the reason
     it will be decided that way rather than by drift.
     
     ## Adding a condition
@@ -1784,8 +1784,8 @@ data:
     Ask it a question and it reads the cluster with its own read-only credentials, then answers.
     
     ```bash
-    ops/ask "why is the media pod restarting?"
-    ops/ask --ns media "which pods have restarted most?"
+    ask "why is the media pod restarting?"
+    ask --ns media "which pods have restarted most?"
     ```
     
     It costs one DeepSeek call per question, so nothing calls it automatically. It holds no repository
