@@ -28,9 +28,17 @@ jobs:
       - name: yamllint every manifest
         run: python3 -m yamllint -c .yamllint manifests clusters
 
-      - name: Image digests are pinned and current
+      # The pinning rule is Go (ADR 0016) and lives in homelab-context. `verify-image-digests.py` - the slow, operator-run half
+      # that actually talks to registries - is still a script here; this step is the one that has to run on every PR.
+      - name: Check out the checks (executable code is Go, ADR 0016)
         run: |
-          bash scripts/check-image-digests.sh .
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          rm -rf "$CTX"
+          git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" "$CTX"
+      - name: Image digests are pinned
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-image-digests --root "$GITHUB_WORKSPACE"
 
   layout:
     runs-on: in-cluster
