@@ -37,8 +37,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      # The rule lives in homelab-context as Go (ADR 0016). It is *cloned*, not copied: a second copy in this repository is
+      # the shape ADR 0011 forbids, and the copy would drift from the one the rest of the estate runs. `http://forgejo:3000`
+      # is the in-cluster Service - `git.bismigel.dev` is behind Cloudflare Access, so a pod cloning over the public name would
+      # be handed the Access login page instead of a repository.
+      - name: Check out the checks (executable code is Go, ADR 0016)
+        run: git clone --depth=1 http://forgejo:3000/bismigel/homelab-context.git /tmp/ctx
       - name: Every Application points into the one manifest layout
-        run: python3 scripts/check-manifest-layout.py
+        run: cd /tmp/ctx && CGO_ENABLED=0 go run ./cmd/check-manifest-layout --root "$GITHUB_WORKSPACE"
       - name: No object is defined twice
         run: bash scripts/check-duplicate-objects.sh
       # No server-side dry-run here, deliberately. The runner is a pod with the default service account and no RBAC -
