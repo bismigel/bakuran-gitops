@@ -85,7 +85,7 @@ spec:
                            prowlarr.bismigel.dev bazarr.bismigel.dev qbittorrent.bismigel.dev \
                            sabnzbd.bismigel.dev grafana.bismigel.dev prometheus.bismigel.dev \
                            longhorn.bismigel.dev homepage.bismigel.dev agent.bismigel.dev \
-                           lazylibrarian.bismigel.dev runbook.bismigel.dev private.bismigel.dev; do
+                           lazylibrarian.bismigel.dev runbook.bismigel.dev; do
                     check ingress-nginx-admin-controller.ingress-nginx-admin.svc.cluster.local "$h" admin
                   done
 
