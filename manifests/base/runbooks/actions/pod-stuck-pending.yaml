@@ -2,7 +2,7 @@
 id: pod-stuck-pending
 title: A pod is Pending - the scheduler will not place it, and its events say why
 severity: high
-blast_radius: workload
+blast_radius: cluster
 reversible: true
 runbook: homelab-context/docs/reference/high-availability.md
 runbook_repo: homelab-context

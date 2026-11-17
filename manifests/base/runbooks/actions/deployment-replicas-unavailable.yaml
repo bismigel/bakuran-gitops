@@ -2,7 +2,7 @@
 id: deployment-replicas-unavailable
 title: A Deployment has unavailable replicas - the pods cannot be scheduled, pulled or started
 severity: high
-blast_radius: workload
+blast_radius: cluster
 reversible: true
 runbook: homelab-context/docs/reference/known-issues.md
 runbook_repo: homelab-context
