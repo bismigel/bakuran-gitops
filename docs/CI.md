@@ -6,7 +6,7 @@ badge.
 
 ## What runs on a pull request here
 
-Four jobs, all required. Their names are the ones you would see in the UI, taken from a real run on 2026-11-17:
+Four jobs, all required. Their names are the ones you would see in the UI, as they appear in the UI:
 
 | job | what fails if it does not hold |
 |---|---|
@@ -25,6 +25,5 @@ Four jobs, all required. Their names are the ones you would see in the UI, taken
 
 ## The checks themselves
 
-They are **Go**, and they live in `homelab-context` (`check-*`, `verify-all`, `scan-images`). Each was ported from a shell or Python
-original and carries a differential against it — same messages, same exit codes, in both the pass and the fail direction. Two of them
-could not fail before the port. That is the sort of thing this CI is for.
+They are **Go** and they live in `homelab-context` (`check-*`, `verify-all`, `scan-images`). Each replaces a shell or Python original
+and is verified the same way: same messages, same exit codes, in both the pass and the fail direction.
