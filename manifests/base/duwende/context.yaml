@@ -1,6 +1,6 @@
 # Homelab context for the Hermes agent. GENERATED; do not edit by hand.
 # Source: ~/projects/homelab-context (CREDENTIALS.md excluded).
-# Regenerate: scripts/generate-duwende-context.sh
+# Regenerate: gen-context-bundle --out manifests/base/duwende/context.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1777,7 +1777,7 @@ data:
     Telegram bot and an HTTP dashboard, plus MCP clients for Kubernetes and Prometheus. It is the only
     model-backed actor with a repository token, so it is the one that proposes changes. It reads this
     document set through a generated ConfigMap (`duwende/homelab-context`) assembled from this repository
-    by `bakuran-gitops/scripts/generate-duwende-context.sh`.
+    by `gen-context-bundle` (Go, in this repository).
     
     ## HolmesGPT — the investigator that cannot act
     
