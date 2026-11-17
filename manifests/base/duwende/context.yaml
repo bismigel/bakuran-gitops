@@ -1703,10 +1703,10 @@ data:
     
     # Conditions — the safety model
     
-    The registry lives in `bakuran-gitops/manifests/base/runbooks/conditions/`, beside the alert rules it serves,
+    The registry lives in `bakuran-gitops/manifests/base/runbooks/actions/`, beside the alert rules it serves,
     so a rule and its procedure can land in one PR - a procedure maintained in a different repository rots at the
-    rate the environment changes. `conditions/*.yaml` turns a diagnosis that has already been done once into something you **run** instead of read. The format
-    and the four authoring rules are in [`conditions/README.md`](https://github.com/bismigel/bakuran-gitops/blob/main/manifests/base/runbooks/conditions/README.md); this page is the part a reviewer
+    rate the environment changes. `runbooks/actions/*.yaml` turns a diagnosis that has already been done once into something you **run** instead of read. The format
+    and the four authoring rules are in [`actions/README.md`](https://github.com/bismigel/bakuran-gitops/blob/main/manifests/base/runbooks/actions/README.md); this page is the part a reviewer
     argues with, because it is what stops the registry becoming an agent with a gun.
     
     ## What may be automated, and what may not
@@ -1737,7 +1737,7 @@ data:
     
     ## Adding a condition
     
-    1. Copy the closest existing file in `bakuran-gitops/manifests/base/runbooks/conditions/`.
+    1. Copy the closest existing file in `bakuran-gitops/manifests/base/runbooks/actions/`.
     2. `diagnose` first: what command decides this, and what does each answer mean? If you cannot write that sentence, the
        diagnosis is not finished.
     3. Only then a `remedy`, with `why_safe` in one sentence a reviewer can argue with.
@@ -1835,7 +1835,7 @@ data:
     - **Delete stateful objects.** A PVC, PV or Namespace cannot be deleted at admission
       ([ADR 0002](../decisions/adr-0002-never-delete-stateful-objects.md)), by anyone, for any reason short
       of runbook 17.
-    - **Decide that an alert needs no diagnosis.** That is written down in `conditions/waivers.yaml`, so
+    - **Decide that an alert needs no diagnosis.** That is written down in `runbooks/waivers.yaml`, so
       adding an alert forces the question in the pull request rather than during the incident.
     
     ## If an agent's answer looks wrong
@@ -1847,7 +1847,7 @@ data:
     with read access, and the countermeasure is a measurement, not more prompt.
     
     It probably is. The evidence to check it lives here: `docs/records/incidents/` for what actually
-    happened before, `conditions/*.yaml` for the diagnoses already known, and `evals/` for whether the
+    happened before, `runbooks/actions/*.yaml` for the diagnoses already known, and `evals/` for whether the
     agent reaches the same conclusion from the same symptoms (5 cases, `run-evals`).
   docs_guides_cluster.md: |
     ---
