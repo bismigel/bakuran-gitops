@@ -49,7 +49,7 @@ jobs:
       - name: Every Application points into the one manifest layout
         run: cd /tmp/ctx && CGO_ENABLED=0 go run ./cmd/check-manifest-layout --root "$GITHUB_WORKSPACE"
       - name: No object is defined twice
-        run: bash scripts/check-duplicate-objects.sh
+        run: cd /tmp/ctx && CGO_ENABLED=0 go run ./cmd/check-duplicate-objects --root "$GITHUB_WORKSPACE"
       # No server-side dry-run here, deliberately. The runner is a pod with the default service account and no RBAC -
       # that is a security property worth keeping, not a gap to close - so `kubectl apply --dry-run=server` answers
       # "Forbidden" and the job fails for a reason that has nothing to do with the manifests being wrong. The templates
