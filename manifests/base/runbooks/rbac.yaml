@@ -24,6 +24,17 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get", "list"]
+  # Added 2026-11-18 with the first three actions that run in a pod, each verb taken from a command those actions contain rather than
+  # from a list of "usual" rights: `kubectl -n argocd get applications`, `kubectl get deployments -A -o json`, `kubectl describe nodes`.
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["nodes", "configmaps"]
+    verbs: ["get", "list"]
   # Argo's own executor needs this to report step results; it is not part of the investigation.
   - apiGroups: ["argoproj.io"]
     resources: ["workflowtaskresults"]
