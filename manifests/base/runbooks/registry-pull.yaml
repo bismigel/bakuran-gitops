@@ -1,0 +1,24 @@
+# The pull credential for the image the action steps run: the estate's own registry (zot, in the forgejo namespace), reachable
+# in-cluster only through the k3s mirror name `registry.bismigel.dev` (k3s registries.yaml maps it to http://10.43.200.10:5000).
+#
+# Declared here rather than created by hand once: without it every action step sits in ImagePullBackOff, and the failure looks like a
+# broken workflow rather than a missing secret.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: registry-pull
+  namespace: argo
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: registry-pull
+    template:
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: '{{ printf "{\"auths\":{\"registry.bismigel.dev\":{\"username\":%q,\"password\":%q,\"auth\":%q}}}" .username .password (printf "%s:%s" .username .password | b64enc) }}'
+  data:
+    - secretKey: username
+      remoteRef: { key: registry-username }
+    - secretKey: password
+      remoteRef: { key: registry-password }

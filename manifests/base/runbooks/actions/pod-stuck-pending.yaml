@@ -1,0 +1,25 @@
+# A pod that never gets scheduled. Read-only, and the answer is almost always in the scheduler's own message.
+id: pod-stuck-pending
+title: A pod is Pending - the scheduler will not place it, and its events say why
+severity: high
+blast_radius: workload
+reversible: true
+runbook: homelab-context/docs/reference/high-availability.md
+runbook_repo: homelab-context
+measured: '2026-11-18'
+alerts:
+- PodStuckPending
+detect:
+  commands:
+  - kubectl get pods -A -o json | jq -r '.items[] | select(.status.phase=="Pending") | "\(.metadata.namespace)/\(.metadata.name)"'
+  expect: notempty
+diagnose:
+  commands:
+  - kubectl get pods -A -o json | jq -r '.items[] | select(.status.phase=="Pending") | "\(.metadata.namespace)/\(.metadata.name)"'
+  - kubectl get events -A --field-selector reason=FailedScheduling --sort-by=.lastTimestamp | tail -10
+  - kubectl describe nodes | grep -A4 'Allocated resources' | head -20
+  verdict: 'FailedScheduling names the constraint (insufficient cpu/memory, node affinity, a taint, a volume in the wrong zone). If the
+    message says the volume is not attachable, the pod is not the problem - the PVC is.'
+remedy:
+  commands: []
+  why_safe: No automatic remedy. Deleting a Pending pod re-creates it on the same constraint, and the constraint is the finding.
