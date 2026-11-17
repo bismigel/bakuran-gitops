@@ -20,7 +20,7 @@ diagnose:
   commands:
   - kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status --no-headers | awk '$2=="OutOfSync"'
   - 'kubectl -n argocd get application -o json | jq -r ''.items[] | select(.status.sync.status=="OutOfSync") | "\(.metadata.name): \(.status.conditions[0].message // "no condition")"'''
-  - kubectl -n argocd logs deploy/argocd-application-controller --tail=40 | grep -iE 'error|refus|denied|invalid' | tail -10
+  - kubectl -n argocd logs -l app.kubernetes.io/name=argocd-application-controller --tail=40 | grep -iE 'error|refus|denied|invalid' | tail -10
   verdict: A message naming a refused field or a denied request means the cluster is rejecting the manifest and the diff will never
     converge. No message, and a recent manifest change, points at the comparison being stale - refresh the Application before
     touching anything else.
