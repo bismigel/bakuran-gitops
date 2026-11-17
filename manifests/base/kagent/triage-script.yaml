@@ -27,6 +27,12 @@ data:
     STATE=/state/seen
     BUDGET=/state/budget
     MAX_PER_DAY="${MAX_PER_DAY:-20}"
+    # A flapping alert resolves and re-fires with a new `startsAt`, which defeats the dedupe below by design - the alert
+    # genuinely is new. It is not new *enough* to be worth a second agent run ten minutes later, so the same alert also
+    # has a cooldown: triage it once, then leave it alone for an hour even if it flaps. Raise it if a retriage is ever
+    # genuinely needed sooner; the failure mode of a low value is only a possibly-stale diagnosis, and the failure mode of
+    # no value is the bill that produced this patch (2026-11-17).
+    COOLDOWN_MIN="${COOLDOWN_MIN:-60}"
 
     mkdir -p /state
     today=$(date -u +%Y-%m-%d)
@@ -68,10 +74,23 @@ data:
       starts=$(echo "$a" | jq -r '.startsAt // "-"')
       key="${name}|${instance}"
 
-      seen=$(awk -v k="$key" -F'\t' '$1==k{print $2}' "$STATE" 2>/dev/null | tail -1)
+      # Two refusals, both checked before a token is spent:
+      #   * the same instance, unchanged `startsAt`  -> already triaged, nothing new
+      #   * the same instance inside the cooldown     -> it flapped; the last diagnosis is still fresh enough to read
+      line=$(awk -v k="$key" -F'\t' '$1==k{print $2 "\t" $3}' "$STATE" 2>/dev/null | tail -1)
+      seen=${line%%	*}
+      seen_at=${line##*	}
       if [ "$seen" = "$starts" ]; then
         echo "--- ${name} (${instance}) already triaged at ${starts} - nothing new"
         exit 0
+      fi
+      now=$(date +%s)
+      if [ -n "${seen_at:-}" ] && [ "$seen_at" -gt 0 ] 2>/dev/null; then
+        age=$(( (now - seen_at) / 60 ))
+        if [ "$age" -lt "$COOLDOWN_MIN" ]; then
+          echo "--- ${name} (${instance}) triaged ${age} min ago - inside the ${COOLDOWN_MIN} min cooldown, not again"
+          exit 0
+        fi
       fi
 
       summary=$(echo "$a" | jq -r '.annotations.summary // .annotations.description // ""')
@@ -93,7 +112,7 @@ data:
 
       # Recorded *after* the answer, not before: a run that dies mid-flight must be retried, and a marker written
       # first would make a failed triage look done.
-      printf '%s\t%s\n' "$key" "$starts" >> "$STATE.new"
+      printf '%s\t%s\t%s\n' "$key" "$starts" "$now" >> "$STATE.new"
       awk -v k="$key" -F'\t' '$1!=k' "$STATE" >> "$STATE.new" 2>/dev/null || true
       sort -u "$STATE.new" | tail -200 > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
       rm -f "$STATE.new"
