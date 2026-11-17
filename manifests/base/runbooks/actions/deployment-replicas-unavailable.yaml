@@ -1,0 +1,26 @@
+# Desired replicas that are not available for fifteen minutes. Read-only, so it runs in the pod that the pane starts.
+id: deployment-replicas-unavailable
+title: A Deployment has unavailable replicas - the pods cannot be scheduled, pulled or started
+severity: high
+blast_radius: workload
+reversible: true
+runbook: homelab-context/docs/reference/known-issues.md
+runbook_repo: homelab-context
+measured: '2026-11-18'
+alerts:
+- DeploymentReplicasUnavailable
+detect:
+  commands:
+  - kubectl get deployments -A -o json | jq -r '.items[] | select((.status.unavailableReplicas // 0) > 0) | "\(.metadata.namespace)/\(.metadata.name) unavailable=\(.status.unavailableReplicas)"'
+  expect: notempty
+diagnose:
+  commands:
+  - kubectl get deployments -A -o json | jq -r '.items[] | select((.status.unavailableReplicas // 0) > 0) | "\(.metadata.namespace)/\(.metadata.name)"'
+  - kubectl get pods -A -o wide --field-selector status.phase!=Running,status.phase!=Succeeded
+  - kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp | tail -15
+  verdict: 'Unschedulable pods name a resource (cpu, memory, a nodeSelector with no matching node); ImagePullBackOff names the registry or
+    the pull secret; CrashLoopBackOff needs the pod log rather than the event. The event text decides which of those it is.'
+remedy:
+  commands: []
+  why_safe: No automatic remedy. Restarting or deleting a pod to clear a warning destroys the evidence for the next occurrence, and the
+    three causes above need different fixes.
