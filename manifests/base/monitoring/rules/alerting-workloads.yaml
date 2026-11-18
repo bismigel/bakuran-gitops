@@ -145,18 +145,21 @@ data:
               summary: "Alertmanager is not receiving alerts while Prometheus is firing"
               description: "Either Alertmanager is down (its scrape target is absent) or nothing is reaching it while {{ $value }} alerts are firing in Prometheus."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#alertmanagernotreceivingalerts"
-          - alert: Watchdog
-            # A dead-man's switch. It always fires, so it is only useful as a heartbeat:
-            # if the Telegram heartbeat stops arriving, the pipeline is dead even though
-            # nothing is shouting. repeat_interval is 4h, so it lands a few times a day.
+          # The heartbeat is a RECORDING rule, not an alert (2026-11-18).
+          #
+          # It used to be `alert: Watchdog, expr: vector(1)` with `severity: none`. That fires forever by construction,
+          # so Alertmanager re-sent "Alerting pipeline heartbeat" to Telegram every `repeat_interval` - six messages a
+          # day, forever, carrying no information a human can act on. An always-true alert is noise with a heartbeat's
+          # job description.
+          #
+          # It is still needed: `prometheus-watchdog` (checks/prometheus-watchdog.yaml) proves rule *evaluation* is
+          # alive by asking Prometheus to count it, because the alerter cannot report its own death. So the proof of
+          # life stays as a series - always 1, evaluated every interval, routed nowhere because it is not an alert -
+          # and `count(watchdog:evaluation:alive)` is what the CronJob queries. A dead Prometheus makes the series go
+          # stale, the query return empty, and the CronJob post straight to Telegram: the alarm is the ABSENCE, not a
+          # message that has to arrive.
+          - record: watchdog:evaluation:alive
             expr: vector(1)
-            labels:
-              severity: none
-              watchdog: "true"
-            annotations:
-              summary: "Alerting pipeline heartbeat"
-              description: "This alert always fires. Its only job is to prove Prometheus, Alertmanager and Telegram are still connected end to end. If these stop arriving, alerting is dead."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#watchdog"
       - name: longhorn
         rules:
           # longhorn_volume_robustness is an enum-style metric: one series per

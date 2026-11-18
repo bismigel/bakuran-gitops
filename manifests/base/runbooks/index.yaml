@@ -75,7 +75,6 @@ data:
   StrayCNIMetricsMissing: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#straycnimetricsmissing"
   TargetDown: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#targetdown"
   WanUnreachable: "action=- where=workstation severity=critical runbook=https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#wanunreachable"
-  Watchdog: "action=- where=cluster severity=none runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#watchdog"
   WireGuardMetricsMissing: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardmetricsmissing"
   WireGuardNoEgress: "action=wireguard-probe-false-positive where=workstation severity=critical runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardnoegress"
   WireGuardNoHandshake: "action=handshake-gate-refusing-label where=workstation severity=critical runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardnohandshake"

@@ -114,7 +114,6 @@ group:
   where: cluster
   alerts:
   - AlertmanagerNotificationFailing
-  - Watchdog
 - reason: 'The WireGuard alerts that are NOT egress: the exporter is missing, or the unit restarted. Both are read with `systemctl status` on .81; the egress conditions cover the interesting cases. Both are read with `systemctl status` on .81; the egress conditions cover the interesting cases'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
