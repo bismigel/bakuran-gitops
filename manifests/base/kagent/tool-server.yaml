@@ -1,0 +1,115 @@
+# Story 10.14, done the declarative way: the tool server is ours, so the chart's wildcard is not in the picture at all.
+#
+# The kagent chart's `kagent-tools` subchart ships `kagent-tools-cluster-admin-role` (apiGroups ["*"], resources ["*"],
+# verbs ["*"]) and three ClusterRoleBindings, all hardcoded in its templates with no values toggle. Story 7.7 gave it an
+# admission cage so the wildcard could not write anything but one Workflow create; that was a mitigation, and the honest
+# fix is to stop consuming the chart's version of the component.
+#
+# `kagent-tools.enabled: false` in values.yaml removes the subchart's five objects (measured by rendering: two
+# ClusterRoles, three ClusterRoleBindings, plus its ServiceAccount/Deployment/Service). Everything else in the chart still
+# renders, including the RemoteMCPServer, whose URL is unchanged - `http://kagent-tools.kagent:8084/mcp` - so the service
+# names below are load-bearing, not decoration.
+#
+# The Role is derived from what the server was actually asked for, not from a list of "usual" rights: over the prod
+# tool-server's 100 hours of logs (2026-11-18), every kubectl call was `get`/`describe`/`logs` on events (544), pods
+# (374+332), applications (26+24), cronjobs (24+6), deployments (20+6), configmaps (6), ingresses (2) and pod logs. No
+# write of any kind. So: read verbs on those kinds, plus `create` on workflows in `argo` through the separate Role that
+# story 7.7 already declares (`runbook-submitter-rbac.yaml`) - the agent may start a diagnosis, and nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kagent-tools
+  namespace: kagent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kagent-tools-observe
+  annotations:
+    bakuran.dev/owner: "story 10.14"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "events", "services", "configmaps", "namespaces", "nodes", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "workflows", "workflowtemplates"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kagent-tools-observe
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kagent-tools-observe
+subjects:
+  - kind: ServiceAccount
+    name: kagent-tools
+    namespace: kagent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kagent-tools
+  namespace: kagent
+  labels: { app.kubernetes.io/name: kagent-tools }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: kagent-tools }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: kagent-tools }
+    spec:
+      # Load-bearing, and the thing staging caught: without this the pod runs as `default`, and every verb in the
+      # ClusterRole above is bound to an identity nothing uses. Measured in staging 2026-11-18 - the tool server logged
+      # `User "system:serviceaccount:kagent:default" cannot list resource "pods"`.
+      serviceAccountName: kagent-tools
+      automountServiceAccountToken: true
+      containers:
+        - name: tools
+          # Pinned by digest, the same way every other image in this estate is: `0.0.12` is a tag that can move, a digest
+          # is the bytes the agent's only tool surface actually runs.
+          image: ghcr.io/kagent-dev/kagent/tools@sha256:cf75c64b7b59a3ab3e0f0d61183d1cad228241668024f79b9dff8ad74c12abde
+          command: ["/tool-server"]
+          args: ["--port", "8084"]
+          env:
+            - name: KAGENT_NAMESPACE
+              valueFrom:
+                fieldRef: { fieldPath: metadata.namespace }
+            # Tracing stays off, matching values.yaml: the chart's default endpoint is a Docker-Desktop address that
+            # resolves nowhere in this cluster (measured 2026-11-15: 12 export timeouts in 30 minutes).
+            - { name: OTEL_TRACING_ENABLED, value: "false" }
+          ports:
+            - { name: http-tools, containerPort: 8084, protocol: TCP }
+          readinessProbe:
+            tcpSocket: { port: http-tools }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 1000m, memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kagent-tools
+  namespace: kagent
+  labels: { app.kubernetes.io/name: kagent-tools }
+spec:
+  selector: { app.kubernetes.io/name: kagent-tools }
+  ports:
+    - { name: tools, port: 8084, targetPort: 8084, protocol: TCP }
