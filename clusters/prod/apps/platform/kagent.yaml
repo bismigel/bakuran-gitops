@@ -24,7 +24,12 @@ spec:
     - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
       targetRevision: main
       path: manifests/base/kagent/tool-server
-      kustomize: {}
+      # NOT `kustomize: {}`: the API drops an empty map on the round trip, so the live Application never matched this
+      # file and `root` reported it OutOfSync for ever - which hides real drift behind a cosmetic one. A non-empty block
+      # survives, and the annotation it adds is a real one: it says who owns these four objects.
+      kustomize:
+        commonAnnotations:
+          bakuran.dev/owner: story-10.14
   destination:
     server: https://kubernetes.default.svc
     namespace: kagent
