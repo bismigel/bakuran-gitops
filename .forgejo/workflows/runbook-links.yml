@@ -12,6 +12,9 @@ concurrency:
 
 jobs:
   links:
+    # The run token may read the repository and nothing else.
+    permissions:
+      contents: read
     runs-on: in-cluster
     timeout-minutes: 10
     steps:
@@ -25,14 +28,13 @@ jobs:
       # anonymous clone does not work either: this instance sets REQUIRE_SIGNIN_VIEW = true, so the clone hangs waiting
       # for credentials until the job times out. Hence a read:repository token, stored as SITE_TOKEN.
       # Pinned by commit, not by tag: a tag is a pointer the action's owner can move, and this step runs on every PR.
-      # `persist-credentials: false` because the run token is otherwise left in .git/config for the next step to find.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
-        with:
-          persist-credentials: false
         with:
           repository: bismigel/bismigel-site
           token: ${{ secrets.SITE_TOKEN }}
           path: site
+          # The token for *this* repository is not this step's business, so it is not persisted.
+          persist-credentials: false
       # The check itself is Go, in homelab-context (ADR 0016), and cloned rather than copied: this file used to be a copy
       # with a comment saying "change both", which is the arrangement ADR 0011 exists to prevent. The copy is why its header
       # claimed bismigel-site was public and needed no token while this workflow was using SITE_TOKEN above.
