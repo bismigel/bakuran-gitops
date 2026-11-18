@@ -19,3 +19,5 @@ resources:
   # The Role the agent submits through. It lives in this directory because the boundary is kagent's, and in
   # namespace argo because that is where the Workflows are.
   - runbook-submitter-rbac.yaml
+  # 10.14: the tool server is declared here instead of consumed from the chart's subchart.
+  - tool-server.yaml

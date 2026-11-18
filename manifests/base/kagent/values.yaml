@@ -18,7 +18,11 @@ kmcp:
   enabled: false
 
 kagent-tools:
-  enabled: true   # the bundled MCP tool server: without it an agent has no tools at all
+  # Story 10.14: OFF. The subchart's RBAC is hardcoded - `kagent-tools-cluster-admin-role` is apiGroups ["*"], resources
+  # ["*"], verbs ["*"], with no values toggle - so the only declarative way not to carry a wildcard is not to use the
+  # subchart's component. `manifests/base/kagent/tool-server.yaml` declares the same tool server (same Service name and
+  # port, which is what the chart's RemoteMCPServer resolves) with a read-only ClusterRole and no wildcard anywhere.
+  enabled: false
 
 tools:
   grafana-mcp:
