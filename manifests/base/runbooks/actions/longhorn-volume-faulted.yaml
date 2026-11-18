@@ -1,0 +1,24 @@
+# A Longhorn volume reports robustness=faulted. Read-only: the CRDs and the replica placement.
+id: longhorn-volume-faulted
+title: A Longhorn volume is faulted - it has fewer healthy replicas than its policy demands
+severity: high
+blast_radius: cluster
+reversible: true
+runbook: homelab-context/docs/reference/storage.md
+runbook_repo: homelab-context
+measured: '2026-11-18'
+alerts:
+- LonghornVolumeFaulted
+diagnose:
+  commands:
+  - kubectl -n longhorn-system get volumes.longhorn.io -o custom-columns=NAME:.metadata.name,STATE:.status.state,ROBUSTNESS:.status.robustness,NODE:.status.currentNodeID --no-headers | awk '$3!="healthy"'
+  - kubectl -n longhorn-system get replicas.longhorn.io -o custom-columns=NAME:.metadata.name,DATA:.spec.dataEngine,NODE:.spec.nodeID,FAILED:.spec.failedAt,STATE:.status.currentState --no-headers | head -20
+  - kubectl get nodes -o wide
+  - kubectl -n longhorn-system get pods -l app=longhorn-manager -o wide
+  verdict: 'Faulted with all nodes Ready means a replica disk failed or was evicted, not a node outage - the volume still serves reads from
+    its remaining replica and the repair is a rebuild, not a restore. Faulted with a node NotReady is the case where doing nothing for an
+    hour is what turns a rebuild into a restore from backup.'
+remedy:
+  commands: []
+  why_safe: No automatic remedy, and none should exist. Detaching or rebuilding a volume automatically is the operation that loses data when
+    the diagnosis is wrong, and this is the layer where the estate keeps its only copy of the data that matters.

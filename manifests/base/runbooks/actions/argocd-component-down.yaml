@@ -1,0 +1,27 @@
+# One of ArgoCD's four components has had no ready replica for ten minutes. Read-only: workloads, events and the component's own log.
+id: argocd-component-down
+title: An ArgoCD component has no ready replica - nothing deploys while it is down
+severity: high
+blast_radius: cluster
+reversible: true
+runbook: homelab-context/docs/reference/high-availability.md
+runbook_repo: homelab-context
+measured: '2026-11-18'
+alerts:
+- ArgoCDComponentDown
+detect:
+  commands:
+  - kubectl -n argocd get deploy,sts -o json | jq -r '.items[] | select((.status.availableReplicas // .status.readyReplicas // 0) == 0) | "\(.kind)/\(.metadata.name)"'
+  expect: notempty
+diagnose:
+  commands:
+  - kubectl -n argocd get pods -o wide
+  - kubectl -n argocd get events --sort-by=.lastTimestamp | tail -12
+  - kubectl -n argocd logs -l app.kubernetes.io/name=argocd-repo-server --tail=25 | grep -iE 'error|fatal|refus|timeout' | tail -10
+  verdict: 'repo-server down means nothing can render, so every Application goes Unknown and the cluster keeps running its last known
+    state; application-controller down means nothing reconciles, so drift accumulates silently. Both look like "ArgoCD is broken" and only
+    the second one is quiet.'
+remedy:
+  commands: []
+  why_safe: No automatic remedy. A repo-server restart during an incident is usually right, but it is also the step that hides a resource
+    limit or a stuck git fetch that will do it again in ten minutes, and the log line that would have said which is what gets lost.
