@@ -12,10 +12,6 @@ concurrency:
 
 jobs:
   links:
-    # The run token may read the repository and nothing else. A check that needed to write would be a check whose
-    # failure mode is a commit.
-    permissions:
-      contents: read
     runs-on: in-cluster
     timeout-minutes: 10
     steps:
