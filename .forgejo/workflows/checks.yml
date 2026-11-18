@@ -20,10 +20,18 @@ concurrency:
 
 jobs:
   validate:
+    # The run token may read the repository and nothing else. A check that needed to write would be a check whose
+    # failure mode is a commit.
+    permissions:
+      contents: read
     runs-on: in-cluster
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      # Pinned by commit, not by tag: a tag is a pointer the action's owner can move, and this step runs on every PR.
+      # `persist-credentials: false` because the run token is otherwise left in .git/config for the next step to find.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: yamllint every manifest
         run: python3 -m yamllint -c .yamllint manifests clusters
@@ -41,10 +49,18 @@ jobs:
           cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-image-digests --root "$GITHUB_WORKSPACE"
 
   layout:
+    # The run token may read the repository and nothing else. A check that needed to write would be a check whose
+    # failure mode is a commit.
+    permissions:
+      contents: read
     runs-on: in-cluster
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      # Pinned by commit, not by tag: a tag is a pointer the action's owner can move, and this step runs on every PR.
+      # `persist-credentials: false` because the run token is otherwise left in .git/config for the next step to find.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+        with:
+          persist-credentials: false
       # The rule lives in homelab-context as Go (ADR 0016). It is *cloned*, not copied: a second copy in this repository is
       # the shape ADR 0011 forbids, and the copy would drift from the one the rest of the estate runs. `http://forgejo:3000`
       # is the in-cluster Service - `git.bismigel.dev` is behind Cloudflare Access, so a pod cloning over the public name would
