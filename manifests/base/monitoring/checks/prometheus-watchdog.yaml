@@ -71,12 +71,16 @@ spec:
                   # abort (found by testing the failure path, 2026-11-04).
                   CHAT_ID=${CHAT_ID:-607008268}
 
-                  # Watchdog fires by construction. A count of 1 from ANY live instance
+                  # `watchdog:evaluation:alive` is 1 by construction (it replaced the always-firing Watchdog ALERT on
+                  # 2026-11-18, which re-sent a Telegram heartbeat every repeat_interval). `or ALERTS{...Watchdog}` keeps
+                  # this working during the deploy window, when one replica may already have the recording rule and the
+                  # other still the alert - a false "Prometheus is dead" page is exactly what this file exists to avoid.
+                  # A count of 1 from ANY live instance
                   # proves rules are being evaluated right now. Two instances means "the
                   # primary is down" is a dashboard problem, not an alerting one - so this
                   # must not alarm when only prometheus-alerting is left standing.
                   for url in http://prometheus.monitoring.svc:9090 http://prometheus-alerting.monitoring.svc:9090; do
-                    body=$(curl -fsS -m 5 "$url/api/v1/query?query=count(ALERTS%7Balertname%3D%22Watchdog%22%7D)" 2>/dev/null) || body=""
+                    body=$(curl -fsS -m 5 "$url/api/v1/query?query=count(watchdog:evaluation:alive%20or%20ALERTS%7Balertname%3D%22Watchdog%22%7D)" 2>/dev/null) || body=""
                     case "$body" in
                       *'"value":'*',"1"]'*) echo "ok: watchdog firing at $url"; exit 0 ;;
                     esac
