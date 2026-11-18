@@ -1,0 +1,29 @@
+# The watchdog is the alert that proves alerting works. Read-only on the two Prometheus instances.
+id: prometheus-watchdog-stale
+title: No Watchdog from either Prometheus - rules are not being evaluated, or the alerting path is broken
+severity: high
+blast_radius: cluster
+reversible: true
+runbook: homelab-context/docs/reference/conditions.md
+runbook_repo: homelab-context
+measured: '2026-11-18'
+alerts:
+- PrometheusWatchdogStale
+- AlertmanagerNotReceivingAlerts
+detect:
+  commands:
+  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname="Watchdog"}' | jq -r '.data.result | length'
+  expect: notempty
+diagnose:
+  commands:
+  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname="Watchdog"}' | jq -r '.data.result[] | "\(.metric.instance) state=\(.metric.alertstate)"'
+  - kubectl -n monitoring get pods -l 'app in (prometheus,alertmanager)' -o wide
+  - kubectl -n monitoring logs -l app=prometheus --tail=20 | grep -iE 'error|rule|evaluat' | tail -10
+  - curl -s 'http://alertmanager.monitoring.svc:9093/api/v2/status' | jq -r '.cluster.status'
+  verdict: 'Watchdog absent from one instance means that Prometheus is not evaluating rules; absent from both means the pipeline is down
+    rather than a rule bug. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a
+    fault.'
+remedy:
+  commands: []
+  why_safe: No automatic remedy. The watchdog exists to make "alerting is broken" loud; an agent that restarts Prometheus on it hides
+    the next occurrence instead of reporting it.

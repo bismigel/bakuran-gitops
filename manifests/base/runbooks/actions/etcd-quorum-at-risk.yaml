@@ -1,0 +1,29 @@
+# Fewer than two etcd members hold a leader. Read-only: the metrics endpoint, the pod list and the endpoint slices.
+id: etcd-quorum-at-risk
+title: Fewer than two etcd members hold a leader - the next loss is a cluster that cannot elect
+severity: high
+blast_radius: cluster
+reversible: true
+runbook: homelab-context/docs/reference/high-availability.md
+runbook_repo: homelab-context
+measured: '2026-11-18'
+alerts:
+- EtcdQuorumAtRisk
+- EtcdNoLeader
+detect:
+  commands:
+  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=sum(etcd_server_has_leader)' | jq -r '.data.result[0].value[1]'
+  expect: notempty
+diagnose:
+  commands:
+  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=etcd_server_has_leader' | jq -r '.data.result[] | "\(.metric.instance) has_leader=\(.value[1])"'
+  - kubectl get nodes -o wide
+  - kubectl -n kube-system get pods -l 'app in (etcd)' -o wide
+  - kubectl get endpointslices -n default -l kubernetes.io/service-name=kubernetes -o json | jq -r '.items[].endpoints[] | "endpoint \(.addresses[0]) ready=\(.conditions.ready)"'
+  verdict: 'A member with has_leader=0 that is also NotReady on the node list is a machine problem; has_leader=0 on a Ready node is etcd
+    refusing to elect - that is the case where restarting members one at a time is the only safe move, and restarting two is how a
+    recoverable cluster is lost.'
+remedy:
+  commands: []
+  why_safe: No automatic remedy, deliberately. Every etcd remedy is a maintenance-window operation with a quorum argument, and a
+    scheduler running one unattended is the failure this estate's ADRs are written against.
