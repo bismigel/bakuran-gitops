@@ -6,7 +6,3 @@ resources:
   - templates/diag.yaml
   - templates/action.yaml
   - rbac.yaml
-  # The pull credential for the image the action steps run. Listed here because this kustomization is generated: adding it by hand
-  # worked until the next run of gen-runbooks, which rewrote the list and let ArgoCD prune the secret - the failure then looked like a
-  # registry that had stopped accepting its own credentials.
-  - registry-pull.yaml
