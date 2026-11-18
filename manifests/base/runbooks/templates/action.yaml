@@ -32,12 +32,21 @@ spec:
         - - name: deployment-replicas-unavailable
             when: '"{{workflow.parameters.action}}" == "deployment-replicas-unavailable"'
             template: run-deployment-replicas-unavailable
+        - - name: etcd-quorum-at-risk
+            when: '"{{workflow.parameters.action}}" == "etcd-quorum-at-risk"'
+            template: run-etcd-quorum-at-risk
         - - name: jellyfin-transcode-broken
             when: '"{{workflow.parameters.action}}" == "jellyfin-transcode-broken"'
             template: run-jellyfin-transcode-broken
+        - - name: nodedown
+            when: '"{{workflow.parameters.action}}" == "nodedown"'
+            template: run-nodedown
         - - name: pod-stuck-pending
             when: '"{{workflow.parameters.action}}" == "pod-stuck-pending"'
             template: run-pod-stuck-pending
+        - - name: prometheus-watchdog-stale
+            when: '"{{workflow.parameters.action}}" == "prometheus-watchdog-stale"'
+            template: run-prometheus-watchdog-stale
 
     # argocd-app-out-of-sync - An Application is OutOfSync although self-heal is on - the cluster is refusing the update, or the comparison is stale
     - name: run-argocd-app-out-of-sync
@@ -77,6 +86,26 @@ spec:
             valueFrom:
               path: /tmp/verdict.txt
 
+    # etcd-quorum-at-risk - Fewer than two etcd members hold a leader - the next loss is a cluster that cannot elect
+    - name: run-etcd-quorum-at-risk
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=etcd_server_has_leader' | jq -r '.data.result[] | "\(.metric.instance) has_leader=\(.value[1])"'
+          kubectl get nodes -o wide
+          kubectl -n kube-system get pods -l 'app in (etcd)' -o wide
+          kubectl get endpointslices -n default -l kubernetes.io/service-name=kubernetes -o json | jq -r '.items[].endpoints[] | "endpoint \(.addresses[0]) ready=\(.conditions.ready)"'
+          
+          printf '\nverdict: %s\n' 'A member with has_leader=0 that is also NotReady on the node list is a machine problem; has_leader=0 on a Ready node is etcd refusing to elect - that is the case where restarting members one at a time is the only safe move, and restarting two is how a recoverable cluster is lost.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
     # jellyfin-transcode-broken - Jellyfin cannot transcode - hardware decode of 10-bit HEVC produces no frames
     - name: run-jellyfin-transcode-broken
       script:
@@ -88,6 +117,25 @@ spec:
           kubectl -n default exec deploy/jellyfin -- sh -c 'grep -A5 HardwareDecodingCodecs /config/config/encoding.xml'
           
           printf '\nverdict: %s\n' 'If '\''hevc'\'' is in HardwareDecodingCodecs, this is it: 10-bit HEVC is hardware-decoded into a P010 surface and scale_vaapi refuses it. Removing '\''hevc'\'' from that list keeps hardware *encoding* (the expensive half) and software-decodes HEVC (cheap at 1080p).'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # nodedown - A node's exporter has been down for two minutes - the node is down, or only the exporter is
+    - name: run-nodedown
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl get nodes -o wide
+          curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=up{job="node-exporter"}' | jq -r '.data.result[] | "\(.metric.instance) up=\(.value[1])"'
+          kubectl get pods -A -o wide --field-selector status.phase!=Running,status.phase!=Succeeded | head -20
+          
+          printf '\nverdict: %s\n' 'The node showing NotReady means the machine is down or the kubelet is; a Ready node with up=0 means only the exporter or its NetworkPolicy broke. Both look identical from the alert, and the two fixes are different.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:
@@ -107,6 +155,26 @@ spec:
           kubectl describe nodes | grep -A4 'Allocated resources' | head -20
           
           printf '\nverdict: %s\n' 'FailedScheduling names the constraint (insufficient cpu/memory, node affinity, a taint, a volume in the wrong zone). If the message says the volume is not attachable, the pod is not the problem - the PVC is.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # prometheus-watchdog-stale - No Watchdog from either Prometheus - rules are not being evaluated, or the alerting path is broken
+    - name: run-prometheus-watchdog-stale
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname="Watchdog"}' | jq -r '.data.result[] | "\(.metric.instance) state=\(.metric.alertstate)"'
+          kubectl -n monitoring get pods -l 'app in (prometheus,alertmanager)' -o wide
+          kubectl -n monitoring logs -l app=prometheus --tail=20 | grep -iE 'error|rule|evaluat' | tail -10
+          curl -s 'http://alertmanager.monitoring.svc:9093/api/v2/status' | jq -r '.cluster.status'
+          
+          printf '\nverdict: %s\n' 'Watchdog absent from one instance means that Prometheus is not evaluating rules; absent from both means the pipeline is down rather than a rule bug. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a fault.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:

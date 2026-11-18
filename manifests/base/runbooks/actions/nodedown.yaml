@@ -1,0 +1,25 @@
+# A node stopped being scraped. Read-only, and the first question is whether the node or the exporter is the thing that died.
+id: nodedown
+title: A node's exporter has been down for two minutes - the node is down, or only the exporter is
+severity: high
+blast_radius: cluster
+reversible: true
+runbook: homelab-context/docs/reference/high-availability.md
+runbook_repo: homelab-context
+measured: '2026-11-18'
+alerts:
+- NodeDown
+detect:
+  commands:
+  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=up{job="node-exporter"} == 0' | jq -r '.data.result[] | "\(.metric.instance)"'
+  expect: notempty
+diagnose:
+  commands:
+  - kubectl get nodes -o wide
+  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=up{job="node-exporter"}' | jq -r '.data.result[] | "\(.metric.instance) up=\(.value[1])"'
+  - kubectl get pods -A -o wide --field-selector status.phase!=Running,status.phase!=Succeeded | head -20
+  verdict: 'The node showing NotReady means the machine is down or the kubelet is; a Ready node with up=0 means only the exporter or its
+    NetworkPolicy broke. Both look identical from the alert, and the two fixes are different.'
+remedy:
+  commands: []
+  why_safe: No automatic remedy. Rebooting or draining a node to clear a scrape is how a single outage becomes an etcd quorum event.
