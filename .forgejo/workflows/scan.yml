@@ -28,7 +28,7 @@ jobs:
       contents: read
     # The artefact this job runs (story 15.11). One line, bumped in a pull request.
     env:
-      CHECKS_REF: sha-00ce83f15ebf
+      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
     runs-on: in-cluster
     timeout-minutes: 30
     steps:
@@ -42,7 +42,7 @@ jobs:
       # Exits 1 on a finding that is not in the baseline, and also on a baseline entry for an image no longer deployed,
       # so the recorded debt can only go down. Any exception still needs an owner and an expiry in scan-policy.yaml.
       # The ratchet is Go (ADR 0016) and lives in homelab-context; `trivy` is the only external tool, and it is the runner's.
-      - name: Fetch the checks image (pinned by commit tag)
+      - name: Fetch the checks image (pinned by digest)
         env:
           READ_TOKEN: ${{ secrets.CHECKS_READ_TOKEN }}
           REF: ${{ env.CHECKS_REF }}

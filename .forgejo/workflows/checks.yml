@@ -20,9 +20,11 @@ concurrency:
 
 jobs:
   validate:
-    # The artefact this job runs. Bumped deliberately, in a pull request, so the diff says which checks changed.
+    # The artefact this job runs, pinned by MANIFEST DIGEST rather than by tag: a tag is a name the registry may
+    # re-point, and this is the exact bytes five jobs in three repositories execute. Bumped deliberately, in a pull
+    # request, so the diff says which checks changed.
     env:
-      CHECKS_REF: sha-00ce83f15ebf
+      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
@@ -50,7 +52,7 @@ jobs:
       # Bumping CHECKS_REF is a one-line pull request. A PR that changes a check is validated by the PREVIOUS image,
       # which is the trade the ops-run image already makes, and the reason the tag is per commit: the old one stays
       # pullable while the new one is reviewed.
-      - name: Fetch the checks image (pinned by commit tag)
+      - name: Fetch the checks image (pinned by digest)
         env:
           READ_TOKEN: ${{ secrets.CHECKS_READ_TOKEN }}
           REF: ${{ env.CHECKS_REF }}
@@ -77,7 +79,7 @@ jobs:
 
   layout:
     env:
-      CHECKS_REF: sha-00ce83f15ebf
+      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
@@ -103,7 +105,7 @@ jobs:
       # Bumping CHECKS_REF is a one-line pull request. A PR that changes a check is validated by the PREVIOUS image,
       # which is the trade the ops-run image already makes, and the reason the tag is per commit: the old one stays
       # pullable while the new one is reviewed.
-      - name: Fetch the checks image (pinned by commit tag)
+      - name: Fetch the checks image (pinned by digest)
         env:
           READ_TOKEN: ${{ secrets.CHECKS_READ_TOKEN }}
           REF: ${{ env.CHECKS_REF }}

@@ -17,7 +17,7 @@ jobs:
       contents: read
     # The artefact this job runs (story 15.11). One line, bumped in a pull request.
     env:
-      CHECKS_REF: sha-00ce83f15ebf
+      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
     runs-on: in-cluster
     timeout-minutes: 10
     steps:
@@ -41,7 +41,7 @@ jobs:
       # The check itself is Go, in homelab-context (ADR 0016), and cloned rather than copied: this file used to be a copy
       # with a comment saying "change both", which is the arrangement ADR 0011 exists to prevent. The copy is why its header
       # claimed bismigel-site was public and needed no token while this workflow was using SITE_TOKEN above.
-      - name: Fetch the checks image (pinned by commit tag)
+      - name: Fetch the checks image (pinned by digest)
         env:
           READ_TOKEN: ${{ secrets.CHECKS_READ_TOKEN }}
           REF: ${{ env.CHECKS_REF }}
