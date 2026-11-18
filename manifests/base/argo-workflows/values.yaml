@@ -21,7 +21,28 @@ controller:
     path: /metrics
     port: 9090
 
+# Story 7.5, security pass 2026-11-18. Without this the chart emits a CLUSTER-wide ClusterRole for the server whose
+# verbs are `secrets [get]`, `pods [get,list,watch,delete]` and full CRUD on workflows/templates/cronworkflows/sensors/
+# eventbindings - measured with `kubectl get clusterrole argo-workflows-server`. Combine that with the server running
+# `--auth-mode=server --secure=false` (it does NO authentication of its own; measured: an unauthenticated GET to
+# /api/v1/workflows/argo from a pod returns 200) and the ONLY thing between a browser and `secrets get` cluster-wide is
+# a Cloudflare Access session.
+#
+# `singleNamespace: true` makes the chart emit a namespaced Role instead of that ClusterRole (chart template
+# server-cluster-roles.yaml: `{{- if and .Values.server.enabled .Values.server.rbac.create}}` with
+# `{{- if .Values.singleNamespace}} kind: Role`). Every workflow in this estate lives in `argo`, so the server loses
+# nothing it uses and loses the ability to read a secret, or delete a pod, anywhere else. The residual - `secrets [get]`
+# and `workflows [delete]` INSIDE argo - needs the role replaced rather than scoped, and is the next step, not this one.
+singleNamespace: true
+
+# The last cluster-wide grant goes too. `server.clusterWorkflowTemplates.enabled: true` is the chart default and it emits
+# `argo-workflows-server-cluster-template` (ClusterRole + CRB) so the SERVER can read and edit ClusterWorkflowTemplates.
+# This estate has none - `kubectl get clusterworkflowtemplates` returns an empty list - because the two templates
+# (`action`, `diag`) are namespace-scoped and generated from git. A grant for an object nobody creates is a credential
+# without a job. Re-enable this the day a ClusterWorkflowTemplate exists.
 server:
+  clusterWorkflowTemplates:
+    enabled: false
   replicas: 1
   authMode: server          # no SSO: there is one operator, and Access/Cloudflare is the outer boundary
   # Story 7.5: the human pane is Argo's *own* UI, behind the admin ingress and Cloudflare Access — not a second
