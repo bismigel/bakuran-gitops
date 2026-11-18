@@ -1,0 +1,56 @@
+# What the human pane's server may do — declared here rather than taken from the chart (story 7.5, security pass
+# 2026-11-18).
+#
+# The chart's default (`server.rbac.create: true`) emits a Role with `secrets [get]`, `pods [get,list,watch,delete]` and
+# full CRUD on workflows, templates, cronworkflows, sensors and eventbindings. The server runs
+# `--auth-mode=server --secure=false`, i.e. it does no authentication of its own, so every one of those verbs is only as
+# safe as the Cloudflare Access session in front of it. `secrets [get]` inside `argo` reads `registry-pull`; the rest is
+# authority nothing in this estate needs.
+#
+# So: `server.rbac.create: false` in values.yaml and this file instead. Two verbs are load-bearing and everything else
+# is read:
+#
+#   create workflows      the pane's whole purpose - an operator submits `action` with an action id (story 7.5)
+#   get/list/watch        what the UI shows: runs, their logs, their pods, and the templates it offers
+#
+# Deliberately absent, each with the reason it is safe to lose:
+#   secrets               nothing in the UI needs the registry credential
+#   pods delete           deleting a pod is not a diagnosis; the workflow's own SA owns that lifecycle
+#   update/patch/delete on workflows, templates, cronworkflows, sensors, eventbindings
+#                         templates come from git (gen-runbooks); editing them in a UI is drift with a progress bar
+#
+# `workflowtaskresults` create/patch is NOT here: that is the workflow executor (`argo-workflow`), not the server.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflows-server-pane
+  namespace: argo
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtemplates"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+  # The UI's "workflow summary"/artifacts panels read configmaps for the artifact repository settings; the controller
+  # configmap is what `--configmap` points at.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflows-server-pane
+  namespace: argo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflows-server-pane
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflows-server
+    namespace: argo

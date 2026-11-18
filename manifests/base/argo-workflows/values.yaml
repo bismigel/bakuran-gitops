@@ -10,6 +10,11 @@
 # outlives the experiment, they get narrowed the way kagent's were.
 controller:
   replicas: 1
+  # The controller's default bind also grants clusterWorkflowTemplates; this estate creates none (`kubectl get
+  # clusterworkflowtemplates` is empty - both templates are namespace-scoped and generated from git by gen-runbooks). A
+  # grant for an object nobody creates is a credential without a job.
+  clusterWorkflowTemplates:
+    enabled: false
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {memory: 512Mi}
@@ -43,6 +48,10 @@ singleNamespace: true
 server:
   clusterWorkflowTemplates:
     enabled: false
+  # ...and the namespaced Role the chart would still emit is replaced by manifests/base/argo-workflows/server-rbac/,
+  # which grants create-on-workflows and read verbs and nothing else. See that file for the verb-by-verb argument.
+  rbac:
+    create: false
   replicas: 1
   authMode: server          # no SSO: there is one operator, and Access/Cloudflare is the outer boundary
   # Story 7.5: the human pane is Argo's *own* UI, behind the admin ingress and Cloudflare Access — not a second
