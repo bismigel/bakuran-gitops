@@ -9,6 +9,12 @@ metadata:
   namespace: argo
 spec:
   entrypoint: triage
+  # Finished runs clean themselves up. Three Failed step pods from 2026-11-17 (the action role bug, fixed the next
+  # morning) were still sitting in the argo namespace a day later, and their names alone pushed STATE.md over the tier-0 byte
+  # budget - a diagnosis is evidence, but evidence nobody reads is debris. A day is long enough to read a verdict and
+  # short enough that the namespace cannot accumulate a month of them.
+  ttlStrategy:
+    secondsAfterCompletion: 86400
   arguments:
     parameters:
       - {name: namespace, value: monitoring}
