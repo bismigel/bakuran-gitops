@@ -20,6 +20,13 @@ kind: ServiceAccount
 metadata:
   name: kagent-tools
   namespace: kagent
+  annotations:
+    # The belt for the ownership move (2026-11-18). While `kagent-config` and the chart's Application both list this object
+    # family, either one pruning it is an outage of the agent's only tool surface. `Prune=false` makes the API-side answer
+    # "not yours to delete" until the move is finished; it is removed in the next pull request, when ONE app owns them.
+    # (ArgoCD reads this from the live object, so it takes effect as soon as this payload is applied - before the other
+    # app's prune is any danger.)
+    argocd.argoproj.io/sync-options: Prune=false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -51,6 +58,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: kagent-tools-observe
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -65,6 +74,8 @@ kind: Deployment
 metadata:
   name: kagent-tools
   namespace: kagent
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
   labels: { app.kubernetes.io/name: kagent-tools }
 spec:
   replicas: 1
@@ -108,6 +119,8 @@ kind: Service
 metadata:
   name: kagent-tools
   namespace: kagent
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
   labels: { app.kubernetes.io/name: kagent-tools }
 spec:
   selector: { app.kubernetes.io/name: kagent-tools }
