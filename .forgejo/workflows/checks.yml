@@ -20,6 +20,9 @@ concurrency:
 
 jobs:
   validate:
+    # The artefact this job runs. Bumped deliberately, in a pull request, so the diff says which checks changed.
+    env:
+      CHECKS_REF: sha-765cbe4bb905
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
@@ -38,17 +41,43 @@ jobs:
 
       # The pinning rule is Go (ADR 0016) and lives in homelab-context. `verify-image-digests.py` - the slow, operator-run half
       # that actually talks to registries - is still a script here; this step is the one that has to run on every PR.
-      - name: Check out the checks (executable code is Go, ADR 0016)
+      # Story 15.11: the checks are an ARTEFACT, not a checkout. It used to be `git clone` with CONTEXT_READ_TOKEN - a
+      # read token for the whole source tree of homelab-context, held by three repositories and every PR job in them.
+      # The image is published on merge to that repository's main and pinned here by tag-of-commit, so this step pulls
+      # bytes and nothing else: no token that can read source, no `go build` on the runner, no fourth copy of the rules
+      # to drift.
+      #
+      # Bumping CHECKS_REF is a one-line pull request. A PR that changes a check is validated by the PREVIOUS image,
+      # which is the trade the ops-run image already makes, and the reason the tag is per commit: the old one stays
+      # pullable while the new one is reviewed.
+      - name: Fetch the checks image (pinned by commit tag)
+        env:
+          READ_TOKEN: ${{ secrets.CHECKS_READ_TOKEN }}
+          REF: ${{ env.CHECKS_REF }}
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          rm -rf "$CTX"
-          git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" "$CTX"
+          set -eu
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          rm -rf "$D"; mkdir -p "$D"
+          R="forgejo:3000"
+          # Bearer grant, then the OCI manifest, then its single layer, then extract. curl and tar are the whole
+          # toolchain: the runner has no docker/podman/skopeo, and buildah would need a storage driver for a read-only
+          # fetch. `set -e` on every step, so a 401 is a failed job and not an empty directory with a green tick.
+          tok=$(curl -sf -u "bismigel:$READ_TOKEN"             "http://$R/v2/token?service=container_registry&scope=repository:bismigel/checks:pull"             | sed 's/.*"token":"\([^"]*\)".*/\1/')
+          [ -n "$tok" ] || { echo "no registry token: is CHECKS_READ_TOKEN set for this repository?"; exit 1; }
+          layer=$(curl -sf -H "Authorization: Bearer $tok"             -H 'Accept: application/vnd.oci.image.manifest.v1+json'             "http://$R/v2/bismigel/checks/manifests/$REF"             | sed 's/.*"digest":"\(sha256:[a-f0-9]*\)".*/\1/')
+          [ -n "$layer" ] || { echo "no layer in the manifest for $REF"; exit 1; }
+          curl -sf -H "Authorization: Bearer $tok"             "http://$R/v2/bismigel/checks/blobs/$layer" -o "$D/layer.tar"
+          tar -xf "$D/layer.tar" -C "$D" && rm -f "$D/layer.tar"
+          # Provenance, printed rather than trusted: which commit this artefact came from.
+          cat "$D/bin/BUILD"
       - name: Image digests are pinned
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-image-digests --root "$GITHUB_WORKSPACE"
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          "$D/bin/check-image-digests" --root "$GITHUB_WORKSPACE"
 
   layout:
+    env:
+      CHECKS_REF: sha-765cbe4bb905
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
@@ -61,37 +90,54 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
         with:
           persist-credentials: false
-      # The rule lives in homelab-context as Go (ADR 0016). It is *cloned*, not copied: a second copy in this repository is
-      # the shape ADR 0011 forbids, and the copy would drift from the one the rest of the estate runs. `http://forgejo:3000`
-      # is the in-cluster Service - `git.bismigel.dev` is behind Cloudflare Access, so a pod cloning over the public name would
-      # be handed the Access login page instead of a repository.
-      # A token, because homelab-context is private: an anonymous clone answers 401 (measured from the runner pod with
-      # `curl .../info/refs?service=git-upload-pack`, and the per-run token is scoped to *this* repository). `CONTEXT_READ_TOKEN`
-      # is a read-only token for that one repository, stored as a repository secret so it never reaches a log or this file.
+      # The rule lives in homelab-context as Go (ADR 0016) and arrives as an image, not as a second copy in this
+      # repository - the copy is the shape ADR 0011 forbids, and it would drift from the one the rest of the estate runs.
+      # `forgejo:3000` is the in-cluster Service: `git.bismigel.dev` is behind Cloudflare Access, and so is the
+      # registry's own token realm unless the path bypass (bakuran-infra, opentofu/cloudflare) is in place.
+      # Story 15.11: the checks are an ARTEFACT, not a checkout. It used to be `git clone` with CONTEXT_READ_TOKEN - a
+      # read token for the whole source tree of homelab-context, held by three repositories and every PR job in them.
+      # The image is published on merge to that repository's main and pinned here by tag-of-commit, so this step pulls
+      # bytes and nothing else: no token that can read source, no `go build` on the runner, no fourth copy of the rules
+      # to drift.
       #
-      # The path is per-job, not `/tmp/ctx`: the `host` executor runs every job in one container, so four concurrent jobs were
-      # racing for one directory and `git clone` failed outright once it existed ("destination path already exists"). Each step
-      # recomputes the same path from the environment rather than relying on state passed between steps.
-      - name: Check out the checks (executable code is Go, ADR 0016)
+      # Bumping CHECKS_REF is a one-line pull request. A PR that changes a check is validated by the PREVIOUS image,
+      # which is the trade the ops-run image already makes, and the reason the tag is per commit: the old one stays
+      # pullable while the new one is reviewed.
+      - name: Fetch the checks image (pinned by commit tag)
+        env:
+          READ_TOKEN: ${{ secrets.CHECKS_READ_TOKEN }}
+          REF: ${{ env.CHECKS_REF }}
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          rm -rf "$CTX"
-          git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" "$CTX"
+          set -eu
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          rm -rf "$D"; mkdir -p "$D"
+          R="forgejo:3000"
+          # Bearer grant, then the OCI manifest, then its single layer, then extract. curl and tar are the whole
+          # toolchain: the runner has no docker/podman/skopeo, and buildah would need a storage driver for a read-only
+          # fetch. `set -e` on every step, so a 401 is a failed job and not an empty directory with a green tick.
+          tok=$(curl -sf -u "bismigel:$READ_TOKEN"             "http://$R/v2/token?service=container_registry&scope=repository:bismigel/checks:pull"             | sed 's/.*"token":"\([^"]*\)".*/\1/')
+          [ -n "$tok" ] || { echo "no registry token: is CHECKS_READ_TOKEN set for this repository?"; exit 1; }
+          layer=$(curl -sf -H "Authorization: Bearer $tok"             -H 'Accept: application/vnd.oci.image.manifest.v1+json'             "http://$R/v2/bismigel/checks/manifests/$REF"             | sed 's/.*"digest":"\(sha256:[a-f0-9]*\)".*/\1/')
+          [ -n "$layer" ] || { echo "no layer in the manifest for $REF"; exit 1; }
+          curl -sf -H "Authorization: Bearer $tok"             "http://$R/v2/bismigel/checks/blobs/$layer" -o "$D/layer.tar"
+          tar -xf "$D/layer.tar" -C "$D" && rm -f "$D/layer.tar"
+          # Provenance, printed rather than trusted: which commit this artefact came from.
+          cat "$D/bin/BUILD"
       - name: Every Application points into the one manifest layout
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-manifest-layout --root "$GITHUB_WORKSPACE"
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          "$D/bin/check-manifest-layout" --root "$GITHUB_WORKSPACE"
       # The structural half of the rules check, which is the half that can run here: `promtool` is not in the image, so the
       # command says so and still enforces "nothing found is a failure". The predecessor exited 0 while reading nothing at all.
       - name: The Prometheus rules and scrape config are structurally valid
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-prometheus-rules --root "$GITHUB_WORKSPACE" --promtool ""
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          "$D/bin/check-prometheus-rules" --root "$GITHUB_WORKSPACE" --promtool ""
 
       - name: No object is defined twice
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-duplicate-objects --root "$GITHUB_WORKSPACE"
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          "$D/bin/check-duplicate-objects" --root "$GITHUB_WORKSPACE"
       # No server-side dry-run here, deliberately. The runner is a pod with the default service account and no RBAC -
       # that is a security property worth keeping, not a gap to close - so `kubectl apply --dry-run=server` answers
       # "Forbidden" and the job fails for a reason that has nothing to do with the manifests being wrong. The templates
