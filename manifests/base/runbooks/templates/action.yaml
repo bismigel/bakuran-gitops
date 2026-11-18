@@ -29,6 +29,9 @@ spec:
         - - name: argocd-app-out-of-sync
             when: '"{{workflow.parameters.action}}" == "argocd-app-out-of-sync"'
             template: run-argocd-app-out-of-sync
+        - - name: argocd-component-down
+            when: '"{{workflow.parameters.action}}" == "argocd-component-down"'
+            template: run-argocd-component-down
         - - name: deployment-replicas-unavailable
             when: '"{{workflow.parameters.action}}" == "deployment-replicas-unavailable"'
             template: run-deployment-replicas-unavailable
@@ -38,6 +41,9 @@ spec:
         - - name: jellyfin-transcode-broken
             when: '"{{workflow.parameters.action}}" == "jellyfin-transcode-broken"'
             template: run-jellyfin-transcode-broken
+        - - name: longhorn-volume-faulted
+            when: '"{{workflow.parameters.action}}" == "longhorn-volume-faulted"'
+            template: run-longhorn-volume-faulted
         - - name: nodedown
             when: '"{{workflow.parameters.action}}" == "nodedown"'
             template: run-nodedown
@@ -47,6 +53,9 @@ spec:
         - - name: prometheus-watchdog-stale
             when: '"{{workflow.parameters.action}}" == "prometheus-watchdog-stale"'
             template: run-prometheus-watchdog-stale
+        - - name: status-api-not-scraped
+            when: '"{{workflow.parameters.action}}" == "status-api-not-scraped"'
+            template: run-status-api-not-scraped
 
     # argocd-app-out-of-sync - An Application is OutOfSync although self-heal is on - the cluster is refusing the update, or the comparison is stale
     - name: run-argocd-app-out-of-sync
@@ -60,6 +69,25 @@ spec:
           kubectl -n argocd logs -l app.kubernetes.io/name=argocd-application-controller --tail=40 | grep -iE 'error|refus|denied|invalid' | tail -10
           
           printf '\nverdict: %s\n' 'A message naming a refused field or a denied request means the cluster is rejecting the manifest and the diff will never converge. No message, and a recent manifest change, points at the comparison being stale - refresh the Application before touching anything else.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # argocd-component-down - An ArgoCD component has no ready replica - nothing deploys while it is down
+    - name: run-argocd-component-down
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n argocd get pods -o wide
+          kubectl -n argocd get events --sort-by=.lastTimestamp | tail -12
+          kubectl -n argocd logs -l app.kubernetes.io/name=argocd-repo-server --tail=25 | grep -iE 'error|fatal|refus|timeout' | tail -10
+          
+          printf '\nverdict: %s\n' 'repo-server down means nothing can render, so every Application goes Unknown and the cluster keeps running its last known state; application-controller down means nothing reconciles, so drift accumulates silently. Both look like "ArgoCD is broken" and only the second one is quiet.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:
@@ -124,6 +152,26 @@ spec:
             valueFrom:
               path: /tmp/verdict.txt
 
+    # longhorn-volume-faulted - A Longhorn volume is faulted - it has fewer healthy replicas than its policy demands
+    - name: run-longhorn-volume-faulted
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n longhorn-system get volumes.longhorn.io -o custom-columns=NAME:.metadata.name,STATE:.status.state,ROBUSTNESS:.status.robustness,NODE:.status.currentNodeID --no-headers | awk '$3!="healthy"'
+          kubectl -n longhorn-system get replicas.longhorn.io -o custom-columns=NAME:.metadata.name,DATA:.spec.dataEngine,NODE:.spec.nodeID,FAILED:.spec.failedAt,STATE:.status.currentState --no-headers | head -20
+          kubectl get nodes -o wide
+          kubectl -n longhorn-system get pods -l app=longhorn-manager -o wide
+          
+          printf '\nverdict: %s\n' 'Faulted with all nodes Ready means a replica disk failed or was evicted, not a node outage - the volume still serves reads from its remaining replica and the repair is a rebuild, not a restore. Faulted with a node NotReady is the case where doing nothing for an hour is what turns a rebuild into a restore from backup.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
     # nodedown - A node's exporter has been down for two minutes - the node is down, or only the exporter is
     - name: run-nodedown
       script:
@@ -175,6 +223,26 @@ spec:
           curl -s 'http://alertmanager.monitoring.svc:9093/api/v2/status' | jq -r '.cluster.status'
           
           printf '\nverdict: %s\n' 'Watchdog absent from one instance means that Prometheus is not evaluating rules; absent from both means the pipeline is down rather than a rule bug. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a fault.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # status-api-not-scraped - status-api is not reporting - the scrape, the service or its checks are gone
+    - name: run-status-api-not-scraped
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n apps get pods -l app=status-api -o wide
+          kubectl -n apps get svc,servicemonitor -o wide 2>/dev/null | head -10
+          curl -s -m 5 "http://status-api.apps.svc:9091/healthz" || true
+          curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/targets' --data-urlencode 'state=active' | jq -r '.data.activeTargets[] | select(.labels.job | test("status")) | "\(.labels.job) \(.scrapeUrl) \(.health) \(.lastError // "")"'
+          
+          printf '\nverdict: %s\n' 'A healthy pod with no active target means the ServiceMonitor, the port or the NetworkPolicy broke - the status page is fine and its alarm is what stopped. A pod that is not Running means the page is genuinely down and the missing metric is the symptom, not the fault.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:
