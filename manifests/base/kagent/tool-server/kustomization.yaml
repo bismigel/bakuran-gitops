@@ -1,0 +1,9 @@
+# The tool server lives in a directory of its own because its OWNER is a different ArgoCD Application from the rest of
+# this directory: the chart (`kagent`) renders the Deployment/Service it used to own, so the replacement must be owned by
+# the same Application or the two apps fight over it. Measured 2026-11-18: the chart app pruned the subchart's objects
+# while `kagent-config` was still one commit behind, so the tool server did not exist for several minutes - and BOTH apps
+# reported `Synced`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - tool-server.yaml
