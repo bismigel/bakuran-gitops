@@ -22,7 +22,7 @@ jobs:
   validate:
     # The artefact this job runs. Bumped deliberately, in a pull request, so the diff says which checks changed.
     env:
-      CHECKS_REF: sha-765cbe4bb905
+      CHECKS_REF: sha-311fc4784fa4
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
@@ -77,7 +77,7 @@ jobs:
 
   layout:
     env:
-      CHECKS_REF: sha-765cbe4bb905
+      CHECKS_REF: sha-311fc4784fa4
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
