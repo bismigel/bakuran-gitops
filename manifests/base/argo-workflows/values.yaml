@@ -34,7 +34,9 @@ server:
     enabled: true
     ingressClassName: nginx-admin
     annotations:
-      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      # HTTP, not HTTPS: argo-server runs with `--secure=false` (the chart default), so pointing the ingress at HTTPS produced a 502 on
+      # every request - the browser showed Cloudflare's error page and the ingress log showed nothing useful. TLS terminates at
+      # Cloudflare; the connector speaks plain HTTP to the admin controller on :80.
       nginx.ingress.kubernetes.io/ssl-redirect: "false"
     hosts:
       - argo.bismigel.dev
