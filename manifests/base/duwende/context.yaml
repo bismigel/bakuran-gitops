@@ -1849,6 +1849,135 @@ data:
     It probably is. The evidence to check it lives here: `docs/records/incidents/` for what actually
     happened before, `runbooks/actions/*.yaml` for the diagnoses already known, and `evals/` for whether the
     agent reaches the same conclusion from the same symptoms (5 cases, `run-evals`).
+  docs_reference_runbook-actions.md: |
+    ---
+    type: reference
+    audience: agent
+    owns: the alert lifecycle's current shape — where each fact lives, the three entry points, and how to add an action
+    ---
+    
+    # Runbook actions — one action, one procedure, one pane
+    
+    Something is firing. This page is the map from the alert to the thing that diagnoses it. The decision behind the layout is
+    [ADR 0018](../decisions/adr-0018-the-alert-lifecycle-has-two-folders.md); the safety model for running a procedure is
+    [conditions.md](conditions.md).
+    
+    ## Where each fact lives (one owner each)
+    
+    | fact | file | who writes it |
+    |---|---|---|
+    | what fires | `bakuran-gitops/manifests/base/monitoring/rules/*.yaml` | hand, per concern |
+    | what to do | `bakuran-gitops/manifests/base/runbooks/actions/<id>.yaml`  | hand |
+    | which alert has which procedure | `runbooks/index.yaml` | **generated** |
+    | the prose a human reads | `bismigel-site/org/runbook/*.org`, addressed by page + anchor | hand |
+    | what the cluster runs | `runbooks/templates/diag.yaml` (evidence) and `templates/action.yaml` (a procedure) | **generated** |
+    | who the workflows are | `runbooks/rbac.yaml` | derived from the actions' `commands` (story R.9) |
+    
+    The alert lifecycle lives in `bakuran-gitops`, so a rule and its procedure land in **one pull request** — the property
+    Google's SRE Workbook names as the only defence against playbooks rotting: they go out of date at the same rate as the
+    environment.
+    
+    ## The three entry points, one key
+    
+    ```
+    ops-run <id>              workstation / agent. detect + diagnose. read-only and always safe.
+    ops-run <id> --remedy     the fix, when the action declares one and the blast radius allows it
+    ops-diag <AlertName>      resolves alert -> action through the index, runs it in-cluster, prints the verdict
+    argo.bismigel.dev         the same thing, clickable. Argo's UI is the pane; there is no second one
+    an agent                  `k8s_create_resource` through the kagent tool server: one verb, one kind, one namespace
+    ```
+    
+    An alert name is the key a human has (it is what the page says), a condition id is the key the procedure has. `ops-diag`
+    and `runbook-index` exist to translate between them, so nobody has to remember both.
+    
+    `ops-diag` gives one of three answers, and says which one it gave (2026-11-18):
+    
+    | the alert | what happens |
+    |---|---|
+    | has an action, `where=cluster` | the `action` template runs in a pod, and its verdict is printed |
+    | has an action, `where=workstation` | nothing is submitted: it prints `ops-run <id>`, because the procedure needs the host |
+    | is waived (`action=-`) | nothing is submitted: it prints the alert's runbook **anchor**, which is the diagnosis |
+    
+    The third row is why the pane is not a stub for 59 of 72 alerts. The generic evidence sweep is still there for the
+    operator who wants it, but as `--evidence`: on 2026-11-18, `ops-diag CloudflareTunnelDown` was spending ten seconds
+    listing pods in `monitoring` to print "No resources found" — a correct answer to a question nobody asked, in the shape of
+    a diagnosis.
+    
+    ## Adding an action
+    
+    1. Copy the closest file in `runbooks/actions/`.
+    2. `diagnose` first: the command that decides this, and the sentence that says how to read its answer. If you cannot write
+       that sentence, the diagnosis is not finished.
+    3. Only then a `remedy`, with `why_safe` in one sentence a reviewer can argue with.
+    4. `measured: <date>` — when the diagnosis was last proved. A procedure without a date is a guess wearing a filename.
+    5. Delete the alert's name from its group in `waivers.yaml`, and add it to the action's `alerts:`.
+    6. Regenerate the index and templates; `check-conditions`, `check-alert-coverage` and `check-runbook-links` must pass.
+    
+    The four authoring rules (diagnose first and always safe, remedy opt-in and classified, idempotent, no timers) are in
+    `conditions.md`; they are not repeated here because a rule stated twice is a rule that will disagree with itself.
+    
+    ## An agent may start one, and nothing else
+    
+    Story 7.7. The fourth entry point is a tool call, and it is the narrowest of the four on purpose:
+    
+    | layer | file | what it grants |
+    |---|---|---|
+    | the tool grant | `bakuran-gitops/manifests/base/kagent/agent-diagnose.yaml` | that agent holds two tools: read the index, create a Workflow |
+    | RBAC | `bakuran-gitops/manifests/base/kagent/runbook-submitter-rbac.yaml` | `create` on `workflows.argoproj.io` in `argo`. No `get`, no other group, no other namespace |
+    | admission | `bakuran-gitops/manifests/base/kagent/guard-tools-vap.yaml` | the tool server may CREATE a Workflow in `argo`, and may not UPDATE or DELETE anything, anywhere |
+    
+    Three layers because each is a different kind of statement. A tool grant is a suggestion to a model; RBAC is what the
+    API server checks; admission is what holds even when the first two are wrong. That third layer is also what stops the
+    chart's wildcard `kagent-tools-cluster-admin-role` binding from mattering while story 10.14 removes it: measured
+    2026-11-18 over the tool server's three-day life, its calls were `get` 1034, `describe` 326, `logs` 116, and no write.
+    
+    The refusal is the point. 59 of 72 alerts have no action, so the agent reads `runbook-index` first and, on `action=-`,
+    answers with the runbook anchor and submits nothing. An agent that invented an action id for a waived alert would be
+    worse than one that said "read the paragraph".
+    
+    ## What the pane is not
+    
+    - **It is not an engine that remedies by itself.** ADR 0012: an engine may schedule and notify, never own the remedy.
+    - **It is not 72 workflow objects.** Measured 2026-11-16: 72 templates carried 3 distinct step bodies, and the ArgoCD
+      application controller had been OOM-killed 25 times partly for it. Two templates and a data row replaced them.
+    - **It is not the prose.** The runbook page explains and warns; the action file runs. When they disagree, the anchor is
+      the only link anyone checks.
+    
+    ## Where the answer runs — `where`, and the decision behind it
+    
+    Every row carries `where=cluster` or `where=workstation`, and `check-alert-coverage` refuses a waiver group without one.
+    Measured 2026-11-18: **37 cluster, 22 workstation, 0 unstated**. The distinction is not cosmetic — it is what stops the
+    pane answering a router alert with a pod list.
+    
+    The question the estate had to settle deliberately: an in-cluster runner that reaches the hosts over ssh, or a sentence
+    saying where to run it? **The sentence.** A host-side runner would put ssh keys to three hosts inside a ServiceAccount
+    that a model can reach — the exact boundary stories 7.7 and 10.14 exist to narrow — and it cannot be rehearsed in
+    staging, which is `bakuran-infra/staging/`'s whole job and which is unavailable today (`plan/backlog/staging-host-unavailable.md`).
+    The cost is stated rather than hidden: for 22 of 72 alerts an agent can name the diagnosis and cannot complete it.
+    
+    Seven of the nine **critical** alerts that are waived run on the workstation, and two do not — so this is a
+    classification, not a rule of thumb:
+    
+    | critical | where | why |
+    |---|---|---|
+    | `CloudflareTunnelDown`, `CloudflareZoneNotActive` | workstation | the Cloudflare API and its token proxy are on the workstation; the cluster sees only its own connector pods |
+    | `RouterHeartbeatStale`, `RouterResolverDown`, `WanUnreachable`, `NetworkDeviceUnreachable` | workstation | OPNsense and the switch; `network.md` §9's checks are read-only and run from here |
+    | `MediaPoolCritical` | workstation | `ops/mounts` reads the mount over ssh; a pod sees the NFS client, not the pool |
+    | `ArgoCDRedisHAPodNotReady`, `LonghornDiskSchedulingOverCommitted` | cluster | the object and the answer are both Kubernetes: `kubectl describe`, `longhorn-air` |
+    
+    ## Current coverage — the honest number
+    
+    `ops-diag --list` prints the index. As of 2026-11-18: **72 alerts, 13 with a procedure, 59 waived**, and every one of the
+    72 answers something — a verdict, a workstation command, or an anchor. The five pages the alerts point at hold 88
+    per-alert headings and 123 runnable command blocks, so the coverage work left is transcription and review, not research.
+    
+    The count is now enforced in both directions rather than inferred: `check-alert-coverage` fails on an alert with no
+    decision, on a waiver with no `where`, and on a waiver for an alert that already has a condition (eleven of those were
+    left behind by the first actions, answering one question twice).
+    
+    A waiver that says `runbook 25` sends the reader to a 220-line page; a waiver that says
+    `runbook=…#argocdappoutofsync` sends them to the paragraph. Every row names an anchor now — `grep -c 'runbook=[^#]*$'
+    manifests/base/runbooks/index.yaml` returns 0 in `bakuran-gitops` (2026-11-18).
   docs_guides_cluster.md: |
     ---
     type: guide

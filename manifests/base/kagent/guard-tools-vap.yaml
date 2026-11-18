@@ -1,0 +1,44 @@
+# Story 7.7's other half, and the thing that makes story 10.14 non-urgent rather than urgent.
+#
+# The bundled MCP tool server (`kagent-tools`) is granted `apiGroups: ["*"], resources: ["*"], verbs: ["*"]` by the
+# chart's own `kagent-tools-cluster-admin-role` binding, which cannot be removed by values - the four resources are
+# hardcoded in its templates. Measured 2026-11-18 over the server's whole three-day life, its kubectl calls were
+# `get` 1034, `describe` 326, `logs` 116 and nothing else, so the wildcard is not load-bearing; but "not
+# load-bearing" is a measurement, and a measurement is not a boundary.
+#
+# This policy is the boundary. The tool server may CREATE one kind of object - a Workflow in `argo`, the thing story
+# 7.7 gives it a tool for - and may not UPDATE or DELETE anything at all. Everything else is denied by the API server,
+# not by the model's judgement or the system message's good intentions:
+#
+#   kubectl create --dry-run=server --as=system:serviceaccount:kagent:kagent-tools -f pvc.yaml   -> denied
+#   kubectl create --dry-run=server --as=system:serviceaccount:kagent:kagent-tools -f wf.yaml    -> allowed
+#
+# `request.resource.group` and not `request.requestKind`: the latter is null for some subresource requests, and a
+# policy that errors is a policy that fails closed on the wrong traffic. Cluster-scoped creates have an empty
+# `request.namespace`, so they fail the same test.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kagent-tools-write-scope
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["*"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["*"]
+  matchConditions:
+    - name: kagent-tools-only
+      expression: request.userInfo.username == 'system:serviceaccount:kagent:kagent-tools'
+  validations:
+    - expression: >-
+        request.operation == 'CREATE' &&
+        request.resource.group == 'argoproj.io' &&
+        request.resource.resource == 'workflows' &&
+        request.namespace == 'argo'
+      message: >-
+        The kagent tool server may create exactly one kind of object: a Workflow in namespace argo (story 7.7).
+        Any other write - a PVC or PV delete, a Secret, a RoleBinding, a workload - belongs in bakuran-gitops and a
+        pull request. Until story 10.14 removes the chart's wildcard ClusterRoleBinding, this policy is what keeps
+        the wildcard harmless.

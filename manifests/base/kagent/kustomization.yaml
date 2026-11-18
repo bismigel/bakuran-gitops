@@ -5,9 +5,17 @@ resources:
   - deepseek-key.yaml
   - telegram-key.yaml
   - agent-triage.yaml
+  # 7.7: the submitter. Two tools, one verb, caged by guard-tools-vap.yaml.
+  - agent-diagnose.yaml
   - triage-runner-rbac.yaml
   - triage-state-pvc.yaml
   - triage-script.yaml
   - triage-cronjob.yaml
   - guard-vap.yaml
   - guard-vap-binding.yaml
+  # 7.7/10.14: the tool server may create Workflows in argo, and may not write anything else anywhere.
+  - guard-tools-vap.yaml
+  - guard-tools-vap-binding.yaml
+  # The Role the agent submits through. It lives in this directory because the boundary is kagent's, and in
+  # namespace argo because that is where the Workflows are.
+  - runbook-submitter-rbac.yaml

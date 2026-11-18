@@ -1,0 +1,51 @@
+# Story 7.7: an agent may start a diagnosis by name, and nothing else.
+#
+# ADR 0012's line is "an engine may schedule and notify, never own the remedy". Submitting the `action`
+# WorkflowTemplate is on the safe side of it: the workflow's steps are read-only and its ServiceAccount
+# (`argo-workflow`) refuses every write verb. So `create` on `workflows` in `argo` is the widest grant this layer
+# needs, and this file is the whole of it - one group, one resource, one verb, one namespace.
+#
+# Two subjects, and the difference matters:
+#   * `kagent-tools` is the actor that exists: the bundled MCP tool server is what turns a model's tool call into
+#     an API call. Today it reaches `workflows` through `kagent-tools-cluster-admin-role` - a wildcard binding that
+#     story 10.14 removes. This Role is what keeps the tool working *after* that removal, and `guard-tools-vap.yaml`
+#     is what stops the wildcard doing anything else in the meantime.
+#   * `diagnostic-submitter` is declared so the boundary can be *inspected* rather than asserted:
+#       kubectl auth can-i --list --as=system:serviceaccount:argo:diagnostic-submitter
+#     returns this one rule and nothing else. It is also the name a future in-cluster submitter (a CronJob, a Go
+#     script) runs as, instead of borrowing the tool server's identity.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: diagnostic-submitter
+  namespace: argo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: diagnostic-submitter
+  namespace: argo
+rules:
+  # No `get`, deliberately, even on workflows: a submitter that can also read cannot be told apart from a reader,
+  # and the verdict is read in the pane (argo.bismigel.dev) or by `ops-diag` on a workstation. If an agent ever
+  # needs to poll its own run, that is a story with a reason, not a verb added because it was convenient.
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: diagnostic-submitter
+  namespace: argo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: diagnostic-submitter
+subjects:
+  - kind: ServiceAccount
+    name: diagnostic-submitter
+    namespace: argo
+  - kind: ServiceAccount
+    name: kagent-tools
+    namespace: kagent
