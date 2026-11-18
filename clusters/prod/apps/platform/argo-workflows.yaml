@@ -20,6 +20,15 @@ spec:
     - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
       targetRevision: main
       ref: values
+    # The pane's Role, owned by THIS Application: the chart no longer renders one (server.rbac.create=false), so the
+    # replacement must be created and pruned by the same sync that removes the old one - otherwise one app deletes it
+    # before the other applies it, which is the failure the kagent tool server had on 2026-11-18.
+    - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+      targetRevision: main
+      path: manifests/base/argo-workflows/server-rbac
+      kustomize:
+        commonAnnotations:
+          bakuran.dev/owner: story-7.5
   destination:
     server: https://kubernetes.default.svc
     namespace: argo

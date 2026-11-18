@@ -1,0 +1,7 @@
+# A directory of its own because its owner is a different Application from the rest of manifests/base/argo-workflows:
+# these two objects belong to the CHART's Application (it is the one whose subchart stops rendering the default role), so
+# create-and-prune happen inside one sync. Same lesson as the kagent tool server, 2026-11-18.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - pane-rbac.yaml
