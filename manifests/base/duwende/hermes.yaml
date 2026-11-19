@@ -305,7 +305,11 @@ spec:
             requests: { cpu: 300m, memory: 512Mi }
             limits: { memory: 2Gi }
         - name: cf-proxy
-          image: nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
+          # Re-pinned 2026-11-19. The previous digest was an Alpine 3.24.2 build with 1 CRITICAL and 17 HIGH
+          # findings (brotli CVE-2026-111497 plus curl/libcurl and friends), every one of them fixed upstream; the
+          # current `alpine` digest is a **clean scan at CRITICAL/HIGH**. Measured with the same scanner CI runs
+          # (trivy 0.76.2): `trivy image --severity CRITICAL,HIGH` on the old digest -> 18 findings, on this one -> 0.
+          image: nginx:alpine@sha256:0563c36f94a6d3ec3584161b77859f740f7e20b4853f52c796a864ce6908e8ea
           ports:
             - { name: cfproxy, containerPort: 8788 }
           env:
