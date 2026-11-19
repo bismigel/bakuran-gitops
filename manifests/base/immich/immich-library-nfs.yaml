@@ -1,0 +1,57 @@
+# The Immich library, on the pool that can actually hold it (2026-11-19).
+#
+# WHY NOT LONGHORN, measured: a Longhorn volume with three replicas is bounded by the *smallest* node's free space -
+# patola-thinkcentre had 105 GiB free on 2026-11-19 - so the ceiling for a replicated photo library here is ~105 GiB, and
+# `immich-library-rwx-v2` was deliberately right-sized to 20 GiB because asking for 100 GiB pushed the scheduling ratio
+# past the critical threshold that story 10.11 exists to keep (patola/data: scheduled 150 GiB against 105 GiB free = 1.34;
+# at 100 GiB it would be 2.19, past 1.8). A photo library outgrows 105 GiB, and it is the one dataset in this estate that
+# cannot be re-downloaded.
+#
+# So the photos live on the 1.9 TB pool that already holds the media library: `/mnt/media` on sitaw-amd, btrfs, 1.5 TB
+# free, exported to the LAN (192.168.2.0/24, rw, no_root_squash). An NFS *PersistentVolume* rather than a hostPath,
+# because a hostPath would pin Immich to one node - the opposite of the rule every other workload follows here.
+#
+# THE TRADE, stated rather than implied: this volume has no replication. One disk holds the photos, and the durability it
+# gets is the pool's btrfs snapshots (`/mnt/media-snapshots`, exported read-only) plus whatever backup policy is declared
+# for `/mnt/media/immich` specifically. The pool's existing local mirror is a 938 GB SD card already 412 GB full of
+# *re-downloadable* media, so photos must not rely on it - that is the open decision on this change, not a detail.
+#
+# The 20 GiB Longhorn volume stays mounted by nothing and stays on disk as the rollback copy (ADR 0002 forbids deleting
+# PVCs), exactly as `immich-library` and `immich-library-rwx` did before it.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: immich-library-nfs
+spec:
+  capacity:
+    storage: 1200Gi
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.2
+    - hard
+    - timeo=600
+    - retrans=2
+    # Immich writes thumbnails and transcodes while serving, so a soft mount would turn a slow NFS moment into silent
+    # data loss. `hard` + a 60s timeout blocks instead, which is visible.
+  nfs:
+    server: 192.168.2.82
+    path: /mnt/media/immich
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library-nfs
+  namespace: immich
+  annotations:
+    # The photos are the data. A prune of this manifest must never delete the claim - the PV is Retain for the same
+    # reason, and both are named here rather than inherited.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: immich-library-nfs
+  resources:
+    requests:
+      storage: 1200Gi
