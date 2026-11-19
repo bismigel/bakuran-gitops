@@ -1,37 +1,19 @@
-#!/usr/bin/env bash
-# Refuse to push to a protected branch from this machine.
+#!/usr/bin/env sh
+# The guard is `cmd/pre-push` (Go, ADR 0016). Git needs an executable *path*, so this shim exists and does nothing but
+# exec it: every decision — branch protection, which checks run, what may be skipped — lives in the binary, because a
+# decision written twice is a decision that will disagree with itself. (This file used to carry a bash copy of the branch
+# guard as a fallback for "no Go toolchain", i.e. two implementations of one rule.)
 #
-# Why a local hook: GitHub does not offer branch protection on private repositories without a paid plan
-# (measured 2026-11-15: the API answers "Upgrade to GitHub Pro or make this repository public"). So the
-# server cannot refuse. This refuses instead, and the server-side branch rule detects the case
-# where someone bypassed it with --no-verify or pushed from another machine.
+# It fails CLOSED when the toolchain is missing, and names the fix. The old version printed a line and exited 0, so a
+# push from a bare shell reported "the checks were NOT run" and went through, which is how a gate becomes a comment. The
+# escape hatch is the standard, visible one: `git push --no-verify`.
 #
-# Install once per clone:  go run ./cmd/install-hooks --dir .   (homelab-context)
-#
-# Bypass is possible and deliberate: this is a guard against the ordinary mistake, not a security
-# control. The detection workflow is what makes a bypass visible.
-set -uo pipefail
-PROTECTED="main master"
-
-while read -r local_ref local_sha remote_ref remote_sha; do
-  for b in $PROTECTED; do
-    if [ "$remote_ref" = "refs/heads/$b" ]; then
-      cat >&2 <<EOF
-
-  refusing to push to '$b'
-
-    Every change goes through a pull request: branch -> PR -> CI green -> merge.
-    See homelab-context/docs/decisions/adr-0001-pr-only-change-flow.md.
-
-    git switch -c <branch>            # if you are on $b now
-    git push -u origin <branch>       # then open the PR
-
-    If this is the accidental-push case: the commit is already local, so nothing is lost.
-    If you truly must override: git push --no-verify  (the bypass is visible in the Forgejo push log)
-
-EOF
-      exit 1
-    fi
-  done
-done
-exit 0
+# `command -v` rather than `exec … || { }`: a failed `exec` terminates the shell, so the `||` branch never runs and the
+# hook would have exited non-zero while printing nothing. Tested by running this file with `env -i PATH=/usr/bin:/bin`.
+if command -v pre-push >/dev/null 2>&1; then
+  exec pre-push "$@"
+fi
+printf '\n  pre-push: no `pre-push` on PATH, so nothing checked this push.\n' >&2
+printf '  Inside the dev shell:  nix develop -c git push\n' >&2
+printf '  Bypass deliberately:   git push --no-verify\n\n' >&2
+exit 1
