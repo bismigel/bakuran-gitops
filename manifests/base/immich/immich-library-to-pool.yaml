@@ -1,0 +1,64 @@
+# Keeps the pool's copy of the photo library current, so the existing R2 backup keeps working (2026-11-19).
+#
+# WHY THIS EXISTS: photos moved back onto the replicated Longhorn volume, because they are the one dataset here that
+# cannot be re-downloaded and the pool is a single disk. But the R2 backup unit on `sitaw-amd`
+# (bakuran-infra modules/backup-local.nix) uploads from `/mnt/media/immich`, and it cannot mount a PVC. So this job
+# rsyncs the volume to that path nightly, and the existing unit keeps uploading from a path it can see.
+#
+# Three copies in three failure domains: the replica set (a node), the pool (a disk), R2 (offsite). Each one covers a
+# failure the others do not.
+#
+# `rsync` is installed at container start rather than baked into an image. That is the one runtime install in the estate,
+# and it is accepted *here* because the alternative was a second published image for a client tool - the delivery pipeline
+# story (15.11) can carry it later. The tag is pinned to the Alpine release, and the job does nothing but copy bytes.
+#
+# The namespace's NetworkPolicy allows DNS and 443 out, which is what the install needs; the NFS mount is done by the
+# kubelet, so pod egress policy does not apply to it.
+#
+# `--delete` is deliberately NOT used: the volume is the source of truth and the pool is a copy. A mistake on either side
+# must not delete photos in the other.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-library-to-pool
+  namespace: immich
+spec:
+  # After the pool is mounted on the host and before the R2 unit runs at 01:40.
+  schedule: "20 1 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync
+              # Pinned by digest like every other image here (ADR 0007; `check-image-digests` fails a PR that is not).
+              image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+              command: ["/bin/sh","-c"]
+              args:
+                - |
+                  set -eu
+                  apk add --no-cache rsync >/dev/null
+                  # A source that is empty is a broken mount, not an empty library: refuse rather than mirror nothing.
+                  find /from -maxdepth 1 -mindepth 1 -print -quit | grep -q . || { echo "/from is empty - refusing"; exit 1; }
+                  echo "source: $(du -sh /from | cut -f1), $(find /from -type f | wc -l) files"
+                  rsync -aH --stats --exclude 'lost+found' /from/ /to/
+                  echo "destination: $(du -sh /to | cut -f1), $(find /to -type f | wc -l) files"
+              volumeMounts:
+                - { name: library, mountPath: /from, readOnly: true }
+                - { name: pool, mountPath: /to }
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 256Mi}
+          volumes:
+            - name: library
+              persistentVolumeClaim: { claimName: immich-library-rwx-v2, readOnly: true }
+            - name: pool
+              nfs: { server: 192.168.2.82, path: /mnt/media/immich }

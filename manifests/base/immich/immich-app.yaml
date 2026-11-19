@@ -212,35 +212,18 @@ spec:
             limits:
               memory: 4Gi
       volumes:
-        # The photo library lives on the media pool from 2026-11-19, as a plain `nfs:` pod volume.
+        # Photos are on a REPLICATED Longhorn volume (2026-11-19): they are the one dataset in this estate that cannot be
+        # re-downloaded, and the 1.9 TB pool - which holds the re-downloadable media - is a single disk with no
+        # replication. A three-replica volume survives losing a node; 60 GiB is what this cluster's binding disk can
+        # promise without crossing story 10.11's warning line (arithmetic in immich-library-v2.yaml).
         #
-        # WHY NOT LONGHORN: a replicated volume is bounded by the *smallest* node's free space - patola had 105 GiB on
-        # 2026-11-19 - so ~105 GiB is the ceiling for a replicated photo library here, and asking for 100 GiB is what made
-        # story 10.11's over-commit alert fire (scheduled/free 1.34 at 20 GiB, 2.19 at 100 GiB, critical 1.8). A photo
-        # library outgrows that, and it is the one dataset here that cannot be re-downloaded. The pool has 1.5 TB free.
-        #
-        # WHY A POD VOLUME AND NOT A PV/PVC: a `PersistentVolume` is cluster-scoped, and the `prod` AppProject refuses one
-        # in an app manifest - correctly, since it can name any volume in the cluster. The alternative was a dynamic NFS
-        # provisioner, and the two candidates are both 2021-era images with CRITICAL CVEs in their base (the subdir
-        # provisioner ships Go 1.15: five stdlib CVEs; the CSI driver ships a full Debian userspace). None of that machinery
-        # buys anything here: nothing else claims this storage, so the indirection would exist only to satisfy a pattern.
-        # A pod volume is mounted by the kubelet directly, needs no cluster-scoped authority, and adds no image to scan.
-        #
-        # THE TRADE, stated rather than implied: this has no replication. One disk holds the photos; durability is the
-        # pool's btrfs snapshots (`/mnt/media-snapshots`) plus whatever backup is declared for `/mnt/media/immich`. The
-        # pool's local mirror is a 938 GB SD card already 412 GB full of re-downloadable media, so photos must not lean on
-        # it - that is the open decision this change makes explicit rather than hides.
-        #
-        # POD SECURITY: `nfs` is not in the `restricted` profile's allowed volume types, and `immich` enforces
-        # `baseline` (it only warns on restricted, measured 2026-11-19). So this is legal here and would be rejected in a
-        # namespace that enforces restricted - stated because it is the one place in the estate where that is true, and a
-        # future tightening of this namespace must move the library onto a CSI/PVC volume rather than silently fail.
-        #
-        # `hard` and a 60s timeout: a soft mount turns a slow NFS moment into silent data loss; blocking is visible.
+        # The pool still holds a copy: the CronJob beside this file rsyncs the volume to /mnt/media/immich nightly, which
+        # is what keeps the existing R2 backup (modules/backup-local.nix, homelab-backup-books) uploading from a path it
+        # can reach. Three copies, three different failure domains: the replica set, the pool, R2.
         - name: library
-          nfs:
-            server: 192.168.2.82
-            path: /mnt/media/immich
+          persistentVolumeClaim:
+            claimName: immich-library-rwx-v2
+
 ---
 apiVersion: v1
 kind: Service
