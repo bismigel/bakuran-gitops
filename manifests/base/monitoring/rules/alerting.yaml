@@ -274,13 +274,38 @@ data:
             annotations:
               summary: "universal certificate for {{ $labels.zone }} is {{ $labels.status }}"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarecertificateinactive"
+          # The exporter's own health, and the hole that this group had until 2026-11-19.
+          #
+          # The rule below was written as `time() - cloudflare_export_timestamp_seconds > 600`, which cannot fire when
+          # the exporter's refresh RAISES: the exception path replaces the whole page with `cloudflare_api_up 0`, so the
+          # timestamp series disappears and the expression has no data. A rule that goes silent exactly when the thing
+          # it watches breaks is the failure this estate keeps writing down. Hence the absent() arm.
+          #
+          # Why this matters concretely: on 2026-11-19 an account API token was rolled. It also backed the R2 access
+          # key, so nightlies and PG backups stopped working, and nothing paged - the only signal available was this
+          # exporter, whose health nothing watched. (The R2 break is a separate gap: story in the backup epic.)
           - alert: CloudflareExporterStale
-            expr: time() - cloudflare_export_timestamp_seconds > 600
+            expr: absent(cloudflare_export_timestamp_seconds) or time() - cloudflare_export_timestamp_seconds > 600
             for: 10m
             labels: { severity: warning }
             annotations:
               summary: "cloudflare edge exporter has not refreshed in 10m: token expired or API unreachable"
+              description: >-
+                Either the exporter stopped producing a timestamp at all (the absent() arm - a failed refresh replaces
+                its whole metric page) or it is serving a snapshot older than 10 minutes. Both mean the edge numbers on
+                every dashboard are frozen, and CloudflareTunnelDown cannot fire because it reads the frozen data.
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterstale"
+          - alert: CloudflareExporterRefreshFailing
+            expr: cloudflare_api_up == 0
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "cloudflare exporter: the last refresh completed with errors for 15m"
+              description: >-
+                The exporter is up and serving, but at least one API call in its refresh raised - usually the token:
+                rolled, expired, or scoped down. This is the metric that would have made the 2026-11-19 credential roll
+                visible before it broke R2, nightlies and PG backups.
+              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterrefreshfailing"
       - name: argocd
         rules:
           # ArgoCD's own health, asked the only way that catches "up but blind": if the

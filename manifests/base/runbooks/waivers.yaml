@@ -81,6 +81,7 @@ group:
   where: workstation
   alerts:
   - CloudflareCertificateInactive
+  - CloudflareExporterRefreshFailing
   - CloudflareExporterStale
   - CloudflareTunnelDown
   - CloudflareTunnelSingleConnector
