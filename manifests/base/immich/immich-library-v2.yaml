@@ -23,5 +23,14 @@ spec:
   accessModes: [ReadWriteMany]
   storageClassName: longhorn
   resources:
+    # 35 GiB (2026-11-19), up from 20: the web UI showed 1.5 GiB of 19.5 GiB used, i.e. 18 GiB of headroom, which is a
+    # few thousand photos. 35 is the largest bump that keeps this volume's promise inside story 10.11's warning line:
+    # patola/data's scheduled/free ratio goes 1.43 -> 1.57 (warn 1.6, critical 1.8, measured 2026-11-19). Anything above
+    # ~39 GiB crosses 1.6, and 100 GiB - which this volume used to ask for - crossed 2.19.
+    #
+    # Longhorn expands online: spec.resources.requests.storage is the whole patch, no move and no downtime. This is a
+    # stopgap for a phone-sized library; a library of tens of thousands of photos belongs on the 1.9 TB media pool
+    # through a dynamic NFS provisioner (see the immich ticket), because a three-replica Longhorn volume is capped at the
+    # smallest node's free space - ~105 GiB here.
     requests:
-      storage: 20Gi
+      storage: 35Gi
