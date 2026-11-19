@@ -41,3 +41,27 @@ metadata:
   name: replica-auto-balance
   namespace: longhorn-system
 value: best-effort
+---
+# Two settings that decide whether "survive one node" is true, reviewed against the measured state on 2026-11-19.
+#
+# 1. replica-soft-anti-affinity was `false`. It is the knob that tells Longhorn it MAY put two replicas of one volume on
+#    the same node when space is tight - which quietly turns a three-replica volume into a two-node promise at exactly the
+#    moment something is already rebuilding. With three nodes and three replicas the spread costs nothing today (every
+#    3-replica volume has one replica per node, measured), and `true` is what keeps that true as volumes are rebuilt.
+#
+# 2. replica-auto-balance-disk-pressure-percentage was 90. A disk at 90 % used has 10 % free, which is below the 25 %
+#    `storage-minimal-available-percentage` floor - so the rebalance would start evacuating a disk at the point the pool
+#    can no longer accept what it moves. 80 leaves a margin where both ends of that move are legal.
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: replica-soft-anti-affinity
+  namespace: longhorn-system
+value: "true"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: replica-auto-balance-disk-pressure-percentage
+  namespace: longhorn-system
+value: "80"
