@@ -41,6 +41,17 @@ spec:
       # No prometheus.io/* annotations: Jellyfin exposes no /metrics endpoint
       # (needs a plugin), so scraping it only produced a false TargetDown.
     spec:
+      # PREFER a node with an Intel render node, so QSV hardware transcode is available when it can be - and do not
+      # require it, because a preference that is a rule is how an app stops being able to land anywhere. Measured
+      # 2026-11-18: both calamansi-intel and patola-thinkcentre carry `homelab.io/qsv=true`; sitaw-amd does not, so a
+      # Jellyfin pod there would transcode on the CPU of the node that also runs the ingress and ArgoCD.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - { key: homelab.io/qsv, operator: In, values: ["true"] }
       # Run the app as a normal user, not root. The config/cache volumes are
       # handed over by the fix-ownership init below; the render node
       # (/dev/dri/renderD128) is mode 0666, so QSV still works.

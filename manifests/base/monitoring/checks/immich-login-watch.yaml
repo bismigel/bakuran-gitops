@@ -70,11 +70,12 @@ spec:
         ttlSecondsAfterFinished: 120
         template:
           spec:
-            # Pin to the platform node. NAT on the media node masks the pod
-            # source IP, which breaks namespace-based NetworkPolicy matching for
-            # cross-node calls to immich.
-            nodeSelector:
-              kubernetes.io/hostname: sitaw-amd
+            # NOT pinned any more (2026-11-18). The rationale was "NAT on the media node masks the pod source IP, which
+            # breaks namespace-based NetworkPolicy matching for cross-node calls to immich" - measured false: a
+            # monitoring pod on calamansi-intel reached http://immich-server.immich:2283/api/server/ping and
+            # http://jellyfin.default:8096/health with 200, exactly as from sitaw-amd and patola-thinkcentre. The pin
+            # was folklore; a comment asserting a network behaviour that does not happen is worse than none, because it
+            # stops anyone looking again.
             restartPolicy: Never
             containers:
               - name: watch
