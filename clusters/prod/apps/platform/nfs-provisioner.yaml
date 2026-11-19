@@ -1,0 +1,24 @@
+# The only Application in the estate that creates cluster-scoped PersistentVolumes - and it does so at runtime, from a PVC,
+# never from a manifest. See manifests/base/nfs-provisioner/provisioner.yaml for why a provisioner rather than a PV.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nfs-provisioner
+  namespace: argocd
+  annotations:
+    # Before the workloads that will claim storage from it, and after the CRDs it does not need but the cluster should
+    # have settled - this one simply must not lag the immich switch.
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: prod
+  source:
+    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/nfs-provisioner
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nfs-provisioner
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]

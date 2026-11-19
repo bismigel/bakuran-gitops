@@ -1,0 +1,146 @@
+# A dynamic NFS provisioner for the media pool, so a photo library can live on the 1.9 TB disk and still be mounted by a
+# pod on any node (2026-11-19).
+#
+# WHY THIS EXISTS AT ALL: Longhorn cannot hold it. A replicated volume is bounded by the smallest node's free space
+# (~105 GiB on patola), and asking for 100 GiB is what made story 10.11's over-commit alert fire. The pool has 1.5 TB free
+# and is already exported to the LAN, but the obvious shortcut - a hand-declared `PersistentVolume` in the immich
+# manifests - is refused by the `prod` AppProject, correctly: a PV in an app manifest can name any volume in the cluster.
+#
+# A provisioner is the mechanism every other volume in this estate already uses: `longhorn` and `local-path` each run one.
+# This is the same shape for NFS, so the Application only ever declares a PVC.
+#
+# WHAT IT WRITES: one directory per claim under /mnt/media/immich, named `<namespace>-<claim>`. `onDelete: retain` and
+# `reclaimPolicy: Retain` both mean the same thing here and it is the point - deleting a PVC must never delete photos.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nfs-provisioner
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-provisioner
+  namespace: nfs-provisioner
+---
+# The only cluster-scoped authority in this directory, and the reason the provisioner has to be a component rather than a
+# manifest: creating a PersistentVolume for a PVC is a runtime action, not a sync.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nfs-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nfs-provisioner-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nfs-provisioner-runner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-provisioner
+    namespace: nfs-provisioner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-locking-nfs-provisioner
+  namespace: nfs-provisioner
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-locking-nfs-provisioner
+  namespace: nfs-provisioner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-locking-nfs-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-provisioner
+    namespace: nfs-provisioner
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-provisioner
+  namespace: nfs-provisioner
+spec:
+  # One replica, because the provisioner is not stateless in the sense that matters: two of them racing to create the same
+  # subdirectory is a corruption the leader election would prevent but does not need to be exercised.
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: nfs-provisioner}
+  template:
+    metadata:
+      labels: {app: nfs-provisioner}
+    spec:
+      serviceAccountName: nfs-provisioner
+      containers:
+        - name: provisioner
+          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2@sha256:63d5e04551ec8b5aae83b6f35938ca5ddc50a88d85492d9731810c31591fa4c9
+          env:
+            - { name: PROVISIONER_NAME, value: bismigel.dev/nfs-media }
+            - { name: NFS_SERVER, value: 192.168.2.82 }
+            - { name: NFS_PATH, value: /mnt/media/immich }
+            # Subdirectories are created per claim; `archiveOnDelete` keeps the directory when a claim goes away.
+            - { name: ARCHIVE_ON_DELETE, value: "true" }
+          volumeMounts:
+            - { name: export, mountPath: /persistentvolumes }
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext:
+            # The image sets archiveOnDelete via a shell on some subdirectories; root here cannot write outside
+            # /mnt/media/immich because that is the only export it mounts.
+            runAsNonRoot: false
+      volumes:
+        - name: export
+          nfs:
+            server: 192.168.2.82
+            path: /mnt/media/immich
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-media
+  annotations:
+    # Not the default: a volume that only exists on one disk must never be chosen by accident.
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: bismigel.dev/nfs-media
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+parameters:
+  # `retain` (not `delete`): the photos outlive the claim, always.
+  onDelete: retain
+  pathPattern: "${.PVC.namespace}-${.PVC.name}"

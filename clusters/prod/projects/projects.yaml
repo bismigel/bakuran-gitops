@@ -94,6 +94,9 @@ spec:
     # `InvalidSpecError: destination namespace 'vaultwarden' does not match any of the allowed destinations` —
     # which is the project doing exactly what it is for, and the reason this list lives in git.
     - {server: https://kubernetes.default.svc, namespace: vaultwarden}
+    # The NFS provisioner for the media pool (2026-11-19). It is a component rather than a manifest because creating a
+    # PersistentVolume is a runtime action, not a sync - which is also why the PV kind stays out of the whitelist below.
+    - {server: https://kubernetes.default.svc, namespace: nfs-provisioner}
     # created BY the apps rather than being their destination (cilium's
     # secret namespace, the *arr download spool). Found by the project rejecting
     # them at sync time — the destination list has to cover namespaces the
@@ -120,6 +123,7 @@ spec:
     - {group: 'cilium.io', kind: 'CiliumEgressGatewayPolicy'}
     - {group: 'external-secrets.io', kind: 'ClusterSecretStore'}
     - {group: 'networking.k8s.io', kind: 'IngressClass'}
+    - {group: 'storage.k8s.io', kind: 'StorageClass'}
     - {group: 'rbac.authorization.k8s.io', kind: 'ClusterRole'}
     - {group: 'rbac.authorization.k8s.io', kind: 'ClusterRoleBinding'}
     - {group: 'scheduling.k8s.io', kind: 'PriorityClass'}

@@ -1,0 +1,26 @@
+# The Immich library lives on the media pool from 2026-11-19, through the `nfs-media` StorageClass that the
+# nfs-provisioner Application creates (see manifests/base/nfs-provisioner/provisioner.yaml).
+#
+# WHY NOT LONGHORN, measured: a replicated volume is bounded by the *smallest* node's free space - patola had 105 GiB on
+# 2026-11-19 - so ~105 GiB is the ceiling for a replicated photo library here, and 100 GiB is what made story 10.11's
+# over-commit alert fire (scheduled/free 1.34 at 20 GiB, 2.19 at 100 GiB against a critical of 1.8). A photo library
+# outgrows that, and it is the one dataset in this estate that cannot be re-downloaded. The pool holds 1.5 TB free.
+#
+# THE TRADE, stated rather than implied: this volume has no replication. One disk holds the photos; durability is the
+# pool's btrfs snapshots plus whatever backup policy is declared for `/mnt/media/immich`. The pool's local mirror is a
+# 938 GB SD card already 412 GB full of re-downloadable media, so photos must not lean on it.
+#
+# `Retain` on both the class and this claim: deleting a claim can never delete the photos.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library-nfs
+  namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: nfs-media
+  resources:
+    requests:
+      storage: 1200Gi

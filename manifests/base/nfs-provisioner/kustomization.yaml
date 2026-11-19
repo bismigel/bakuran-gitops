@@ -1,0 +1,6 @@
+# One component, its own namespace: it is the only thing here that creates cluster-scoped PersistentVolumes, so it is the
+# easiest thing in the estate to point at when asking "who can conjure storage".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - provisioner.yaml
