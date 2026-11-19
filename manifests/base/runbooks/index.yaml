@@ -20,6 +20,7 @@ data:
   BackupMountMissing: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#backupmountmissing"
   CAdvisorScrapeFailing: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#cadvisorscrapefailing"
   CloudflareCertificateInactive: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarecertificateinactive"
+  CloudflareExporterRefreshFailing: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterrefreshfailing"
   CloudflareExporterStale: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterstale"
   CloudflareTunnelDown: "action=- where=workstation severity=critical runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflaretunneldown"
   CloudflareTunnelSingleConnector: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflaretunnelsingleconnector"

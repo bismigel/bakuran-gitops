@@ -262,10 +262,11 @@ data:
       do not need re-deriving; if the command cheaply re-runs, run it rather than reading.
     
     ## Cloudflare: guarded (READ ONLY)
-    Cloudflare can expose the network, so it is **read-only**: read with
-    `curl http://127.0.0.1:8788/client/v4/<path>` (the proxy injects the token);
-    **every write returns 403**. Do not attempt DNS, tunnel, Access or rule changes — STOP and state
-    the exact change and its impact. Details in [docs/reference/hardening.md](docs/reference/hardening.md#cloudflare-plan-facts-verified).
+    Cloudflare can expose the network, so **every write is a human decision** — do not change DNS, tunnel, Access or rules;
+    STOP and state the change and its impact. The guard is an nginx sidecar in the **`duwende/hermes` pod** on *that pod's*
+    `127.0.0.1:8788` (reads inject a token, non-GET gets 403) — **not on the workstation**, where a call reaches
+    `api.cloudflare.com` with the SOPS token and nothing enforces it. See
+    [hardening.md](docs/reference/hardening.md#cloudflare-plan-facts-verified).
     
     ## Context
     Docs here: `network.md` is authoritative for the network; the rest are named in the routing table above and in
