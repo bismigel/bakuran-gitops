@@ -217,9 +217,7 @@ spec:
             # `-v2`: the same data on a claim sized from measurement (20 GiB for 1.5 GiB of files) instead of from the
             # smallest disk's free space. Copied and verified byte-for-byte on 2026-11-13 (1 565 files, `diff -r`
             # identical) before this line changed. The old claim is kept, at one replica, until this has run for a while.
-            # The pool, not Longhorn (2026-11-19): see immich-library-nfs.yaml for why a replicated Longhorn volume
-          # cannot hold a photo library here, and for the durability trade this makes instead.
-          claimName: immich-library-nfs
+            claimName: immich-library-rwx-v2
 ---
 apiVersion: v1
 kind: Service
