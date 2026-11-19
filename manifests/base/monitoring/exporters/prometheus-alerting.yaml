@@ -82,10 +82,17 @@ spec:
             # Same retention as the primary, on purpose: several rules use 6h and 1d
             # windows, so a shorter window here would evaluate them differently and
             # the two instances would disagree about what is firing.
-            # Same 30 days as the primary (story 10.6): the alerting instance only records rule results, so it is
-            # small, and keeping identical windows means the two instances cannot disagree about a 7d SLO.
-            - '--storage.tsdb.retention.time=30d'
-            - '--storage.tsdb.retention.size=2GB'
+            # Same 30 days as the primary (story 10.6) - but NOT the same volume, and that is what the measured
+            # numbers say. This instance projects the same ConfigMaps, so it ingests every metric the primary does,
+            # not "only rule results": measured 2026-11-18 it held 1.9 GiB after ~8 days, which is ~7 GiB per 30 days
+            # against a **4 GiB local-path volume** - and local-path cannot be expanded. So the size cap decides here,
+            # whatever the time flag says, and it was set to 2GB: already biting at 1.9 GiB.
+            #
+            # 3GB is the honest number for this volume: it leaves headroom for the WAL and compaction while staying
+            # inside the PVC. The cost is stated rather than hidden - this instance keeps roughly two weeks of history,
+            # which is acceptable because it exists to EVALUATE rules (the primary is what Grafana reads, with 30 days
+            # on 8 GiB). If its history is ever wanted too, the fix is a volume that can grow, not a bigger cap.
+            - '--storage.tsdb.retention.size=3GB'
             - '--web.enable-lifecycle'
           ports:
             - containerPort: 9090
