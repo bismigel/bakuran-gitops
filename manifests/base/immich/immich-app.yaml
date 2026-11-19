@@ -75,10 +75,17 @@ spec:
       labels:
         app: immich-machine-learning
     spec:
-      # ML is the CPU-bound part -> run it on the Ryzen (.82). Storage + DB moved
-      # to patola-thinkcentre (.84) when the MacBook was retired.
-      nodeSelector:
-        kubernetes.io/hostname: sitaw-amd
+      # ML is the CPU-bound part, so it PREFERS the Ryzen (.82) - but it is a preference, not a pin. It was a
+      # `nodeSelector` until 2026-11-18, which meant the one workload with no storage or device requirement was the one
+      # workload that could not move: if .82 was cordoned or full, ML sat Pending and every upload's thumbnail stalled
+      # while two other nodes idled.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - { key: kubernetes.io/hostname, operator: In, values: ["sitaw-amd"] }
       containers:
         - name: machine-learning
           image: ghcr.io/immich-app/immich-machine-learning:v3.3.4@sha256:1ab8674e7cec41009abb3812de62a16cc1917e73d486233a5471b048d26fc14d
