@@ -5,3 +5,6 @@ resources:
   - db.yaml
   - app.yaml
   - account-bootstrap.yaml
+  - vaultwarden-pg-backup-secret.yaml
+  - vaultwarden-pg-objectstore.yaml
+  - vaultwarden-pg-scheduledbackup.yaml

@@ -49,6 +49,15 @@ spec:
   monitoring:
     enablePodMonitor: true
 
+  # Durability that does not depend on a nightly script (2026-11-19): WAL continuously and a base backup daily,
+  # through the Barman Cloud Plugin. `isWALArchiver: true` makes the plugin responsible for archiving rather than only
+  # for backups — without it the cluster has base backups and no point-in-time recovery, which is the half that matters.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: forgejo-r2
+
   # Keep two instances apart on purpose (ADR 0008): a primary and a replica on the same node is one
   # instance with extra steps.
   affinity:

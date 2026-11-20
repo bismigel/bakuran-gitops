@@ -1,0 +1,27 @@
+# The object store Vaultwarden's database backs up into, via the **Barman Cloud Plugin** (see Immich's file for why the
+# plugin and not the native barman path, which CNPG removes in 1.31.0).
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: vaultwarden-r2
+  namespace: vaultwarden
+spec:
+  # 30 days, longer than the other two clusters: this is the password vault, "the only data that really matters" per the
+  # owner's rule, and its WAL is tiny. A bad write or a deletion may take more than two weeks to notice.
+  retentionPolicy: "30d"
+  configuration:
+    destinationPath: "s3://homelab-backups/cnpg/vaultwarden"
+    endpointURL: "https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com"
+    s3Credentials:
+      accessKeyId:
+        name: vaultwarden-pg-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: vaultwarden-pg-backup
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 2
