@@ -84,6 +84,21 @@ spec:
   data:
     - { secretKey: gh-token, remoteRef: { key: github-pat } }
 ---
+# Forgejo is the source of truth (ADR 0015); GitHub is only a push mirror. The agent holds a
+# scoped Forgejo token (its own `hermes` user) so it pushes branches and opens PRs on Forgejo,
+# not on the mirror.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: forgejo-token
+  namespace: duwende
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: forgejo-token }
+  data:
+    - { secretKey: token, remoteRef: { key: forgejo-hermes-token } }
+---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -290,6 +305,8 @@ spec:
             - { name: TELEGRAM_ALLOWED_USERS, value: "607008268" }
             - name: GH_TOKEN
               valueFrom: { secretKeyRef: { name: github-token, key: gh-token } }
+            - name: FORGEJO_TOKEN
+              valueFrom: { secretKeyRef: { name: forgejo-token, key: token } }
           volumeMounts:
             - { name: data, mountPath: /opt/data }
             - { name: tools, mountPath: /opt/bin }
