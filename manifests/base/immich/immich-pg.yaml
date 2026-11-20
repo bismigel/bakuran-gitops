@@ -30,8 +30,9 @@ spec:
   # which CNPG parses for major-version upgrades) and the digest decides what runs (ADR 0007).
   imageName: git.bismigel.dev/bismigel/immich-pg:14.19@sha256:5d29f75b7e3c34daf18d50bb7f3cbfc3d2f110c306b7c442d28451d011dbe08d
   imagePullSecrets:
-    # The image comes from git.bismigel.dev now; ghcr-secret stays for the *base* layers CNPG may still
-    # reference, and because removing it is a separate cleanup once nothing pulls from GHCR.
+    # The image now comes from the estate's own registry (git.bismigel.dev). ghcr-secret is kept on purpose:
+    # the owner wants the GHCR credential available for one-off work against GitHub, and the base-image drift
+    # check (upstream.yml) still talks to ghcr.io. It is not required for this pod to start.
     - name: forgejo-registry-secret
     - name: ghcr-secret
   primaryUpdateStrategy: unsupervised
