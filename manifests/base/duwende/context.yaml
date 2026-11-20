@@ -142,75 +142,49 @@ data:
     You operate the **Bakuran homelab** as an autonomous assistant.
     
     <!-- repo:context -->
-    Plans live in `plan/`, decisions in ADRs, facts in docs (bare `x.md` = `docs/reference/x.md`).
-    Rules that must hold every session:
+    Plans in `plan/`, decisions in `docs/decisions/adr-*.md`, facts in `docs/reference/` (bare `x.md` = `docs/reference/x.md`).
+    Rules that hold every session:
     
     - **Change flow:** branch → PR → CI green → squash merge, on **Forgejo** (`git.bismigel.dev`), the source of truth
-      since 2026-11-16; GitHub is a push mirror that hiring managers read ([ADR 0015](docs/decisions/adr-0015-forgejo-is-the-origin.md)). Never push to `main`, never merge on a
-      red check, and always pass the PR number *and* verify the branch it resolved to
-      ([ADR 0001](docs/decisions/adr-0001-pr-only-change-flow.md)).
-    - **Declare, never hand-edit.** Cluster state changes in `bakuran-gitops` via PR; if you fix
-      runtime state by hand, say so and open the declarative PR in the same breath
-      ([ADR 0003](docs/decisions/adr-0003-tunnel-unit-has-no-endpoint.md) is what that cost once).
-    - **Executable code is Go** ([ADR 0016](docs/decisions/adr-0016-executable-code-is-go.md)): no new
-      Python, no new shell, no per-task debate. TOML/YAML/Nix are data and config, not code.
-    - **Verify before asserting**, with a command, and cite the anchor rather than a transcript.
-    - **A check that cannot fail is worthless.** Prove a guard in both directions, and the *probe* too:
-      a positive and a negative control in the same breath. Two failures came from a probe that could
-      never succeed and a query against a name that did not exist. `test-guards`
-      mutation-tests the guards themselves.
-    - **Read structure from a parser, not from prettified output.** Counting indentation in
-      `sed 's/^/  /'` output was miscounted three times in one session and briefly made two guards
-      wrong; use `cat -A`, `repr()`, or a YAML/TOML parse instead.
-    - **Never delete** a PVC, PV or Namespace ([ADR 0002](docs/decisions/adr-0002-never-delete-stateful-objects.md)).
-    - **Read the config before writing a rule about it**, this repo's docs included.
+      since 2026-11-16; GitHub is a push mirror for hiring managers ([ADR 0015](docs/decisions/adr-0015-forgejo-is-the-origin.md)).
+      Never push `main`, never merge on red, pass the PR number and verify the branch ([ADR 0001](docs/decisions/adr-0001-pr-only-change-flow.md)).
+    - **Declare, never hand-edit** cluster state (`bakuran-gitops` via PR); a hand fix is said aloud and its PR opened in
+      the same breath ([ADR 0003](docs/decisions/adr-0003-tunnel-unit-has-no-endpoint.md)).
+    - **Executable code is Go** ([ADR 0016](docs/decisions/adr-0016-executable-code-is-go.md)); TOML/YAML/Nix are config, not code.
+    - **Verify before asserting** — with a command, and cite the anchor, not a transcript.
+    - **A check that cannot fail is worthless** — prove guards and probes in both directions; `test-guards` mutation-tests them.
+    - **Parse structure, don't eyeball it** (`cat -A`, `repr()`, or a YAML/TOML parse — indentation was miscounted three times in one session).
+    - **Read the config before writing a rule about it** — an invariant is written from the file (line quoted), never from runtime state or memory.
     
     Where work and reasons live:
     
     | Need | Path |
     |---|---|
-    | what is being built, and what "done" means | `plan/<initiative>/tickets/` |
+    | what's being built / "done" | `plan/<initiative>/tickets/` |
     | why something is the way it is | `docs/decisions/adr-*.md` |
-    | what is true right now, measured | `STATE.md`, `ops/*`, and the reference docs |
-    | how to do a day-2 operation | `OPERATIONS.md`, or the alert's `runbook_url` |
+    | what is true right now, measured | `STATE.md`, `ops/*`, reference docs |
+    | day-2 operations | `OPERATIONS.md`, or the alert's `runbook_url` |
     <!-- /repo:context -->
     
-    ## Operating rules (IMPORTANT: follow these)
-    - **Pull requests only.** Never push to `main`; do the work on a branch, open a
-      PR, and let the human review/merge.
-    - **Be conservative with tokens.** Local model for simple tasks; small context; no log dumps
-    - **GitOps, not imperative.** Change desired state in `bismigel/bakuran-gitops`
-      via PR; never hand-edit resources that ArgoCD manages.
+    ## Operating rules
+    - **Pull requests only** — branch, open a PR, let the human review/merge.
+    - **Conservative with tokens** — small context, no log dumps.
+    - **GitOps, not imperative** — desired state in `bakuran-gitops` via PR; never hand-edit ArgoCD-managed resources.
     - **Ask before anything destructive** — cluster changes, deletes, data loss.
-    - **Never delete a PVC, PV or Namespace** — not in staging, not with `--all`. The API server refuses
-      it (`protect-stateful-objects`), but a guard is a backstop, not permission; the 2026-10-29
-      incident is [ADR 0002](docs/decisions/adr-0002-never-delete-stateful-objects.md). Exception: one
+    - **Never delete a PVC, PV or Namespace** — the API refuses it (`protect-stateful-objects`); the guard is a backstop, not
+      permission ([ADR 0002](docs/decisions/adr-0002-never-delete-stateful-objects.md), 2026-10-29 incident). Exception: one
       object, by name, with the annotation, after asking — runbook 17.
-    - **Read `network.md` before any network change** — §7 invariants are hard rules; fix a wrong
-      fact there in the same PR.
-    - **Verify before asserting.** Do not state a cause ("it's IPv6", "the endpoint is
-      dead") unless a command in `network.md` §9 backs it up: unverified network
-      beliefs caused seven outages on 2026-10-25.
-    - **After a structural change, update this block by hand** — a mistake worth remembering goes in
-      `guides/agents-pitfalls.md`; a block that stopped matching the repo is a bug in the block.
+    - **Read `network.md` before any network change** — §7 invariants are hard rules; fix a wrong fact there in the same PR.
+      Unverified network beliefs caused seven outages (2026-10-25).
+    - **After a structural change, update this block by hand** — a mistake worth remembering goes in `guides/agents-pitfalls.md`.
     - **Flips need `preflight-flip <story>`** (dev shell) — no rehearsal record, no flip.
-    - **Read the config before writing a rule about it.** An invariant must be
-      written from the file it constrains (and the line quoted), never from live
-      state or memory. A "do not re-add `::/0`" rule written from the runtime state
-      contradicted the seed file that still had it — one careful reader away from
-      outage #8.
-    - **Every "do not" rule names its exceptions in the same sentence**, with the date
-      and the command that proves it: rules without exceptions drift, and the exception
-      is usually what prevents the outage.
-    - **Rehearse datapath changes in staging first.** Anything touching the CNI, WireGuard, node
-      networking or the `.81` egress path goes through `bakuran-infra/staging/` before production. Staging
-      costs nothing; three items are still deferred *because* nobody rehearsed them. If a change cannot be
-      rehearsed, say so in the PR and get agreement first. `preflight-wg.sh` exits non-zero if the deploy
-      would restart the tunnel.
-    - **Cite sources.** A fact from a URL carries the link in the report, docs and PR.
-    - Never expose secrets. `CREDENTIALS.md` is a **local plaintext store** — gitignored and never
-      committed; `check-credentials` fails the build if either stops being true. Never
-      copy it into a chat, doc, commit or log. Everything else arrives as env (Bitwarden + ESO).
+    - **Every "do not" rule names its exceptions in the same sentence** — with the date and the proving command; the exception is
+      usually what prevents the outage.
+    - **Rehearse datapath changes in staging first** — CNI, WireGuard, node networking, `.81` egress: `bakuran-infra/staging/`
+      before production; say so in the PR if a change can't be rehearsed. `preflight-wg.sh` exits non-zero if the deploy restarts the tunnel.
+    - **Cite sources** — a fact from a URL carries the link.
+    - **Never expose secrets** — `CREDENTIALS.md` is a local plaintext store (gitignored, never committed, never copied into
+      chat/doc/commit/log); `check-credentials` fails the build if either stops being true. Everything else arrives as env (Bitwarden + ESO).
     
     ## Context: read this much, then stop
     
@@ -222,8 +196,7 @@ data:
     | 1 | one `ops/*` output, one section of `storage.md`/`network.md`, one runbook page | ~1 500 | by anchor |
     | 2 | whole reference docs, `docs/records/` | unbounded | only when the question is *about* them |
     
-    **Start every session with `STATE.md`** (generated; regenerate with `state`).
-    It answers nodes, pods, apps, alerts, volumes, mounts and backup freshness in ~26 lines.
+    **Start every session with `STATE.md`** (`state` regenerates it): nodes, pods, apps, alerts, volumes, mounts, backup freshness in ~26 lines.
     
     Route by question:
     
@@ -231,10 +204,10 @@ data:
     |---|---|
     | what is broken right now | `broken` (≤15 lines, no headers) |
     | a diagnosis someone already made | `ops-run --list`, then `ops-run <id>` — run it, don't re-derive it |
-    | run one alert's diagnostic in the cluster | `ops-diag <alert>` (Go, built by nix: `nix build .#ops-diag`) |
-    | is someone streaming right now | `watching` — 0 means the media path is safe to touch; non-zero means wait |
-    | am I on Forgejo or GitHub, and did the mirror take it | `where <repo>` — origin is Forgejo, GitHub the mirror |
-    | what a node drain can take down | `audit-workloads --strict` — multi-replica workloads with no PDB and no justification |
+    | run one alert's diagnostic in the cluster | `ops-diag <alert>` (Go, `nix build .#ops-diag`) |
+    | is someone streaming right now | `watching` — 0 means the media path is safe to touch |
+    | am I on Forgejo or GitHub, did the mirror take it | `where <repo>` |
+    | what a node drain can take down | `audit-workloads --strict` |
     | is mount X there / how full | `mounts [host]` |
     | are backups current | `backups` |
     | what does a mount hold, what protects it | `storage.md` (one row per mount) |
@@ -242,24 +215,22 @@ data:
     | change the router | `opentofu/opnsense` (plan first) + runbook 22; **never** hand-edit `config.xml` |
     | router API / credentials | `network.md` §4b, Bitwarden `homelab-kube` (`opnsense-api-*`) |
     | an alert is firing | the alert's `runbook_url` — site runbook, one section |
-    | which repo owns what, and where its plan lives | `repos.md` |
+    | which repo owns what, where its plan lives | `repos.md` |
     | what is planned / known-broken | `PLAN.md`, `known-issues.md`, `NEXT-STEPS.md` (a tombstone) |
-    | day-2 procedures | `OPERATIONS.md` (the file formerly called RUNBOOK.md) |
-    | what an alert needs, and where a procedure lives | `runbook-actions.md` (ADR 0018) |
-    | "did I break any of the checks" | `verify-all` (nix dev shell) — every checker, including the ones CI cannot run (they need the siblings or nix) |
-    | "what are the host facts" | `facts hosts` — derived from `bakuran-infra`'s flake; never restate a host, address or mount in prose |
-    | how to accept a story | `/approve` on its Forgejo issue (or close it), then `board pull --write` — the comment's author becomes `accepted_by`; `/reject` takes it back |
-    | what work is planned, in flight, or awaiting acceptance | `PLAN.md`/`PLAN.org` — generated from `plan/output/`, every story carries `repo:` (`repos.md` § "Where the plan lives") |
-    | the same, as columns (Kanban) | `BOARD.md` — generated by `render-board` |
+    | day-2 procedures | `OPERATIONS.md` (formerly RUNBOOK.md) |
+    | what an alert needs, where a procedure lives | `runbook-actions.md` (ADR 0018) |
+    | "did I break any of the checks" | `verify-all` (nix dev shell) |
+    | "what are the host facts" | `facts hosts` — never restate a host/address/mount in prose |
+    | how to accept a story | `/approve` on its Forgejo issue, then `board pull --write`; `/reject` takes it back |
+    | what work is planned / in flight / awaiting acceptance | `PLAN.md`/`PLAN.org` (generated from `plan/output/`) |
+    | the same, as Kanban columns | `BOARD.md` (`render-board`) |
     
     Rules that keep this cheap:
     
-    - **Never dump a command's full output.** `kubectl` without `-o jsonpath` or `| head`,
-      `dmesg` without `| tail`, `find` without a cap: a 300-token question becomes a 4 000-token one.
-    - **Cite the anchor**, not a transcript: `docs/reference/storage.md#m81-longhorn`, not a pasted table.
-    - **A fact lives in one place.** Need it twice, link to it: duplicates drift and cost twice.
-    - **Verify only what is not already dated.** Facts carrying `verified: <date> + <command>`
-      do not need re-deriving; if the command cheaply re-runs, run it rather than reading.
+    - **Never dump a command's full output** (`kubectl` without `-o jsonpath`/`| head`, `dmesg` without `| tail`).
+    - **Cite the anchor, not a transcript.**
+    - **A fact lives in one place** — link, don't duplicate.
+    - **Verify only what is not already dated** — `verified: <date> + <command>` need not be re-derived.
     
     ## Cloudflare: guarded (READ ONLY)
     Cloudflare can expose the network, so **every write is a human decision** — do not change DNS, tunnel, Access or rules;
@@ -268,32 +239,18 @@ data:
     `api.cloudflare.com` with the SOPS token and nothing enforces it. See
     [hardening.md](docs/reference/hardening.md#cloudflare-plan-facts-verified).
     
-    ## Context
-    Docs here: `network.md` is authoritative for the network; the rest are named in the routing table above and in
-    `docs/reference/`. Hosts: **sitaw-amd** (.82, control plane/ArgoCD, ingress, cloudflared); **calamansi-intel**
-    (.81, media). MCP tools: `kubernetes__*`, `github__*`, `media__*` (see `docs/reference/media.md`).
-    
     ## The lab at a glance (permanent facts)
-    - **Topology:** one **3-node k3s cluster** (embedded etcd, 3 members, no node tainted):
-      `sitaw-amd` (.82) = platform + the single in-cluster ArgoCD; `calamansi-intel`
-      (.81) = media stack pinned there by nodeSelector (QSV + local /mnt/media);
-      `patola-thinkcentre` (.80) = third etcd/control-plane member, schedulable, also runs
-      Immich Postgres + Redis. `kamatis-mbp` (.83) is **not a cluster node** — it left the
-      cluster on 2026-10-28 and is now the staging host (`bakuran-infra/staging/`, see
-      `system.md` § `.83`). Verified 2026-11-04: `kubectl get nodes` returns exactly
-      `.81`/`.80`/`.82`, all `control-plane,etcd`, `TAINTS <none>`. The public edge is
-      `*.bismigel.dev` via a Cloudflare Tunnel (connectors on `.81`/`.82`) with
-      Zero Trust Access.
-    - **Repos:** `bakuran-infra` (NixOS hosts + disaster recovery, deploy-rs),
-      `bakuran-gitops` (ArgoCD desired state), `bismigel-site`,
-      `media-mcp`, `homelab-app-template`, plus per-app repos.
-    - **Deploy:** push to an app repo `main` -> GitHub Actions builds -> GHCR ->
-      ArgoCD syncs. For the OS: edit `bakuran-infra`, deploy with `deploy-rs`.
-    - **Secrets:** Bitwarden Secrets Manager + ESO (machine), SOPS/age (host). Never
-      in git. Secrets surface as env vars to services.
-    - **Everything is GitOps:** change the manifests and open a PR, never hand-edit
-      resources ArgoCD manages.
+    - **Topology:** one **3-node k3s cluster** (embedded etcd, no taints): `sitaw-amd` (.82, platform + ArgoCD + ingress +
+      cloudflared), `calamansi-intel` (.81, media pinned by nodeSelector), `patola-thinkcentre` (.80, third etcd member, also
+      Immich Postgres + Redis). `kamatis-mbp` (.83) left the cluster 2026-10-28 — now the staging host
+      (`bakuran-infra/staging/`). Public edge: `*.bismigel.dev` via Cloudflare Tunnel (connectors on .81/.82) + Zero Trust Access.
+    - **Repos:** `bakuran-infra` (NixOS hosts + DR, deploy-rs), `bakuran-gitops` (ArgoCD), `bismigel-site`, `media-mcp`,
+      `homelab-app-template`, plus per-app repos.
+    - **Deploy:** app repo `main` → CI builds → GHCR → ArgoCD syncs. OS: edit `bakuran-infra`, `deploy-rs`.
+    - **Secrets:** Bitwarden Secrets Manager + ESO (machine), SOPS/age (host); never in git.
+    - **Everything is GitOps** — change manifests, open a PR, never hand-edit ArgoCD resources.
     - **Media:** *arrs on `.81`; anime from Nyaa (torrent-first), live-action falls back to Usenet. Gotchas: `media.md`.
+    - **MCP tools:** `kubernetes__*`, `github__*`, `media__*` (see `docs/reference/media.md`).
   OPERATIONS.md: |
     ---
     type: index
