@@ -117,6 +117,8 @@ data:
     | [`docs/reference/router.md`](docs/reference/router.md) | router, switch and AP: services, rules, vault layout |
     | [`docs/reference/network-as-code.md`](docs/reference/network-as-code.md) | what OpenTofu owns vs what stays manual |
     | [`docs/reference/high-availability.md`](docs/reference/high-availability.md) | what a node loss actually costs, per component |
+    | [`docs/reference/observability.md`](docs/reference/observability.md) | the Checkly/Datadog vendor assessment and the metrics/logs comparison |
+    | [`docs/reference/forgejo-pipeline.md`](docs/reference/forgejo-pipeline.md) | how a change travels: branch → PR → CI → merge → mirror → ArgoCD |
     | [`docs/records/network-state-2026-11.md`](docs/records/network-state-2026-11.md) | the measured state of the network, refreshed on demand |
     | [`docs/reference/power.md`](docs/reference/power.md) | power: what runs, what dies, and for how long |
     | [`docs/reference/storage-plan.md`](docs/reference/storage-plan.md) | where storage is going, and what is blocked on hardware |
