@@ -47,6 +47,21 @@ data:
               summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} is not mounted"
               description: "No filesystem series for this mount, so nothing is mounted there (or the node-exporter is gone, which TargetDown covers). Until it comes back, writes aimed at the backup path land on the root filesystem, and the weekly mirror/off-site copy does nothing and reports success."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#backupmountmissing"
+          # Proton offsite staleness: the unit records its own success timestamp (written only after upload AND verify
+          # succeeded), so this fires when a weekly run has been MISSED for longer than cadence + grace. 'Just old' (a
+          # 6-day-old archive) is normal; >9 days means Sunday's run did not succeed. absent() covers the metric never
+          # being written, with a 24h for so a fresh deploy does not page before the first run.
+          - alert: ProtonBackupStale
+            expr: |
+              absent(homelab_backup_proton_success_timestamp_seconds) == 1
+              or
+              time() - homelab_backup_proton_success_timestamp_seconds > 777600
+            for: 24h
+            labels: { severity: warning }
+            annotations:
+              summary: "Proton offsite has not succeeded in 9 days"
+              description: "The newest age-encrypted Proton archive is older than the weekly cadence plus two days grace, so a run was missed or has been failing without OnFailure catching it. Check homelab-backup-proton on .82 before relying on the second offsite."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#protonbackupstale"
           - alert: DiskFillingUp
             # /mnt/media is excluded here: the media pool is a mergerfs union of
             # four branches across two hosts, so it gets its own pair of alerts.
