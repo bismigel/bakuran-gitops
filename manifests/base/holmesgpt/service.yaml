@@ -1,0 +1,17 @@
+# A stable in-cluster name for on-demand use, so nothing has to resolve a pod IP that changes on every
+# restart. ClusterIP only: no Ingress, no Cloudflare change, nothing reachable from outside the cluster.
+#   kubectl -n ops-advisor port-forward svc/holmesgpt 5050:5050
+#   http://holmesgpt.ops-advisor.svc.cluster.local:5050  (from any pod)
+apiVersion: v1
+kind: Service
+metadata:
+  name: holmesgpt
+  namespace: ops-advisor
+  labels:
+    app.kubernetes.io/name: holmesgpt
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: holmesgpt
+  ports:
+    - {name: http, port: 5050, targetPort: http, protocol: TCP}
