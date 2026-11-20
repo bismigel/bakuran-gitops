@@ -1,0 +1,18 @@
+# Daily base backup of Forgejo's database, on top of continuous WAL archiving (see forgejo-pg-objectstore.yaml).
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: forgejo-pg-daily
+  namespace: forgejo
+spec:
+  # 03:33 UTC, staggered from Immich (03:17) so the three CNPG base backups do not run at once.
+  schedule: "0 33 3 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: forgejo-pg
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: forgejo-r2
+  immediate: false

@@ -1,0 +1,30 @@
+# The object store Forgejo's database backs up into, via the **Barman Cloud Plugin**.
+#
+# The plugin rather than `spec.backup.barmanObjectStore` for the same reason Immich's file explains: the native path
+# runs `barman-cloud-backup` inside the Postgres container, and CNPG removes native barman support in 1.31.0 (this
+# operator is 1.30.1). The plugin is v0.15.1, pinned, cluster-wide.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: forgejo-r2
+  namespace: forgejo
+spec:
+  # Base backups + WAL, 14 days — the repositories themselves are already in `appdata` nightly, so this only needs to
+  # cover "a config/user/issue/PR change that was bad and took a while to notice".
+  retentionPolicy: "14d"
+  configuration:
+    destinationPath: "s3://homelab-backups/cnpg/forgejo"
+    endpointURL: "https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com"
+    s3Credentials:
+      accessKeyId:
+        name: forgejo-pg-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: forgejo-pg-backup
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 2

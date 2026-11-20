@@ -55,6 +55,15 @@ spec:
     parameters:
       max_connections: "50"
       shared_buffers: "64MB"
+
+  # WAL continuously + a base backup daily (2026-11-19): the password vault's database had no backup until this block.
+  # `isWALArchiver: true` makes the plugin archive WAL rather than only take backups — without it there is no
+  # point-in-time recovery, which is the half that matters.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: vaultwarden-r2
   affinity:
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
