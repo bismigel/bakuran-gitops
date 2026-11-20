@@ -61,6 +61,7 @@ data:
   PodRestartingOften: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podrestartingoften"
   PodStuckPending: "action=pod-stuck-pending where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podstuckpending"
   PrometheusWatchdogStale: "action=prometheus-watchdog-stale where=cluster severity=critical runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#prometheuswatchdogstale"
+  ProtonBackupStale: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#protonbackupstale"
   PublicProbeDown: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicprobedown"
   PublicSLOFastBurn: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicslofastburn"
   PublicSLOSlowBurn: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicsloslowburn"
