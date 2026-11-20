@@ -75,6 +75,7 @@ group:
   - DiskFillingUp
   - RootFilesystemDaysToFull
   - BackupMountMissing
+  - ProtonBackupStale
 - reason: Cloudflare surface is read-only to this estate; the procedure is runbook 23 and the diagnostic is `curl` against the edge, which the export cannot do
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
