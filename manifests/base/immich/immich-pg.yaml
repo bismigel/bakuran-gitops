@@ -25,8 +25,14 @@ spec:
   # `tag@digest`, never a bare digest: CNPG reads the tag to decide whether a change stays within one major
   # version, and rejects a sha ("Can't use just the image sha as we can't detect upgrades") as well as a commit
   # tag ("invalid version tag"). `14.19` is the server version of the pinned base; the digest decides what runs.
-  imageName: ghcr.io/bismigel/immich-pg:14.19@sha256:e1558fa6884d1b81f7d19b603af1a6d611c3ce49c8088a70c0d8d60e037cdeb7
+  # The image is now built by Forgejo Actions and pushed to the estate's own registry (git.bismigel.dev),
+  # not ghcr.io: the build no longer depends on GitHub's runners or a GHCR credential. Same tag (`14.19`,
+  # which CNPG parses for major-version upgrades) and the digest decides what runs (ADR 0007).
+  imageName: git.bismigel.dev/bismigel/immich-pg:14.19@sha256:5d29f75b7e3c34daf18d50bb7f3cbfc3d2f110c306b7c442d28451d011dbe08d
   imagePullSecrets:
+    # The image comes from git.bismigel.dev now; ghcr-secret stays for the *base* layers CNPG may still
+    # reference, and because removing it is a separate cleanup once nothing pulls from GHCR.
+    - name: forgejo-registry-secret
     - name: ghcr-secret
   primaryUpdateStrategy: unsupervised
 
