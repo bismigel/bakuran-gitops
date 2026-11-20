@@ -192,4 +192,12 @@ spec:
   storageClassName: local-path
   resources:
     requests:
+      # The number is documentation, not a limit: local-path provisions a directory and enforces nothing, and it
+      # cannot be resized afterwards ("only dynamically provisioned pvc can be resized and the storageclass that
+      # provisions the pvc must support resize" - `kubectl apply --dry-run=server` refuses a larger value).
+      #
+      # On 2026-11-20 the buildah store inside this "5 GiB" volume reached 20 GiB, filled patola's root
+      # filesystem and got the runner evicted for ephemeral-storage pressure. The real guard is the prune at the
+      # start and end of each app build workflow (immich-pg, media-mcp); this stays 5 GiB because a manifest that
+      # cannot be applied is worse than one that understates.
       storage: 5Gi
