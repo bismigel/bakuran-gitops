@@ -37,7 +37,7 @@ spec:
         app: sabnzbd
     spec:
       initContainers:
-        - name: seed-config
+        - name: reconcile-config
           image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           # A reference of the form repo:tag@digest parses with a digest and NO tag, so
           # Kubernetes defaults imagePullPolicy to Always - it asks the registry even though
@@ -52,41 +52,174 @@ spec:
             - name: USENET_PASS
               valueFrom:
                 secretKeyRef: { name: usenet-frugal, key: pass }
+            # Second provider, optional: the Secret is created by ESO from the vault
+            # (manifests/base/external-secrets/usenet-frugal.yaml). `optional: true`
+            # keeps SAB startable in the window between this manifest syncing and ESO
+            # writing the Secret - an absent block account must not stop the primary.
+            - name: XSNEWS_USER
+              valueFrom:
+                secretKeyRef: { name: usenet-xsnews, key: user, optional: true }
+            - name: XSNEWS_PASS
+              valueFrom:
+                secretKeyRef: { name: usenet-xsnews, key: pass, optional: true }
           command: ["sh", "-c"]
           args:
             - |
-              ini=/config/sabnzbd.ini
-              [ -f "$ini" ] && exit 0
-              mkdir -p /config
-              {
-                printf '%s\n' '__version__ = 19'
-                printf '%s\n' '[misc]'
-                printf '%s\n' 'host = 0.0.0.0'
-                printf '%s\n' 'port = 8080'
-                printf '%s\n' 'username = ""'
-                printf '%s\n' 'password = ""'
-                printf '%s\n' 'host_whitelist = sabnzbd.bismigel.dev'
-                printf '%s\n' 'download_dir = /downloads/incomplete'
-                printf '%s\n' 'complete_dir = /downloads/complete'
-                printf '%s\n' 'permissions = "777"'
-                printf '%s\n' '[servers]'
-                printf '%s\n' '[[news.frugalusenet.com]]'
-                printf '%s\n' 'host = "news.frugalusenet.com"'
-                printf '%s\n' 'port = 563'
-                printf 'username = "%s"\n' "$USENET_USER"
-                printf 'password = "%s"\n' "$USENET_PASS"
-                printf '%s\n' 'connections = 20'
-                printf '%s\n' 'ssl = 1'
-                printf '%s\n' 'enable = 1'
-                printf '%s\n' '[categories]'
-                printf '%s\n' '[[tv]]'
-                printf '%s\n' 'name = "tv"'
-                printf '%s\n' 'dir = "tv"'
-                printf '%s\n' '[[movies]]'
-                printf '%s\n' 'name = "movies"'
-                printf '%s\n' 'dir = "movies"'
-              } > "$ini"
-              chown -R 1000:1000 /config 2>/dev/null || true
+              # SABnzbd has no config-file templating and no API that creates servers, so the
+              # declared state lives here: the provider list, its priorities and connection
+              # counts, and propagation_delay. SABnzbd rewrites sabnzbd.ini on shutdown, which
+              # makes this init container the only moment the file belongs to us - a value
+              # changed in the web UI survives until the next pod start, then this wins. The
+              # values below are the declaration; anything not listed is left alone.
+              #
+              # Order matters: providers are tried primary (priority 0) -> frugal's own EU
+              # backfill (1) -> XS News block (2, optional, so an exhausted block account
+              # cannot fail a job).
+              set -eu
+              ini=${INI:-/config/sabnzbd.ini}
+              mkdir -p "$(dirname "$ini")"
+
+              # --- 1. seed once (no ini yet) ------------------------------------------------
+              seed() {
+                {
+                  printf '%s\n' '__version__ = 19'
+                  printf '%s\n' '[misc]'
+                  printf '%s\n' 'host = 0.0.0.0'
+                  printf '%s\n' 'port = 8080'
+                  printf '%s\n' 'username = ""'
+                  printf '%s\n' 'password = ""'
+                  printf '%s\n' 'host_whitelist = sabnzbd.bismigel.dev'
+                  printf '%s\n' 'download_dir = /downloads/incomplete'
+                  printf '%s\n' 'complete_dir = /downloads/complete'
+                  printf '%s\n' 'permissions = "777"'
+                  printf '%s\n' 'propagation_delay = 15'
+                  printf '%s\n' '[servers]'
+                  printf '%s\n' '[categories]'
+                  printf '%s\n' '[[tv]]'
+                  printf '%s\n' 'name = "tv"'
+                  printf '%s\n' 'dir = "tv"'
+                  printf '%s\n' '[[movies]]'
+                  printf '%s\n' 'name = "movies"'
+                  printf '%s\n' 'dir = "movies"'
+                } > "$ini"
+                chown -R 1000:1000 "$(dirname "$ini")" 2>/dev/null || true
+              }
+              [ -f "$ini" ] || seed
+
+              # --- 2. declared scalars ------------------------------------------------------
+              set_misc() { # <key> <value>
+                if grep -q "^$1 = " "$ini"; then
+                  awk -v k="$1" -v v="$2" '$0 ~ "^" k " = " { print k " = " v; next } { print }' "$ini" > "$ini.tmp"
+                else
+                  awk -v k="$1" -v v="$2" '
+                    { print }
+                    $0 == "[misc]" && !done { print k " = " v; done = 1 }
+                  ' "$ini" > "$ini.tmp"
+                fi
+                mv "$ini.tmp" "$ini"
+              }
+
+              # --- 3. servers ---------------------------------------------------------------
+              has_server() { grep -qx "\[\[$1\]\]" "$ini"; }
+
+              # Enforce the desired key/value pairs inside [[host]], adding missing keys at the
+              # end of the block. Desired pairs come from a file of "key = value" lines.
+              apply_server() { # <host> <pairs-file>
+                awk -v host="$1" -v pf="$2" '
+                  BEGIN {
+                    while ((getline l < pf) > 0) {
+                      i = index(l, " = ")
+                      if (i > 0) { k = substr(l, 1, i - 1); want[k] = substr(l, i + 3); order[++n] = k }
+                    }
+                  }
+                  function flush() {
+                    if (!inb) return
+                    for (i = 1; i <= n; i++) if (!(order[i] in seen)) print order[i] " = " want[order[i]]
+                    inb = 0
+                    split("", seen)
+                  }
+                  $0 == "[[" host "]]" { flush(); inb = 1; print; next }
+                  /^\[/ { flush() }
+                  inb {
+                    i = index($0, " = ")
+                    if (i > 0) {
+                      k = substr($0, 1, i - 1)
+                      if (k in want) { print k " = " want[k]; seen[k] = 1; next }
+                    }
+                  }
+                  { print }
+                  END { flush() }
+                ' "$ini" > "$ini.tmp"
+                mv "$ini.tmp" "$ini"
+              }
+
+              # Insert a whole block just before [categories] (the end of the [servers]
+              # section); append at EOF only if [categories] is absent.
+              insert_server() { # <host> <pairs-file>
+                awk -v host="$1" -v pf="$2" '
+                  BEGIN {
+                    while ((getline l < pf) > 0) block = block l "\n"
+                    ins = 0
+                  }
+                  $0 == "[categories]" && !ins { printf "[[%s]]\n%s", host, block; ins = 1 }
+                  { print }
+                  END { if (!ins) printf "[[%s]]\n%s", host, block }
+                ' "$ini" > "$ini.tmp"
+                mv "$ini.tmp" "$ini"
+              }
+
+              ensure_server() { # <host> <pairs-file>
+                has_server "$1" || insert_server "$1" "$2"
+                apply_server "$1" "$2"
+              }
+
+              pairs() { # <file> <key> <value> ...
+                f=$1; shift
+                : > "$f"
+                while [ $# -ge 2 ]; do printf '%s = %s\n' "$1" "$2" >> "$f"; shift 2; done
+              }
+
+              frugal_pairs=/tmp/frugal.pairs
+              xs_pairs=/tmp/xsnews.pairs
+              pairs "$frugal_pairs" host news.frugalusenet.com port 563 \
+                username "\"$USENET_USER\"" password "\"$USENET_PASS\"" \
+                connections 50 ssl 1 enable 1 priority 0
+              pairs /tmp/bonus.pairs host bonus.frugalusenet.com port 563 \
+                username "\"$USENET_USER\"" password "\"$USENET_PASS\"" \
+                connections 20 ssl 1 enable 1 priority 1
+              if [ -n "${XSNEWS_USER:-}" ] && [ -n "${XSNEWS_PASS:-}" ]; then
+                pairs "$xs_pairs" host reader.xsnews.nl port 563 \
+                  username "\"$XSNEWS_USER\"" password "\"$XSNEWS_PASS\"" \
+                  connections 20 ssl 1 enable 1 priority 2 optional 1
+              fi
+
+              cp "$ini" "$ini.prev"
+
+              if ! grep -qx '\[servers\]' "$ini"; then
+                echo "sab-reconcile: no [servers] section in $ini; refusing to edit" >&2
+                exit 1
+              fi
+
+              set_misc propagation_delay 15
+              ensure_server news.frugalusenet.com "$frugal_pairs"
+              ensure_server bonus.frugalusenet.com /tmp/bonus.pairs
+              if [ -s "$xs_pairs" ]; then ensure_server reader.xsnews.nl "$xs_pairs"; fi
+
+              # --- 4. validate before handing the file to SABnzbd ----------------------------
+              fail() { echo "sab-reconcile: $1; restoring $ini.prev" >&2; mv "$ini.prev" "$ini"; exit 1; }
+              grep -qx 'propagation_delay = 15' "$ini" || fail "propagation_delay not applied"
+              for h in news.frugalusenet.com bonus.frugalusenet.com; do
+                has_server "$h" || fail "server $h missing"
+              done
+              if [ -s "$xs_pairs" ]; then has_server reader.xsnews.nl || fail "server reader.xsnews.nl missing"; fi
+              for h in $(awk '$0 == "[servers]" {f=1; next} /^\[[^[]/ {f=0} f && /^\[\[/' "$ini" | sed 's/^\[\[//; s/\]\]$//'); do
+                blk=$(awk -v h="$h" '$0 == "[servers]" {s=1; next} /^\[[^[]/ {s=0} s && $0 == "[[" h "]]" {f=1; next} s && /^\[/ {f=0} f' "$ini")
+                printf '%s\n' "$blk" | grep -q '^host = ' || fail "[[$h]] has no host line"
+                printf '%s\n' "$blk" | grep -q '^connections = ' || fail "[[$h]] has no connections line"
+              done
+              rm -f "$ini.prev"
+              n=$(awk '$0 == "[servers]" {f=1; next} /^\[[^[]/ {f=0} f && /^\[\[/' "$ini" | wc -l)
+              echo "sab-reconcile: ok ($n servers, propagation_delay=15)"
           volumeMounts:
             - name: config
               mountPath: /config

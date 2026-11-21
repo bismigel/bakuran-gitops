@@ -17,6 +17,8 @@ spec:
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
   target: { name: media-setup }
   data:
+    - { secretKey: althub_api,            remoteRef: { key: althub_api } }
+    - { secretKey: drunkslug_api,         remoteRef: { key: drunkslug_api } }
     - { secretKey: jellyfin-admin-pass,   remoteRef: { key: jellyfin-admin-pass } }
     - { secretKey: jellyfin-admin-user,   remoteRef: { key: jellyfin-admin-user } }
     - { secretKey: jellyfin-anton,        remoteRef: { key: jellyfin-anton } }

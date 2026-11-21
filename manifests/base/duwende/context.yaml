@@ -774,7 +774,7 @@ data:
     | --- | --- | --- | --- |
     | Sonarr | media | `http://192.168.2.81:8989` | TV; login-free on LAN |
     | Radarr | media | `http://192.168.2.81:7878` | Movies |
-    | Prowlarr | media | `http://192.168.2.81:9696` | Indexers (Nyaa + NZBgeek) |
+    | Prowlarr | media | `http://192.168.2.81:9696` | Indexers: Nyaa, AudioBookBay, NZBgeek, DrunkenSlug, altHUB (below) |
     | Bazarr | media | `http://192.168.2.81:6767` | Subtitles (OpenSubtitles) |
     | SABnzbd | downloads | `http://192.168.2.81:8082` | Usenet; `host_whitelist` includes `sabnzbd.bismigel.dev` |
     | qBittorrent | downloads | `http://192.168.2.81:8081` | Torrents (admin + homelab password) |
@@ -945,20 +945,8 @@ data:
     still imperative: download clients and Prowlarr indexers/applications
     (`scripts/media-stack-setup.sh`).
     
-    **Adding an indexer** has its own runbook page (site: *Adding an indexer to
-    Prowlarr*, `org/runbook/10-adding-an-indexer.org`). The two facts that decide
-    whether it is even possible: Prowlarr needs a **Cardigann definition** (no
-    definition = no indexer, and AudioBookBay is absent from both the 586 on disk and
-    the upstream repo), and the site must be reachable from the media node
-    (`EBookBay` adds cleanly then answers *all selected indexers unavailable* — but
-    **that was our own dead VPN, not the site**, see below). Also: **Prowlarr's
-    definition updater is broken here**
-    (`Error while getting indexer definitions, fallback to reading from disk` on every
-    attempt), so the instance is pinned to the definitions baked into the image — fix
-    that before concluding something "does not exist". LazyLibrarian only consumes
-    *Usenet* indexers (via Prowlarr's `/2` Newznab front-end); a torrent indexer needs
-    a torrent client in LL, which it does not have. For ebooks no indexer is needed at
-    all — `bakuran-infra/scripts/books-fetch.sh`.
+    Usenet providers and indexers — priorities, presets vs definitions, and the egress
+    CIDR each provider needs — live in [usenet.md](usenet.md).
     
     **Egress first, always.** On 2026-10-24 the media node could not reach *anything*
     (`example.com`, `api.telegram.org`, `github.com` all `conn=0.000000s`; pods saying

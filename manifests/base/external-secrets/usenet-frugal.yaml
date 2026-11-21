@@ -14,6 +14,28 @@ spec:
     - secretKey: pass
       remoteRef: { key: usenet_frugal_pass }
 ---
+# Second usenet provider: an XS News block account, used only for articles the Frugal
+# primary (and its own bonus/backfill server) cannot supply. Same shape as above; the
+# Secret name is what sabnzbd.yaml's init container reads, and the vault keys are the
+# ones bakuran-infra/scripts/media-usenet-secret.sh writes.
+#
+# Bitwarden (BWS project `homelab-kube`): usenet_xsnews_user / usenet_xsnews_pass.
+# Verified 2026-11-21: reader.xsnews.nl:563 answers 200 / 381 / 281 for these creds.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: usenet-xsnews
+  namespace: downloads
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target: { name: usenet-xsnews }
+  data:
+    - secretKey: user
+      remoteRef: { key: usenet_xsnews_user }
+    - secretKey: pass
+      remoteRef: { key: usenet_xsnews_pass }
+---
 # The mirror monitor's token: it only needs to read mirror state, and it is a separate credential from the admin token on
 # purpose - a monitor that holds a deployment credential is a monitor that can deploy.
 apiVersion: external-secrets.io/v1

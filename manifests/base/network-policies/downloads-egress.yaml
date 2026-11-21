@@ -14,6 +14,18 @@
 # owned by the provider (RDAP: Usenet Solutions LLC / Paradise Networks LLC):
 #   62.164.182.0/24, 209.160.112.0/20   on the NNTP ports 563/443/119.
 #
+# Frugal's own backfill server is a DIFFERENT network and was missing from this
+# list (found 2026-11-21): bonus.frugalusenet.com -> 50.7.47.116, RDAP
+# FDCSERVERS-SOFIA / FDCservers.net LLC, Sofia BG - the EU location the plan
+# pays for. Left out, the backup server answers `Network unreachable` at exactly
+# the moment the primary is missing an article, which reads as "provider down".
+#
+# XS News (block account, second fallback): reader.xsnews.nl -> 45.92.18.68
+# (RDAP NET-45-92-16-0-1, name NETROUTING). A /32 because only that reader
+# answers today; if a second reader appears, SAB logs `Network unreachable` on
+# 563 and this line is the fix. Verified 2026-11-21 with:
+#   getent ahostsv4 bonus.frugalusenet.com reader.xsnews.nl
+#
 # qBittorrent cannot be CIDR-narrowed: BitTorrent peers/DHT are arbitrary public
 # IPs on arbitrary ports, so it keeps a broad public rule with private ranges
 # excluded. The privacy boundary for torrent traffic is the host VPN kill switch
@@ -41,8 +53,10 @@ spec:
               protocol: TCP
     # NNTP to Frugal Usenet's networks (news.frugalusenet.com).
     - toCIDRSet:
-        - cidr: 62.164.182.0/24      # Usenet Solutions LLC
-        - cidr: 209.160.112.0/20     # Paradise Networks LLC
+        - cidr: 62.164.182.0/24      # Usenet Solutions LLC (frugal primary)
+        - cidr: 209.160.112.0/20     # Paradise Networks LLC (frugal primary)
+        - cidr: 50.7.47.116/32       # FDCservers Sofia - frugal bonus (backfill)
+        - cidr: 45.92.18.68/32       # XS News reader (second backfill)
       toPorts:
         - ports:
             - port: "563"
