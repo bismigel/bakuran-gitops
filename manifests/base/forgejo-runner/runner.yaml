@@ -19,6 +19,11 @@ data:
       level: info
     runner:
       file: /data/.runner
+      # TWO per runner, with three runners: capacity 4 was chosen when there was one runner and the peak
+      # concurrent jobs measured over a week was 2. Three pods with capacity 4 would advertise twelve
+      # simultaneous jobs on three nodes, which is a burst that would starve the metrics store and Longhorn
+      # on whichever node took it.
+      #
       # Four, not two: measured 2026-11-17 from Forgejo's own action_run table — `docs.yml` queues 1.0 s, `checks.yml` 19 s,
       # `scan.yml` 27 s and `runbook-links.yml` 34 s, with one run waiting **649 s** (10.8 min). The cause is not throughput
       # (341 runs a week is 2 an hour) but collision: `release.yml` peaks at 672 s and `scan.yml` at 503 s, and on two slots a
@@ -30,7 +35,7 @@ data:
       # replicas cannot share it. If the peak ever approaches capacity the order is: capacity first (one line, no cost),
       # then a second runner labelled `heavy:host` so an eleven-minute release build cannot sit in front of a
       # thirty-second check, and only then scale-out. The query that answers "am I close" is on PR #60.
-      capacity: 4
+      capacity: 2
       timeout: 30m
       fetch_timeout: 5m
       fetch_interval: 3s
@@ -47,6 +52,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: forgejo-runner-data
   namespace: forgejo
+  annotations:
+    # Unmounted since /data became an emptyDir (2026-11-21). Kept DECLARED and never pruned: it is a bound
+    # volume, and a manifest that stops declaring it is how a PVC disappears (ADR 0002). Release it by name,
+    # deliberately, once someone is sure nothing wants the old work directory back.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path
@@ -62,10 +72,25 @@ metadata:
   labels:
     app.kubernetes.io/name: forgejo-runner
 spec:
-  replicas: 1
-  # RWO volume: never two runners at once, or the second registers over the first's state file.
+  # THREE runners, one per node, not one runner with capacity 4 on one node (2026-11-21).
+  #
+  # The single runner was pinned to patola by its RWO local-path volume and became the largest CPU
+  # consumer on the node that already carried Longhorn's instance managers and at one point 97% load.
+  # CI is bursty and it is the one tenant that can run anywhere: /data is an emptyDir now, so a pod
+  # can land on any node, and each replica registers itself with the instance token (the `register`
+  # init container is idempotent per pod instead of shared-state).
+  #
+  # The price, stated: each pod installs its toolset once at start (~30 s), so three pods cost three
+  # installs per rollout instead of one - and nothing is cached between them. That is the trade for
+  # not having a node-pinned volume. Capacity per runner drops to 2 so three pods do not offer 12
+  # simultaneous jobs on three nodes.
+  #
+  # TRUE scale-to-zero (a pod per job, 0 when idle) needs an external controller: KEDA's gitea scaler
+  # plus `forgejo-runner one-job --ephemeral`, and crucially a PREBUILT runner image - installing the
+  # toolset per job would make CI slower, not faster. That is a story, not this change.
+  replicas: 3
   strategy:
-    type: Recreate
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: forgejo-runner
@@ -74,6 +99,14 @@ spec:
       labels:
         app.kubernetes.io/name: forgejo-runner
     spec:
+      # One runner per node: two replicas on one node is the configuration this change exists to leave.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: forgejo-runner
+              topologyKey: kubernetes.io/hostname
       # Story 15.3. The runner polls Forgejo over HTTP and never calls the Kubernetes API, and its ServiceAccount is
       # `default` with no RBAC - so the mounted token buys nothing and is one more credential inside a container that
       # runs arbitrary PR content. `bakuran-gitops/.forgejo/workflows/checks.yml` already says the property out loud
@@ -173,9 +206,12 @@ spec:
         - name: config
           configMap:
             name: forgejo-runner-config
+        # emptyDir, not the local-path PVC it used to be: the volume was what pinned this pod to one node,
+        # and the only state in it was `.runner` (recreated by the init container on every start) plus the
+        # work directory. Losing the cache on restart is the cost and it is smaller than the cost of a
+        # node-bound CI runner.
         - name: data
-          persistentVolumeClaim:
-            claimName: forgejo-runner-data
+          emptyDir: {}
         # Buildah's storage on a real filesystem rather than the pod's overlay, because it must mount overlays inside
         # it. 5 Gi is ~8x the largest build measured here (610 MB with the vfs driver, which copies layers).
         - name: build-scratch
@@ -183,7 +219,9 @@ spec:
             claimName: forgejo-build-scratch
 ---
 # Scratch for container builds. local-path on patola, not Longhorn: transient, node-local work, and a replicated volume
-# would be three copies of a build cache. The Deployment's Recreate strategy means one pod owns it.
+# would be three copies of a build cache - and three runners now share this one, so buildah stays on one node even
+# though the runners themselves spread out. That is deliberate: it keeps image builds serialised behind whichever
+# runner holds the scratch volume, which is safer than three buildah caches fighting for disk.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
