@@ -1,0 +1,59 @@
+# Builds the CI runner image, with the toolset baked in.
+#
+# Runs on merge to main, not on pull requests: the artefact is what every job in the estate executes, so it is
+# built once from a commit that passed review, and the pull request that PINS it carries the digest - the same
+# shape `homelab-context` uses for the checks image, for the same reason (a PR validated by an image built from
+# itself can never fail the check it is adding).
+#
+# The Dockerfile is in this repository because the runner's owner is here (`manifests/base/forgejo-runner/`),
+# and an image whose manifest and build recipe live in different repositories is a version skew waiting to happen.
+name: runner-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - images/forgejo-runner/**
+      - .forgejo/workflows/runner-image.yml
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: in-cluster
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Build and push it to the registry
+        env:
+          # A write:package token, scoped to packages only - the same shape the checks image uses, because a build
+          # that could push a commit is a build whose failure mode is a commit.
+          PKG_TOKEN: ${{ secrets.CHECKS_PACKAGE_TOKEN }}
+        run: |
+          set -eu
+          # Buffered output: image-pushing steps in this estate have failed with exit 141 (SIGPIPE) on the runner's
+          # log pipe while the same commands succeeded when their output went to a file.
+          exec 3>&1
+          tag="sha-$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          {
+            export BUILDAH_ISOLATION=chroot TMPDIR=/var/lib/containers/tmp
+            mkdir -p "$TMPDIR"
+            # The in-cluster name, http on 5000: a build that depends on Cloudflare is a build that fails whenever
+            # the edge is unhappy.
+            echo "$PKG_TOKEN" | buildah --storage-driver vfs login \
+              --tls-verify=false --username bismigel --password-stdin forgejo.forgejo.svc:3000
+            buildah --storage-driver vfs bud -q --format oci -t "forgejo-runner:${tag}" \
+              -f images/forgejo-runner/Dockerfile images/forgejo-runner
+            buildah --storage-driver vfs push --format oci --tls-verify=false --digestfile /tmp/pushed.digest \
+              "forgejo-runner:${tag}" "forgejo.forgejo.svc:3000/bismigel/forgejo-runner:${tag}"
+          } > /tmp/push.log 2>&1 || { echo "push failed:"; tail -30 /tmp/push.log >&3; exit 1; }
+          echo "pushed bismigel/forgejo-runner:${tag}"
+          # The digest is the thing a consumer pins, and printing it in the run summary is how it gets into the
+          # pull request that bumps the Deployment.
+          echo "digest=$(cat /tmp/pushed.digest)" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
