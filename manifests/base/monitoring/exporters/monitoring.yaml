@@ -445,19 +445,23 @@ data:
     datasources:
       # VictoriaMetrics is the default read path from 2026-11-21: the estate's metrics belong to the Victoria
       # stack, and dashboards should read the store that will still be here in a year rather than the process
-      # that is being retired. Both URLs stay, because during the cutover Prometheus is still what scrapes and
-      # is the thing to compare against when a graph looks wrong.
+      # that is being retired.
       - name: VictoriaMetrics
         uid: victoriametrics
         type: prometheus
         access: proxy
         url: http://victoriametrics.monitoring.svc:8428
         isDefault: true
+      # The uid is `prometheus` because 14 dashboards pin it, and the URL is VictoriaMetrics because that is the
+      # store now. Repointing the datasource is the whole cutover for every panel: no dashboard edit, no query
+      # rewrite, and the day the URL is wrong is one place to look rather than fourteen. Both entries point at
+      # the same backend on purpose - the second one is the alias that keeps old panels working, and it becomes
+      # removable the day those dashboards are updated.
       - name: Prometheus
         uid: prometheus
         type: prometheus
         access: proxy
-        url: http://prometheus.monitoring.svc:9090
+        url: http://victoriametrics.monitoring.svc:8428
 ---
 apiVersion: v1
 kind: Service

@@ -79,7 +79,13 @@ spec:
                   # proves rules are being evaluated right now. Two instances means "the
                   # primary is down" is a dashboard problem, not an alerting one - so this
                   # must not alarm when only prometheus-alerting is left standing.
-                  for url in http://prometheus.monitoring.svc:9090 http://prometheus-alerting.monitoring.svc:9090; do
+                  #
+                  # 2026-11-21: the evaluator is `vmalert`, writing ALERTS into VictoriaMetrics, so the query
+                  # goes there. Both addresses are tried because the cutover ran with both live: vmalert writes
+                  # `watchdog:evaluation:alive` through remote-write into VictoriaMetrics, while the primary
+                  # Prometheus still evaluates its own copy. Dropping both URLs for one would make a dead
+                  # evaluator look identical to a broken watchdog - the one failure this file exists for.
+                  for url in http://victoriametrics.monitoring.svc:8428 http://prometheus.monitoring.svc:9090; do
                     body=$(curl -fsS -m 5 "$url/api/v1/query?query=count(watchdog:evaluation:alive%20or%20ALERTS%7Balertname%3D%22Watchdog%22%7D)" 2>/dev/null) || body=""
                     case "$body" in
                       *'"value":'*',"1"]'*) echo "ok: watchdog firing at $url"; exit 0 ;;
@@ -95,7 +101,7 @@ spec:
                     code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
                       -X POST "https://api.telegram.org/bot$(cat "$TOKEN_FILE")/sendMessage" \
                       --data-urlencode "chat_id=$CHAT_ID" \
-                      --data-urlencode "text=🔇 Prometheus is not evaluating ($ts). Every alert is silent — node loss, crashloop or a bad config. Check: kubectl -n monitoring get pods" 2>/dev/null) || code=000
+                      --data-urlencode "text=🔇 Nothing is evaluating rules ($ts). Every alert is silent - node loss, crashloop or a bad config. Check: kubectl -n monitoring get pods -l app=vmalert" 2>/dev/null) || code=000
                     echo "telegram: HTTP $code"
                   else
                     echo "telegram: token file missing"

@@ -96,7 +96,12 @@ spec:
             # The symptom is invisible: `count(up)` simply differs between the two backends.
             - -promscrape.configCheckInterval=30s
             - -storageDataPath=/storage
-            - -retentionPeriod=30d
+            # 14d, not 30d, and the number comes from the disk: this volume took 170 MB in the first hour of
+            # full ingest (~43 MB/h), so 30 days projects to ~31 GB against a 20Gi Longhorn volume. Longhorn
+            # enforces the size, and there is no room to schedule a 40Gi volume today - the
+            # LonghornDiskSchedulingOverCommitted alert is firing for exactly that reason. Declaring a retention
+            # the disk cannot hold is how a metrics store starts refusing writes at 03:00. Raise both together.
+            - -retentionPeriod=14d
             - -httpListenAddr=:8428
           ports: [{ containerPort: 8428, name: http }]
           volumeMounts:

@@ -44,7 +44,11 @@ metadata:
   name: prometheus-alerting
   namespace: monitoring
 spec:
-  replicas: 1
+  # SCALED TO ZERO 2026-11-21: this instance existed for one reason - so a node loss could not stop rule
+  # evaluation - and that reason now belongs to `vmalert` (2 replicas, hard anti-affinity, the same rule
+  # ConfigMaps). Running both would evaluate every rule twice for nobody to read. Kept, not deleted, because the
+  # file also declares `prometheus-alerting-data` (ADR 0002).
+  replicas: 0
   strategy:
     type: Recreate            # RWO PVC: terminate before starting the new pod
   selector:
