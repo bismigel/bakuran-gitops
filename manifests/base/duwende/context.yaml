@@ -1545,6 +1545,16 @@ data:
       is cheaper" and not "are they being fed the same thing" will report a cheaper backend every time the observer
       is broken. Needed: a Mixed-datasource panel running `count(up)` per backend, and the job-set difference,
       next to the cost rows. Until then, run the check by hand before quoting any number from it.
+    - **Prometheus is still running at 30 days, and VictoriaMetrics holds 14.** The cutover moved *responsibility*
+      (scrape, evaluate, store, dashboards, the dead-man switch) but not history: the primary Prometheus keeps
+      scraping into its own TSDB so long-range panels do not go blank, and it is now a read-only anachronism that
+      nothing alerts from. Removing it needs one fact first — VictoriaMetrics' retention covering the widest range
+      anyone actually queries — and that is 14 days at a few hours old. Two related leftovers while it waits:
+      `prometheus-data` is a **local-path** volume with an 8Gi *request* holding 66 GiB (local-path enforces
+      nothing), and a stray `lab-metrics` PVC from a staging VM is still bound in prod.
+    - **`d/tsdb-comparison` shows VM against VM.** Both Grafana datasources point at VictoriaMetrics after the
+      cutover, so the comparison dashboard renders the same series twice. It has served its purpose; delete it or
+      repoint one datasource at Prometheus for history-only comparison.
     - **Hermes** is **not read-only any more**, and saying so was the kind of sentence an
       agent quotes back as proof it cannot act (corrected 2026-11-21, after the agent's own
       audit caught it): `homelab-agent-read` is read-only *cluster-wide* — get/list/watch,
