@@ -170,6 +170,22 @@ spec:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
+      # SPREAD, and SOFT (`ScheduleAnyway`), for one reason: a cold start after a power cut. Two replicas that
+      # both happen to land on the same node is not HA, and the scheduler will do that whenever requests make
+      # that node look cheapest. `ScheduleAnyway` never blocks a schedule, so if only one node comes up first -
+      # which is exactly what a power cut looks like - both replicas run there and move later, instead of one
+      # sitting Pending waiting for a second node.
+      #
+      # It is safe to spread because the library is `immich-library-rwx` (Longhorn RWX, verified 2026-11-21):
+      # the replicas are on different nodes today and both mount it. With an RWO volume this constraint would
+      # have produced exactly the failure it is meant to prevent.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: immich-server
       containers:
         - name: immich-server
           # v3.3.4 -> v3.4.2 (2026-11-21). Patch-level by Immich's own numbering and the release notes
