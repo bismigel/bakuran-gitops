@@ -109,7 +109,7 @@ spec:
       serviceAccountName: victoriametrics
       containers:
         - name: victoriametrics
-          image: victoriametrics/victoria-metrics:v1.93.14
+          image: victoriametrics/victoria-metrics:v1.93.14@sha256:077dd0e569d0ee0e0fbdbf8bb227cd1d222f462051e88024f1eb3aa7fec3e733
           args:
             - -promscrape.config=/etc/vm/scrape.yml
             - -storageDataPath=/storage
