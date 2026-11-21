@@ -6,7 +6,7 @@
 # Prometheus' config, no second backend to be comparable with.
 #
 # What the other processes used to do, and who does it now:
-#   * scrape    -> this Deployment, reading `vm-scrape-config` (see vm-scrape.yaml for why the config is its own
+#   * scrape    -> this Deployment, reading `metrics-scrape-config` (see vm-scrape.yaml for why the config is its own
 #                  file instead of Prometheus' `prometheus.yml` with `strictParse=false`);
 #   * evaluate  -> `vmalert` (vmalert.yaml), two replicas, the same rule ConfigMaps;
 #   * alert     -> Alertmanager, named by vmalert directly;
@@ -125,7 +125,7 @@ spec:
             periodSeconds: 30
       volumes:
         - name: config
-          configMap: { name: vm-scrape-config }
+          configMap: { name: metrics-scrape-config }
         - name: storage
           persistentVolumeClaim: { claimName: victoriametrics }
 ---

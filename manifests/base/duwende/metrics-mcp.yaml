@@ -1,21 +1,26 @@
+# The metrics MCP server: the agent's read-only query path into the store.
+#
+# Named for its role, not for the first backend it queried (2026-11-21). The upstream image still reads
+# `PROMETHEUS_URL` - that is its contract, not ours - but the object, the Service and the tool namespace the
+# agent sees are `metrics`, so the next store swap changes one URL.
 # Prometheus MCP server for the agent: historical metrics, PromQL and targets.
 # Read-only by nature (Prometheus API); internal-only Service, no ingress.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prometheus-mcp
+  name: metrics-mcp
   namespace: duwende
-  labels: { app: prometheus-mcp }
+  labels: { app: metrics-mcp }
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: prometheus-mcp }
+    matchLabels: { app: metrics-mcp }
   template:
     metadata:
-      labels: { app: prometheus-mcp }
+      labels: { app: metrics-mcp }
     spec:
       containers:
-        - name: prometheus-mcp
+        - name: metrics-mcp
           image: ghcr.io/pab1it0/prometheus-mcp-server@sha256:3c3921301229618d0b00a46a06e3b0c25745b31855f16919cf7b4fa040d47ec6
           ports:
             - { name: http, containerPort: 8080 }
@@ -44,10 +49,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: prometheus-mcp
+  name: metrics-mcp
   namespace: duwende
-  labels: { app: prometheus-mcp }
+  labels: { app: metrics-mcp }
 spec:
-  selector: { app: prometheus-mcp }
+  selector: { app: metrics-mcp }
   ports:
     - { name: http, port: 8080, targetPort: 8080 }

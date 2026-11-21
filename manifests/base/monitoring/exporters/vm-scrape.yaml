@@ -16,11 +16,12 @@
 #
 # Alerting rules stay in Prometheus /rule/ format on purpose: that format is the interface, read by promtool
 # in CI and by vmalert in the cluster. The key below is `prometheus.yml` for the same reason - it is a
-# Prometheus *scrape config*, and `check-prometheus-rules` looks for that name before it can validate anything.
+# Prometheus *scrape config*; the key keeps that name only until the checks image knows `scrape.yml` too.
+# The ConfigMap around it is named for the role: `metrics-scrape-config`.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vm-scrape-config
+  name: metrics-scrape-config
   namespace: monitoring
 data:
   prometheus.yml: |

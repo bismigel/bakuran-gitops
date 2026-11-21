@@ -161,8 +161,8 @@ data:
         url: http://kubernetes-mcp.duwende.svc.cluster.local:8080/mcp
       media:
         url: http://media-mcp.media.svc.cluster.local:8080/mcp
-      prometheus:
-        url: http://prometheus-mcp.duwende.svc.cluster.local:8080/mcp
+      metrics:
+        url: http://metrics-mcp.duwende.svc.cluster.local:8080/mcp
       github:
         url: https://api.githubcopilot.com/mcp/
         headers:
@@ -186,7 +186,7 @@ data:
       exact change and impact.
     - **Never expose secrets.** They arrive as environment variables; do not
       write them to files or logs.
-    - Prefer the MCP tools (kubernetes, media, prometheus, github) over raw
+    - Prefer the MCP tools (kubernetes, media, metrics, github) over raw
       shell when one fits. Keep replies short and concrete.
     - The docs may still mention the previous agent; the operating
       rules above are the current ones.
@@ -396,7 +396,7 @@ data:
           {
             "id": "6513dba5f40d",
             "name": "Daily homelab report",
-            "prompt": "Daily homelab report. Check Kubernetes nodes, pods, restarts and ArgoCD sync/health with the kubernetes tools; query Prometheus for firing alerts and for filesystem and memory trends with the prometheus tools. Flag anything unhealthy, disks over 85 percent, and notable memory growth. Run the security-advisories skill for Kavita, Jellyfin, Immich, Karakeep and core components; report only advisories affecting the running versions. Reply in Telegram under 15 lines, no secrets. Start with All good if everything is healthy.",
+            "prompt": "Daily homelab report. Check Kubernetes nodes, pods, restarts and ArgoCD sync/health with the kubernetes tools; query the metrics store for firing alerts and for filesystem and memory trends with the metrics tools. Flag anything unhealthy, disks over 85 percent, and notable memory growth. Run the security-advisories skill for Kavita, Jellyfin, Immich, Karakeep and core components; report only advisories affecting the running versions. Reply in Telegram under 15 lines, no secrets. Start with All good if everything is healthy.",
             "skills": [
               "security-advisories"
             ],

@@ -81,9 +81,9 @@ spec:
         - name: rules
           projected:
             sources:
-              - configMap: { name: prometheus-rules }
-              - configMap: { name: prometheus-rules-workloads }
-              - configMap: { name: prometheus-rules-network-devices }
+              - configMap: { name: metrics-rules }
+              - configMap: { name: metrics-rules-workloads }
+              - configMap: { name: metrics-rules-network-devices }
 ---
 apiVersion: v1
 kind: Service

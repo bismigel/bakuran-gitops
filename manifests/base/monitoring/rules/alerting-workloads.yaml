@@ -10,7 +10,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: prometheus-rules-workloads
+  name: metrics-rules-workloads
   namespace: monitoring
 data:
   workloads.yml: |
@@ -152,7 +152,7 @@ data:
           # day, forever, carrying no information a human can act on. An always-true alert is noise with a heartbeat's
           # job description.
           #
-          # It is still needed: `prometheus-watchdog` (checks/prometheus-watchdog.yaml) proves rule *evaluation* is
+          # It is still needed: `evaluation-watchdog` (checks/evaluation-watchdog.yaml) proves rule *evaluation* is
           # alive by asking Prometheus to count it, because the alerter cannot report its own death. So the proof of
           # life stays as a series - always 1, evaluated every interval, routed nowhere because it is not an alert -
           # and `count(watchdog:evaluation:alive)` is what the CronJob queries. A dead Prometheus makes the series go

@@ -21,7 +21,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: prometheus-watchdog
+  name: evaluation-watchdog
   namespace: monitoring
 spec:
   schedule: "*/2 * * * *"          # two missed runs = 4 minutes of silence, then a message
@@ -41,7 +41,7 @@ spec:
       template:
         metadata:
           labels:
-            app: prometheus-watchdog
+            app: evaluation-watchdog
         spec:
           restartPolicy: Never
           # The witness must not live inside the failure domain it reports on: prefer a

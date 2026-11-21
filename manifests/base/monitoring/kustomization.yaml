@@ -34,7 +34,7 @@ resources:
   - dashboards/grafana-dashboard-switch.yaml
   - rules/alerting-workloads.yaml
   - rules/alerting.yaml
-  - checks/prometheus-watchdog.yaml
+  - checks/evaluation-watchdog.yaml
   - exporters/prometheus-archive.yaml
   - exporters/blackbox-exporter.yaml
   - exporters/cloudflare-edge-exporter.yaml

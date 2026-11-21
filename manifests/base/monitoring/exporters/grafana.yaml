@@ -14,21 +14,19 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
-      # VictoriaMetrics is the default read path from 2026-11-21: the estate's metrics belong to the Victoria
-      # stack, and dashboards should read the store that will still be here in a year rather than the process
-      # that is being retired.
-      - name: VictoriaMetrics
-        uid: victoriametrics
+      # A role-named default (`metrics`), and the OLD uid kept as an alias on the same URL. 216 panels pin
+      # `prometheus`, and rewriting them to say the same thing is churn with a failure mode; the alias costs one
+      # entry and disappears the day those dashboards are regenerated. Naming the default for the *role* is what
+      # stops this file from being edited every time the backend changes: the panels that use `metrics` survived
+      # Prometheus -> VictoriaMetrics without a change, and the next swap will too.
+      - name: Metrics
+        uid: metrics
         type: prometheus
         access: proxy
         url: http://victoriametrics.monitoring.svc:8428
         isDefault: true
-      # The uid is `prometheus` because 14 dashboards pin it, and the URL is VictoriaMetrics because that is the
-      # store now. Repointing the datasource is the whole cutover for every panel: no dashboard edit, no query
-      # rewrite, and the day the URL is wrong is one place to look rather than fourteen. Both entries point at
-      # the same backend on purpose - the second one is the alias that keeps old panels working, and it becomes
-      # removable the day those dashboards are updated.
-      - name: Prometheus
+      # Alias, for the panels generated before 2026-11-21. Same URL, no behaviour.
+      - name: Prometheus (legacy uid)
         uid: prometheus
         type: prometheus
         access: proxy
