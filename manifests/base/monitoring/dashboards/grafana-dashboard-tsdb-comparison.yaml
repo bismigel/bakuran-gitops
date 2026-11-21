@@ -1,0 +1,46 @@
+# Managed by GitOps. Edit panels here; Grafana reloads them within 30s.
+#
+# This one is deliberately a TEXT panel: the Prometheus-vs-VictoriaMetrics comparison ran in staging, and
+# production cannot reach staging (measured from a pod: prod->prod 200, prod->.82:6443 401, prod->staging 000).
+# A live panel would be a broken panel, so the dashboard carries the measured record and points at
+# homelab-context/docs/reference/observability.md for the raw numbers.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-tsdb-comparison
+  namespace: monitoring
+data:
+  tsdb-comparison.json: |
+    {
+      "uid": "tsdb-comparison",
+      "title": "TSDB comparison \u2014 Prometheus vs VictoriaMetrics",
+      "tags": [
+        "homelab",
+        "comparison"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "",
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "text",
+          "title": "Measured comparison (2026-11-21)",
+          "gridPos": {
+            "h": 22,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "## TSDB comparison \u2014 measured 2026-11-21\n\nSame scrape config, same 30 s interval, `avalanche` exposing **15 000 series**, steady state on both.\n\n| | Prometheus 2.51 | VictoriaMetrics 1.93 |\n|---|---|---|\n| **resident memory** | 360 MiB | **164 MiB** (46%) |\n| data on disk | 499 MB | **118 MB** (24%) |\n| head series | 97 664 | 88 898 |\n| query latency (same PromQL, 3 runs) | 26\u201352 ms | 32\u201380 ms |\n\n**Verdict: VictoriaMetrics for the metrics backend.** Half the memory, a quarter of the disk, latency a\nwash. Prometheus stays the *interface* (PromQL, alert rules, exporters); VictoriaMetrics answers the same\nqueries.\n\n---\n\n### Why this panel is text and not a live graph\n\nThe comparison ran in **staging** (three QEMU guests on `.83`). Production cannot reach it \u2014 measured from a\npod in `monitoring`: prod\u2192prod `200`, prod\u2192`.82:6443` `401`, prod\u2192staging `000`. A live panel here would be a\nbroken panel, so this is the record, dated, and the raw numbers are in\n`homelab-context/docs/reference/observability.md`.\n\n### What the attempt cost, and what it says about the hardware\n\nRunning all five backends at once (Prometheus + VictoriaMetrics + Mimir&agent + Loki + VictoriaLogs) drove the\nstaging control plane into `apiserver not ready` and `etcd failed` **twice**, at host load ~7 on 15 GiB with\none node at **268% memory over-commit**. Three guests \u00d7 2 vCPU / 2.5\u20133 GiB cannot carry that plus a 3-node\ncontrol plane.\n\n`Mimir`: no at this size \u2014 it needed ring surgery to start (`-ingester.ring.replication-factor=1` plus\nin-memory rings) and is the heaviest component. `Loki vs VictoriaLogs`: declared, **not measured** \u2014 written as\nan expectation, not a result.\n"
+          }
+        }
+      ]
+    }
