@@ -74,3 +74,32 @@ spec:
   data:
     - secretKey: password
       remoteRef: { key: forgejo-read-token }
+---
+# EasyShortlist is private from its first commit, so ArgoCD needs a credential before the Application exists -
+# otherwise Phase B's first sync fails with "authentication required" and looks like a manifest problem.
+#
+# A token rather than a deploy key: Forgejo's git server is inside the cluster, and the estate already reads its own
+# repos over HTTP with a token. The token is read-only for this repo; the *write* token CI needs (RELEASE_TOKEN) is a
+# separate Forgejo secret, because a credential that can push must not also be the one ArgoCD fetches with.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-easyshortlist
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
+  target:
+    name: repo-easyshortlist
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/easyshortlist.git
+        username: bismigel
+        password: "{{ .token }}"
+  data:
+    - secretKey: token
+      remoteRef: { key: argocd-repo-easyshortlist }

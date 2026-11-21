@@ -132,3 +132,18 @@ metadata:
   labels:
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
+---
+# EasyShortlist holds candidate PII (CVs), and every pod it ships - app, Kratos, CNPG's - already satisfies
+# `restricted`, so the stricter posture costs nothing here. `Prune=false` because a namespace is not something a
+# sync should ever remove (ADR 0002); the guard would refuse it anyway, and an object the API always rejects is a
+# sync that always errors.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: easyshortlist
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

@@ -38,6 +38,7 @@ spec:
     - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/status-api.git
     - https://github.com/Ciceley/ciceleywebsite
     - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/tools-site.git
+    - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/easyshortlist.git
     # chart repositories
     - https://helm.cilium.io
     - https://charts.jetstack.io
@@ -100,6 +101,7 @@ spec:
     # manifests declare, not just the ones an Application targets.
     - {server: https://kubernetes.default.svc, namespace: cilium-secrets}
     - {server: https://kubernetes.default.svc, namespace: downloads}
+    - {server: https://kubernetes.default.svc, namespace: easyshortlist}
     # kube-public / kube-node-lease are never targeted by an app; deliberately absent.
   # Derived from ArgoCD's own resource trees (every Application's
   # status.resources entry with an empty namespace), not from memory:
