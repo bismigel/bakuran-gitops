@@ -113,8 +113,10 @@ spec:
       # ("the runner is a pod with the default service account and no RBAC - that is a security property worth keeping");
       # this makes it true at the pod, not only at the role.
       automountServiceAccountToken: false
-      nodeSelector:
-        kubernetes.io/hostname: patola-thinkcentre
+      # NO nodeSelector. It existed because a local-path volume pinned the pod there, and the two volumes
+      # are now emptyDirs - leaving the selector behind is the fourth version of the same mistake: the pod is
+      # told to spread across hosts and told to sit on one, and the scheduler reports "1 node didn't match
+      # anti-affinity, 2 didn't match node affinity" forever.
       securityContext:
         fsGroup: 1000
       initContainers:
