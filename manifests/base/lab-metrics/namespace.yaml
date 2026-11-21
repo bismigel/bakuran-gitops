@@ -1,6 +1,17 @@
-# An experiment, not an estate component. Everything here is disposable: two stores, one scrape config,
-# and a loader. If neither proves useful, deleting the Application removes the workloads and the
-# namespace stays behind empty (ADR 0002) - which is the cheapest possible leftover.
+# The lab-metrics namespace, kept for one reason: it holds a PersistentVolumeClaim that outlives the
+# experiment, and ADR 0002 says a volume is not removed because a workload stopped.
+#
+# What was here: `lab-victoriametrics`, a VictoriaMetrics single-node pinned to patola-thinkcentre, used
+# in the 2026-11-20/21 comparison against Prometheus. It was retired on 2026-11-21 with the rest of the
+# staging comparison - the estate's store is `monitoring/victoriametrics`, which scrapes the same
+# targets and is the one vmalert reads.
+#
+# What remains:
+#   * this namespace (deleting it is a separate, deliberate act - the guard refuses it for a reason);
+#   * `server-volume-lab-vm-victoria-metrics-single-server-0`, 10Gi on local-path, bound since 2026-11-21
+#     and mounted by nothing. It is the last artefact of the experiment. Releasing it needs a decision
+#     about whether the 14 days of lab data are worth keeping, not a cleanup commit.
+#   * an ArgoCD Application (`lab-metrics-base`) that declares this namespace and nothing else.
 apiVersion: v1
 kind: Namespace
 metadata:
