@@ -1,0 +1,146 @@
+# VictoriaMetrics as a SECOND metrics backend in production, for the comparison the owner asked for.
+#
+# Why in prod and not staging: staging runs on three QEMU guests on a MacBook and production cannot reach it
+# (measured from a pod: prod->prod 200, prod->.82:6443 401, prod->staging 000). A dashboard that reads across
+# that boundary is a broken dashboard. This instance scrapes the SAME targets as Prometheus, so the dashboard can
+# compare two live backends on identical input.
+#
+# It is a read-only observer: no alerting reads from it, nothing depends on it, and deleting this file removes
+# it cleanly. Measured footprint in staging under 15 000 avalanche series: 164 MiB (Prometheus: 360 MiB).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: victoriametrics
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: victoriametrics-read
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, endpoints, nodes, namespaces]
+    verbs: [get, list, watch]
+  - nonResourceURLs: ["/metrics"]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: victoriametrics-read
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: victoriametrics-read }
+subjects: [{ kind: ServiceAccount, name: victoriametrics, namespace: monitoring }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: victoriametrics-scrape
+  namespace: monitoring
+data:
+  scrape.yml: |
+    global:
+      scrape_interval: 30s
+    scrape_configs:
+      # Same targets Prometheus uses for the comparison to mean anything. The annotated-pod job covers
+      # kube-state-metrics, alertmanager, the exporters and the apps that opt in.
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+      - job_name: node-exporter
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: node-exporter
+          - source_labels: [__address__]
+            regex: '([^:]+)(?::\d+)?'
+            replacement: '$1:9100'
+            target_label: __address__
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ['kube-state-metrics.monitoring.svc:8080']
+      # Both backends' own management metrics - this is what the comparison panels read.
+      - job_name: prometheus-self
+        static_configs:
+          - targets: ['prometheus.monitoring.svc:9090']
+      - job_name: victoriametrics-self
+        static_configs:
+          - targets: ['127.0.0.1:8428']
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: victoriametrics
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources: { requests: { storage: 10Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: victoriametrics
+  namespace: monitoring
+spec:
+  replicas: 1
+  # Recreate: the volume is ReadWriteOnce; a RollingUpdate deadlocks with both pods Pending (measured in staging).
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: victoriametrics }
+  template:
+    metadata:
+      labels: { app: victoriametrics }
+    spec:
+      serviceAccountName: victoriametrics
+      containers:
+        - name: victoriametrics
+          image: victoriametrics/victoria-metrics:v1.93.14@sha256:077dd0e569d0ee0e0fbdbf8bb227cd1d222f462051e88024f1eb3aa7fec3e733
+          args:
+            - -promscrape.config=/etc/vm/scrape.yml
+            - -storageDataPath=/storage
+            - -retentionPeriod=30d
+            - -httpListenAddr=:8428
+          ports: [{ containerPort: 8428, name: http }]
+          volumeMounts:
+            - { name: config, mountPath: /etc/vm, readOnly: true }
+            - { name: storage, mountPath: /storage }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 768Mi }
+          readinessProbe:
+            httpGet: { path: /health, port: 8428 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8428 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: config
+          configMap: { name: victoriametrics-scrape }
+        - name: storage
+          persistentVolumeClaim: { claimName: victoriametrics }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: victoriametrics
+  namespace: monitoring
+spec:
+  selector: { app: victoriametrics }
+  ports: [{ port: 8428, name: http }]
