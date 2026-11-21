@@ -91,6 +91,14 @@ spec:
   replicas: 3
   strategy:
     type: RollingUpdate
+    rollingUpdate:
+      # ONE AT A TIME, terminating before starting. With `replicas == nodes` and a hard host anti-affinity,
+      # the default surge (25% of 3 -> 1 extra pod) asks for a 4th node that does not exist, so the rollout
+      # deadlocks: the new pod is Pending on anti-affinity and the old pod is never terminated because
+      # maxUnavailable 0 waits for a new pod to be ready first. `maxSurge: 0` makes the scheduler's answer
+      # possible - free a node, then fill it.
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: forgejo-runner
