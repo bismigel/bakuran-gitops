@@ -72,6 +72,11 @@ jobs:
           # read-only `scanner` htpasswd user), so the scan never hits Docker Hub's anonymous rate limit.
           ZOT_USER: ${{ secrets.ZOT_SCANNER_USER }}
           ZOT_PASS: ${{ secrets.ZOT_SCANNER_PASS }}
+          # Trivy's vulnerability DB is ~500 MB and, without this, it is downloaded into the container's
+          # `$HOME` - which lives exactly as long as the runner pod. This job is the longest in the estate
+          # (94 s average, 167 s worst) and most of the difference between those two numbers is the DB.
+          # `/data` is the runner's own volume, with ~44 GB free on the node behind it.
+          TRIVY_CACHE_DIR: /data/cache/trivy
         run: |
           D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
           "$D/bin/scan-images" \
