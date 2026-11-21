@@ -224,11 +224,11 @@ spec:
         source: |
           (
           curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=ALERTS{alertname="Watchdog"}' | jq -r '.data.result[] | "\(.metric.instance) state=\(.metric.alertstate)"'
-          kubectl -n monitoring get pods -l 'app in (prometheus,alertmanager)' -o wide
-          kubectl -n monitoring logs -l app=prometheus --tail=20 | grep -iE 'error|rule|evaluat' | tail -10
+          kubectl -n monitoring get pods -l 'app in (vmalert,alertmanager)' -o wide
+          kubectl -n monitoring logs -l app=vmalert --tail=20 | grep -iE 'error|rule|evaluat' | tail -10
           curl -s 'http://alertmanager.monitoring.svc:9093/api/v2/status' | jq -r '.cluster.status'
           
-          printf '\nverdict: %s\n' 'Watchdog absent from one instance means that Prometheus is not evaluating rules; absent from both means the pipeline is down rather than a rule bug. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a fault.'
+          printf '\nverdict: %s\n' 'Watchdog absent from the store means vmalert is not evaluating rules - the pipeline is down rather than a rule bug. Both vmalert replicas write it, so a single replica failing is not visible here; that is what the two-replica anti-affinity is for. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a fault.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:

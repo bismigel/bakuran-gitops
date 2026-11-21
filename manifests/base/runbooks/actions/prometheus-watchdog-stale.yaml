@@ -1,6 +1,7 @@
-# The watchdog is the alert that proves alerting works. Read-only on the two Prometheus instances.
+# The watchdog is the alert that proves alerting works. Read-only on the evaluator's store: vmalert writes
+# `watchdog:evaluation:alive` into VictoriaMetrics, so one query answers whether rules are being evaluated.
 id: prometheus-watchdog-stale
-title: No Watchdog from either Prometheus - rules are not being evaluated, or the alerting path is broken
+title: No Watchdog in the store - vmalert is not evaluating rules, or the alerting path is broken
 severity: high
 blast_radius: cluster
 reversible: true
@@ -20,8 +21,9 @@ diagnose:
   - kubectl -n monitoring get pods -l 'app in (vmalert,alertmanager)' -o wide
   - kubectl -n monitoring logs -l app=vmalert --tail=20 | grep -iE 'error|rule|evaluat' | tail -10
   - curl -s 'http://alertmanager.monitoring.svc:9093/api/v2/status' | jq -r '.cluster.status'
-  verdict: 'Watchdog absent from one instance means that Prometheus is not evaluating rules; absent from both means the pipeline is down
-    rather than a rule bug. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a
+  verdict: 'Watchdog absent from the store means vmalert is not evaluating rules - the pipeline is down rather than a rule bug.
+    Both vmalert replicas write it, so a single replica failing is not visible here; that is what the two-replica
+    anti-affinity is for. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a
     fault.'
 remedy:
   commands: []
