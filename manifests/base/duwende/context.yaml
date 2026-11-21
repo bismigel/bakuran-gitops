@@ -631,9 +631,11 @@ data:
     (`homelab-agent-metrics-read`) is bound to the `kubernetes-mcp` and `hermes`
     SAs. `nodes_stats_summary` needs `nodes/proxy` and is deliberately not granted.
     
-    **Historical metrics:** `prometheus__execute_query` / `execute_range_query`,
-    `list_metrics`, `get_targets` (Prometheus MCP at
-    `http://prometheus-mcp.duwende.svc:8080/mcp`, tools prefixed `prometheus__`).
+    **Metrics queries:** `metrics__execute_query` / `execute_range_query`, `list_metrics`,
+    `get_targets` — the MCP server at `http://metrics-mcp.duwende.svc:8080/mcp`, tools prefixed
+    `metrics__` (renamed from `prometheus__` on 2026-11-21, when the objects took role names; the
+    upstream image is still the Prometheus MCP server and still reads `PROMETHEUS_URL`, which now
+    points at VictoriaMetrics).
     
     ArgoCD Applications (all **in-cluster** on the one 3-node cluster): `root,
     namespaces, ingress-nginx, ingress-headers, cert-manager, external-secrets,
