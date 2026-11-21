@@ -100,9 +100,19 @@ data:
       - job_name: 'victoria-traces'
         static_configs:
           - targets: ['victoria-traces.observability.svc:10428']
-      - job_name: 'prometheus'
+      # The evaluator, not the retired store (2026-11-21). This job used to scrape `localhost:9090`, which is
+      # Prometheus itself - fine when Prometheus was the scraper, permanently `up == 0` once the same config was
+      # mounted into VictoriaMetrics, where nothing listens on 9090. That down target is what vmalert's
+      # `TargetDown` started firing on within ten minutes of the cutover: a real alert, caused by a config that
+      # only made sense for one of the two backends.
+      #
+      # vmalert is what pages now, so it is what to watch: rule evaluation errors, group durations, notifications
+      # sent. The `prometheus` job is gone rather than repointed - no rule in this estate reads `prometheus_*`
+      # (checked: zero references across the three rule ConfigMaps), and repointing it would break again the day
+      # the primary Prometheus is finally scaled to zero.
+      - job_name: 'vmalert'
         static_configs:
-          - targets: ['localhost:9090']
+          - targets: ['vmalert.monitoring.svc:8880']
       - job_name: 'otel-collector'
         static_configs:
           - targets: ['otel-collector.observability.svc.cluster.local:8889']
