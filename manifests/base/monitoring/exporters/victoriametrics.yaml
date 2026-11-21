@@ -7,6 +7,13 @@
 #
 # It is a read-only observer: no alerting reads from it, nothing depends on it, and deleting this file removes
 # it cleanly. Measured footprint in staging under 15 000 avalanche series: 164 MiB (Prometheus: 360 MiB).
+#
+# TWO ARTEFACTS OF REUSING PROMETHEUS' CONFIG, both accepted rather than papered over (2026-11-21):
+#   * the `prometheus` job scrapes `localhost:9090`, which inside THIS pod is nothing. That target is
+#     permanently down and always will be. It is why `count(up)` on this instance is not the comparison -
+#     `count(up == 1)` minus that one, or the per-job counts, is.
+#   * `kube-state-metrics` and `ksm` are two jobs scraping the same exporter; Prometheus has both, so this
+#     does too. Fixing either means diverging the config, which is the one thing the comparison cannot have.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -21,6 +28,16 @@ rules:
   - apiGroups: [""]
     resources: [pods, services, endpoints, nodes, namespaces]
     verbs: [get, list, watch]
+  # `kubelet-cadvisor` is not a direct scrape: the config goes through the API server's
+  # node proxy (`/api/v1/nodes/<node>/proxy/metrics/cadvisor`), so it needs `nodes/proxy`.
+  # Without it all three cadvisor targets answer 403 and VictoriaMetrics holds no
+  # container-level series at all - found 2026-11-21, after the comparison had been quoted
+  # as "84% of the series in 15% of the memory" while VM was missing the highest-cardinality
+  # job in the estate. Prometheus' own ServiceAccount has it, which is why only one side
+  # was affected.
+  - apiGroups: [""]
+    resources: [nodes/proxy]
+    verbs: [get]
   - nonResourceURLs: ["/metrics"]
     verbs: [get]
 ---
@@ -67,6 +84,13 @@ spec:
             # (measured in staging: "field evaluation_interval not found in type promscrape.GlobalConfig").
             - -promscrape.config=/etc/prometheus/prometheus.yml
             - -promscrape.config.strictParse=false
+            # The ConfigMap volume updates; the *process* does not, unless it is told to look.
+            # `-promscrape.configCheckInterval` is DISABLED by default (`victoria-metrics -help`:
+            # "By default, the checking is disabled"), so on 2026-11-21 this pod was running the
+            # 14 jobs it started with while the file on disk carried 19 - `loki`, `tempo`,
+            # `victoria-traces` and `victorialogs` existed in the volume and were never scraped.
+            # The symptom is invisible: `count(up)` simply differs between the two backends.
+            - -promscrape.configCheckInterval=30s
             - -storageDataPath=/storage
             - -retentionPeriod=30d
             - -httpListenAddr=:8428
