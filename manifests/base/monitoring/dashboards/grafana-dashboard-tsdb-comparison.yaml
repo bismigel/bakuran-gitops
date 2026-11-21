@@ -1,9 +1,8 @@
 # Managed by GitOps. Edit panels here; Grafana reloads them within 30s.
 #
-# This one is deliberately a TEXT panel: the Prometheus-vs-VictoriaMetrics comparison ran in staging, and
-# production cannot reach staging (measured from a pod: prod->prod 200, prod->.82:6443 401, prod->staging 000).
-# A live panel would be a broken panel, so the dashboard carries the measured record and points at
-# homelab-context/docs/reference/observability.md for the raw numbers.
+# LIVE comparison. Both backends scrape the same config (VM mounts prometheus-config), and Prometheus also scrapes
+# VictoriaMetrics' own /metrics, so one datasource plots both. Panel 5 runs count(up) through each datasource so a
+# divergence is visible rather than inferred.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,15 +12,15 @@ data:
   tsdb-comparison.json: |
     {
       "uid": "tsdb-comparison",
-      "title": "TSDB comparison \u2014 Prometheus vs VictoriaMetrics",
+      "title": "TSDB comparison \u2014 Prometheus vs VictoriaMetrics (live)",
       "tags": [
         "homelab",
         "comparison"
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 1,
-      "refresh": "",
+      "version": 3,
+      "refresh": "30s",
       "time": {
         "from": "now-6h",
         "to": "now"
@@ -29,17 +28,160 @@ data:
       "panels": [
         {
           "id": 1,
-          "type": "text",
-          "title": "Measured comparison (2026-11-21)",
+          "type": "timeseries",
+          "title": "Resident memory (MiB) \u2014 lower is better",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "gridPos": {
-            "h": 22,
-            "w": 24,
+            "h": 8,
+            "w": 12,
             "x": 0,
             "y": 0
           },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Prometheus",
+              "expr": "process_resident_memory_bytes{job=\"prometheus\"} / 1048576"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VictoriaMetrics",
+              "expr": "process_resident_memory_bytes{job=\"victoriametrics\"} / 1048576"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "CPU cores used",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Prometheus",
+              "expr": "rate(process_cpu_seconds_total{job=\"prometheus\"}[5m])"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VictoriaMetrics",
+              "expr": "rate(process_cpu_seconds_total{job=\"victoriametrics\"}[5m])"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "Ingest rate (samples or rows per second)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Prometheus appended",
+              "expr": "sum(rate(prometheus_tsdb_head_samples_appended_total{job=\"prometheus\"}[5m]))"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VictoriaMetrics ingested",
+              "expr": "sum(rate(vm_rows_inserted_total{job=\"victoriametrics\",type=\"prometheus\"}[5m]))"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "Series stored",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Prometheus head series",
+              "expr": "prometheus_tsdb_head_series{job=\"prometheus\"}"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VictoriaMetrics (rows inserted, cumulative)",
+              "expr": "sum(vm_rows_inserted_total{job=\"victoriametrics\"})"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "Same PromQL through each backend \u2014 the counts should match",
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Mixed --"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 16
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "legendFormat": "Prometheus",
+              "expr": "count(up)"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "victoriametrics"
+              },
+              "legendFormat": "VictoriaMetrics",
+              "expr": "count(up)"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "text",
+          "title": "How to read this",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 16
+          },
           "options": {
             "mode": "markdown",
-            "content": "## TSDB comparison \u2014 measured 2026-11-21\n\nSame scrape config, same 30 s interval, `avalanche` exposing **15 000 series**, steady state on both.\n\n| | Prometheus 2.51 | VictoriaMetrics 1.93 |\n|---|---|---|\n| **resident memory** | 360 MiB | **164 MiB** (46%) |\n| data on disk | 499 MB | **118 MB** (24%) |\n| head series | 97 664 | 88 898 |\n| query latency (same PromQL, 3 runs) | 26\u201352 ms | 32\u201380 ms |\n\n**Verdict: VictoriaMetrics for the metrics backend.** Half the memory, a quarter of the disk, latency a\nwash. Prometheus stays the *interface* (PromQL, alert rules, exporters); VictoriaMetrics answers the same\nqueries.\n\n---\n\n### Why this panel is text and not a live graph\n\nThe comparison ran in **staging** (three QEMU guests on `.83`). Production cannot reach it \u2014 measured from a\npod in `monitoring`: prod\u2192prod `200`, prod\u2192`.82:6443` `401`, prod\u2192staging `000`. A live panel here would be a\nbroken panel, so this is the record, dated, and the raw numbers are in\n`homelab-context/docs/reference/observability.md`.\n\n### What the attempt cost, and what it says about the hardware\n\nRunning all five backends at once (Prometheus + VictoriaMetrics + Mimir&agent + Loki + VictoriaLogs) drove the\nstaging control plane into `apiserver not ready` and `etcd failed` **twice**, at host load ~7 on 15 GiB with\none node at **268% memory over-commit**. Three guests \u00d7 2 vCPU / 2.5\u20133 GiB cannot carry that plus a 3-node\ncontrol plane.\n\n`Mimir`: no at this size \u2014 it needed ring surgery to start (`-ingester.ring.replication-factor=1` plus\nin-memory rings) and is the heaviest component. `Loki vs VictoriaLogs`: declared, **not measured** \u2014 written as\nan expectation, not a result.\n"
+            "content": "Both backends scrape the **same config** (VictoriaMetrics mounts Prometheus' own `prometheus-config`), so the series and memory numbers compare the same work.\n\n**Panel 1 is the decision.** Staging A/B (15 000 avalanche series, steady state): VictoriaMetrics **164 MiB** vs Prometheus **360 MiB**, disk **118 MB vs 499 MB**, latency a wash (26\u201380 ms).\n\n**Panel 5 is the correctness check:** the same `count(up)` through each must return the same number. Divergence means one is not seeing the same targets.\n\nVictoriaMetrics is an **observer**: nothing alerts from it. Deleting `manifests/base/monitoring/exporters/victoriametrics.yaml` removes it."
           }
         }
       ]
