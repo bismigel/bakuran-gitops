@@ -113,12 +113,19 @@ data:
         timeout: 10s
         retry_on_failure: {enabled: true, initial_interval: 2s, max_interval: 30s}
         sending_queue: {enabled: true, num_consumers: 4, queue_size: 5000}
+      # The comparison observer beside VictoriaLogs: same receivers, same processors, same batch, two sinks.
+      # Remove this block and the pipeline entry when the measurement is done - or keep it, if Loki wins.
+      loki:
+        endpoint: http://loki.observability.svc:3100/loki/api/v1/push
+        timeout: 10s
+        retry_on_failure: {enabled: true, initial_interval: 2s, max_interval: 30s}
+        sending_queue: {enabled: true, num_consumers: 4, queue_size: 5000}
     service:
       pipelines:
         logs:
           receivers: [filelog]
           processors: [memory_limiter, filter/drop_self, k8sattributes, resource, batch]
-          exporters: [otlphttp]
+          exporters: [otlphttp, loki]
       telemetry:
         logs: {level: info}
 ---

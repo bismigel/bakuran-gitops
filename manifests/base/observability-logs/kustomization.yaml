@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - victorialogs.yaml
   - collector-logs.yaml
+  - loki-comparison.yaml
