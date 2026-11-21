@@ -487,6 +487,25 @@ spec:
           port: 5000
         - protocol: TCP
           port: 5299
+    # Forgejo is where GitOps changes are opened and merged (ADR 0015). DNS is
+    # already allowed, so without this the API resolves and then times out: the
+    # ClusterIP is in 10.0.0.0/8, which the public-HTTPS rule excludes, and no
+    # namespaceSelector covers forgejo. Identity-based, like the media/books
+    # rules above - an ipBlock would not match once Cilium rewrites the VIP
+    # (the same trap documented in duwende-apiserver.yaml).
+    #
+    # Measured 2026-11-21 from the hermes pod: `forgejo.forgejo:3000` BLOCK
+    # (TCP connect timeout) while prometheus:9090 and kubernetes:443 were OPEN,
+    # which is why the agent could read the cluster and not open a PR. forgejo
+    # has no NetworkPolicy of its own, so this is one-sided: no ingress change,
+    # no other namespace gains anything.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: forgejo
+      ports:
+        - protocol: TCP
+          port: 3000
     - to:
         - ipBlock:
             cidr: 10.43.0.1/32
