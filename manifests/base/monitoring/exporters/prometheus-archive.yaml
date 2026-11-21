@@ -1,0 +1,64 @@
+# THE PROMETHEUS VOLUMES, AND NOTHING ELSE.
+#
+# Prometheus stopped running on 2026-11-21: VictoriaMetrics scrapes the same 52 targets, vmalert
+# evaluates the same rule files, and Grafana reads from the store. Keeping a second Prometheus as a
+# hot standby would have been a second copy of data nobody queries, ~1.1 GiB of RAM, and 66 GiB on the
+# node filesystem that also holds etcd - on a cluster whose Longhorn over-commit alert is already
+# firing about disk.
+#
+# What is NOT deleted is the history. These two volumes hold everything Prometheus ever scraped, and
+# deleting a PVC is not a side effect of a decision about a process (ADR 0002). They are annotated so
+# ArgoCD will never prune them, and they cost disk that is already spent.
+#
+# Reading them, if something from before the cutover matters:
+#
+#   kubectl -n monitoring scale deploy/prometheus --replicas=1     # the manifest is gone; recreate
+#                                                                  # from git history instead:
+#   git show <sha>:manifests/base/monitoring/exporters/monitoring.yaml | kubectl apply -f -
+#   kubectl -n monitoring port-forward svc/prometheus 9090:9090
+#
+# ...or simply query them through Grafana by adding a datasource with the same uid, pointed at the
+# service. Ten minutes of work, deliberately not automated: an archive that is always running is a
+# second stack.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # NOT longhorn, deliberately. Prometheus is the thing that reports storage
+  # incidents, so its TSDB must not live on the storage it reports on. On 2026-11-01
+  # a Longhorn manager failure marked replicas failed, the prometheus-data volume went
+  # with them, and Prometheus restarted mid-outage at 06:53:42 - the monitoring that
+  # was supposed to explain the outage was itself a casualty of it.
+  #
+  # local-path trades replication for independence: the PV is pinned to whichever node
+  # the pod first schedules on, and if that node dies the metric history goes with it.
+  # That is the right trade - metrics are regenerable, and a monitor that disappears
+  # with the thing it monitors is worthless. Owner agreed to lose the history
+  # (2026-11-01).
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 8Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-alerting-data
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # local-path for the same reason as the primary's: it must not depend on Longhorn, which is one of
+  # the things metrics are asked to report on.
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 4Gi

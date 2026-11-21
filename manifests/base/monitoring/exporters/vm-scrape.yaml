@@ -1,0 +1,239 @@
+# The estate's scrape configuration, written FOR VictoriaMetrics.
+#
+# History worth keeping: this file used to be Prometheus' `prometheus.yml`, mounted into the store with
+# `-promscrape.config.strictParse=false` so VM's parser would skip the fields it rejects (`rule_files`,
+# `alerting`, `evaluation_interval`). It worked, and it was the wrong shape: the store should not need a
+# leniency flag to read its own configuration, and a file that means two different things to two parsers is
+# exactly how a `localhost:9090` target survived a cutover and fired `TargetDown` ten minutes later
+# (2026-11-21). One owner, one interpretation, no flag.
+#
+# Where the missing sections went:
+#   * `rule_files` + `alerting`  -> `vmalert`: it mounts the same rule ConfigMaps and names both
+#     Alertmanager replicas itself.
+#   * `evaluation_interval`      -> not this process's job.
+#   * the `prometheus`, `loki` and `tempo` jobs -> removed with the things they scraped. A scrape job whose
+#     Service has no endpoints is an alert, not telemetry.
+#
+# Alerting rules stay in Prometheus /rule/ format on purpose: that format is the interface, read by promtool
+# in CI and by vmalert in the cluster. The key below is `prometheus.yml` for the same reason - it is a
+# Prometheus *scrape config*, and `check-prometheus-rules` looks for that name before it can validate anything.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vm-scrape-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+      - job_name: 'kubernetes-services'
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+      - job_name: 'kube-state-metrics'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+            action: keep
+            regex: kube-system;kube-state-metrics
+      # The alerting path itself. On 2026-11-01 three volumes were dataless for four hours
+      # and `LonghornVolumeFaulted` was *firing* in Prometheus the whole time - but nothing
+      # here scraped Alertmanager, so "did the notification actually go out?" was
+      # unanswerable without curling its /metrics by hand. An alerting system whose
+      # delivery cannot be observed is a hypothesis, not a control.
+      - job_name: 'alertmanager'
+        static_configs:
+          - targets:
+              - 'alertmanager-0.alertmanager-headless.monitoring.svc:9093'
+              - 'alertmanager-1.alertmanager-headless.monitoring.svc:9093'
+      # The comparison backend's own management metrics, so the dashboard reads both from one datasource.
+      - job_name: 'victoriametrics'
+        static_configs:
+          - targets: ['victoriametrics.monitoring.svc:8428']
+      # The two log stores' own metrics, so the comparison panels read from one datasource. Both are observers:
+      # VictoriaLogs is the incumbent, Loki is the challenger added 2026-11-21.
+      - job_name: 'victorialogs'
+        static_configs:
+          - targets: ['victorialogs.observability.svc:9428']
+      # `loki` and `tempo` scrape jobs removed 2026-11-21, when both stores were scaled to zero and the Victoria
+      # stack became the only log/trace backend. Leaving them declared is how a cutover turns into a permanent
+      # `TargetDown`: a job whose Service has no endpoints is an alert, not telemetry, and it fires ten minutes
+      # after the change with no hint that the thing it names was deliberately retired.
+      - job_name: 'victoria-traces'
+        static_configs:
+          - targets: ['victoria-traces.observability.svc:10428']
+      # The evaluator, not the retired store (2026-11-21). This job used to scrape `localhost:9090`, which is
+      # Prometheus itself - fine when Prometheus was the scraper, permanently `up == 0` once the same config was
+      # mounted into VictoriaMetrics, where nothing listens on 9090. That down target is what vmalert's
+      # `TargetDown` started firing on within ten minutes of the cutover: a real alert, caused by a config that
+      # only made sense for one of the two backends.
+      #
+      # vmalert is what pages now, so it is what to watch: rule evaluation errors, group durations, notifications
+      # sent. The `prometheus` job is gone rather than repointed - no rule in this estate reads `prometheus_*`
+      # (checked: zero references across the three rule ConfigMaps), and repointing it would break again the day
+      # the primary Prometheus is finally scaled to zero.
+      # Not a static Service target: the ClusterIP load-balances each scrape to a random replica, so per-replica
+      # state (rule evaluation errors, group durations) would flap between two pods and neither would be complete.
+      # The `kubernetes-pods` job picks vmalert up by annotation - `prometheus.io/scrape` and
+      # `prometheus.io/port` on the Deployment - so both replicas are scraped by name.
+      - job_name: 'otel-collector'
+        static_configs:
+          - targets: ['otel-collector.observability.svc.cluster.local:8889']
+      - job_name: 'ksm'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: kube-state-metrics
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: "8080"
+      # The LAN switch, which is OpenWrt, not Kubernetes (2026-11-13). `prometheus-node-exporter-lua` was installed on
+      # the switch itself and bound to its LAN address; the firewall on the switch accepts tcp/9100 from `.82` only, so
+      # this scrape is the single permitted client rather than the exporter being open on the LAN.
+      #
+      # No `node` label on these series (the exporter does not know it is a switch), so anything that joins on `node`
+      # must use `instance` instead - see the dashboard and any rule touching switch health.
+      - job_name: 'switch'
+        static_configs:
+          - targets: ['192.168.2.3:9100']
+            labels:
+              instance: 'gs108tv3'
+              site: 'lan'
+              # NOT `device:` — the exporter labels every netdev series with the *port* name (`lan1`…`lan8`, `switch`,
+              # `switch.1`), and a static `device` label here silently overwrote all of them, collapsing eight ports into
+              # one series. Measured 2026-11-13: 496 series arrived and every one read `device="switch"`.
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: node-exporter
+          # role: pod leaves __address__ as the pod IP with no port, so Prometheus
+          # defaults to :80. Force the node-exporter port explicitly.
+          - source_labels: [__address__]
+            regex: '([^:]+)(?::\d+)?'
+            replacement: '$1:9100'
+            target_label: __address__
+      - job_name: 'kepler'
+        # Power exporter (hostNetwork, so each pod IP is its node IP). Scrape the
+        # pods directly — scraping the Service would load-balance across nodes and
+        # give each node's series intermittent gaps. honor_labels keeps kepler's
+        # own `instance=<node>` label instead of the scrape address.
+        honor_labels: true
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: kepler
+          - source_labels: [__address__]
+            regex: '([^:]+)(?::\d+)?'
+            replacement: '$1:9102'
+            target_label: __address__
+      - job_name: 'kubelet-cadvisor'
+        # Per-container CPU / memory / throttling. This is the only source of
+        # container history in the stack: metrics-server answers `kubectl top`
+        # for the current instant and stores nothing, so a container spinning at
+        # a full core stayed invisible until someone ran top by hand.
+        # Scraped through the apiserver proxy, which the prometheus SA is
+        # already allowed to do (nodes/proxy, read-only) — the kubelet's
+        # self-signed cert and each node's firewall stay out of the path.
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+      - job_name: 'longhorn'
+        # Longhorn manager metrics: volume robustness, per-node storage and
+        # per-disk capacity. Volume health used to be CRD-only, i.e. readable by
+        # asking the API but invisible to graphs and alerts.
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+            action: keep
+            regex: longhorn-system;longhorn-backend
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: manager
+      - job_name: 'argocd'
+        # Scrape each controller endpoint (not the Service) so the leader's
+        # argocd_app_info metrics are always collected.
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+            action: keep
+            regex: argocd;argocd-metrics
+      - job_name: 'blackbox'
+        # Public-path probes: the exporter runs in the cluster and the request
+        # goes out through Cloudflare and back through the tunnel.
+        metrics_path: /probe
+        scrape_interval: 30s
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - https://bismigel.dev/
+              # /healthz, not /: the page returns 503 whenever any functional check
+              # fails, so probing it made a media outage look like "edge unreachable"
+              # (2026-11-02 19:04-20:33: radarr/sonarr clients down, PublicProbeDown
+              # fired). Reachability and function are different questions and now have
+              # different signals - StatusApiCheckFailing covers the second.
+              - https://status.bismigel.dev/healthz
+              - https://ciceley.cc/
+              - https://jellyfin.bismigel.dev/
+              - https://immich.bismigel.dev/api/server/ping
+              - https://karakeep.bismigel.dev/
+              - https://kavita.bismigel.dev/
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter.monitoring.svc:9115

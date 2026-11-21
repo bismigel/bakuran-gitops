@@ -1,0 +1,231 @@
+# Grafana: the read side of the estate's telemetry, and the only part of this directory that was
+# never in question. Both candidate stacks served it; it is the interface, not the backend.
+#
+# Its datasources point at VictoriaMetrics (2026-11-21). The uid `prometheus` is kept as an alias for
+# `victoriametrics` on purpose: 216 panels pin that uid, and repointing one datasource is a smaller
+# change than editing 216 panels to say the same URL. The day those dashboards are regenerated, the
+# alias can go.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      # VictoriaMetrics is the default read path from 2026-11-21: the estate's metrics belong to the Victoria
+      # stack, and dashboards should read the store that will still be here in a year rather than the process
+      # that is being retired.
+      - name: VictoriaMetrics
+        uid: victoriametrics
+        type: prometheus
+        access: proxy
+        url: http://victoriametrics.monitoring.svc:8428
+        isDefault: true
+      # The uid is `prometheus` because 14 dashboards pin it, and the URL is VictoriaMetrics because that is the
+      # store now. Repointing the datasource is the whole cutover for every panel: no dashboard edit, no query
+      # rewrite, and the day the URL is wrong is one place to look rather than fourteen. Both entries point at
+      # the same backend on purpose - the second one is the alias that keeps old panels working, and it becomes
+      # removable the day those dashboards are updated.
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://victoriametrics.monitoring.svc:8428
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  ports:
+    - name: web
+      port: 3000
+      targetPort: 3000
+  selector:
+    app: grafana
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # RWO PVC: terminate before starting the new pod
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      initContainers:
+        # local-path PVs are root-owned; grafana runs as UID 472.
+        - name: fix-permissions
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+          command: ["sh", "-c", "chown -R 472:472 /var/lib/grafana"]
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/grafana
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.4.0@sha256:f9811e4e687ffecf1a43adb9b64096c50bc0d7a782f8608530f478b6542de7d5
+          ports:
+            - containerPort: 3000
+              name: web
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            - name: dashboards
+              mountPath: /etc/grafana/dashboards
+              readOnly: true
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: storage
+              mountPath: /var/lib/grafana
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            # Admin password from Bitwarden (ExternalSecret `grafana-admin`).
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: admin-password
+            # Per-user auto-login: trust the identity Cloudflare Access injects
+            # (each person gets their own Grafana account).
+            - name: GF_AUTH_PROXY_ENABLED
+              value: "true"
+            - name: GF_AUTH_PROXY_HEADER_NAME
+              value: Cf-Access-Authenticated-User-Email
+            - name: GF_AUTH_PROXY_HEADER_PROPERTY
+              value: username
+            - name: GF_AUTH_PROXY_AUTO_SIGN_UP
+              value: "true"
+            - name: GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN
+              value: "false"
+            - name: GF_AUTH_PROXY_WHITELIST
+              value: "10.42.0.0/16,10.43.0.0/16"
+            - name: GF_USERS_AUTO_ASSIGN_ORG
+              value: "true"
+            - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
+              value: "Admin"
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboards
+          # One ConfigMap per dashboard: editing a dashboard touches one small
+          # file instead of a 20KB blob, and the review diff stays readable.
+          projected:
+            sources:
+              - configMap: { name: grafana-dashboard-overview }
+              - configMap: { name: grafana-dashboard-storage }
+              - configMap: { name: grafana-dashboard-control-plane }
+              - configMap: { name: grafana-dashboard-power }
+              - configMap: { name: grafana-dashboard-edge }
+              - configMap: { name: grafana-dashboard-slo }
+              - configMap: { name: grafana-dashboard-cilium }
+              - configMap: { name: grafana-dashboard-containers }
+              - configMap: { name: grafana-dashboard-longhorn }
+              # grafana-dashboard-network has existed since 2026-10-25 but was never listed
+              # here, so it never reached Grafana. Found by the 2026-11-01 gap audit.
+              - configMap: { name: grafana-dashboard-network }
+              - configMap: { name: grafana-dashboard-network-devices }
+              - configMap: { name: grafana-dashboard-opnsense }
+              # Every dashboard must be listed TWICE: once as a ConfigMap in the kustomization, and once here.
+              # Adding only the first is silent - the file renders, CI passes, and Grafana never sees it. The
+              # comment eight lines up is about this exact failure on 2026-10-25, and it happened again on
+              # 2026-11-13 with the switch dashboard.
+              - configMap: { name: grafana-dashboard-switch }
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: storage
+          persistentVolumeClaim:
+            claimName: grafana-data
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ingressClassName: nginx-admin
+  rules:
+    - host: grafana.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+---
+# Grafana dashboard provider. The dashboards themselves live in
+# the grafana-dashboard-*.yaml files (kept separate so dashboard edits have a readable diff).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: homelab
+        orgId: 1
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /etc/grafana/dashboards
+---
+# Grafana admin password, synced from Bitwarden (`grafana-admin-password`).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-admin
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: grafana-admin
+  data:
+    - secretKey: admin-password
+      remoteRef:
+        key: grafana-admin-password

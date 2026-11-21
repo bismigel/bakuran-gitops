@@ -11,14 +11,14 @@ alerts:
 - StatusApiNotScraped
 detect:
   commands:
-  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=absent(status_api_check_ok)' | jq -r '.data.result | length'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=absent(status_api_check_ok)' | jq -r '.data.result | length'
   expect: notempty
 diagnose:
   commands:
   - kubectl -n apps get pods -l app=status-api -o wide
   - kubectl -n apps get svc,servicemonitor -o wide 2>/dev/null | head -10
   - 'curl -s -m 5 "http://status-api.apps.svc:9091/healthz" || true'
-  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/targets' --data-urlencode 'state=active' | jq -r '.data.activeTargets[] | select(.labels.job | test("status")) | "\(.labels.job) \(.scrapeUrl) \(.health) \(.lastError // "")"'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/targets' --data-urlencode 'state=active' | jq -r '.data.activeTargets[] | select(.labels.job | test("status")) | "\(.labels.job) \(.scrapeUrl) \(.health) \(.lastError // "")"'
   verdict: 'A healthy pod with no active target means the ServiceMonitor, the port or the NetworkPolicy broke - the status page is fine and
     its alarm is what stopped. A pod that is not Running means the page is genuinely down and the missing metric is the symptom, not the
     fault.'

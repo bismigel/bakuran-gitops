@@ -189,12 +189,6 @@
       "CVE-2024-24790",
       "CVE-2025-68121"
     ],
-    "prom/prometheus:v2.51.0": [
-      "CVE-2024-24790",
-      "CVE-2024-41110",
-      "CVE-2025-68121",
-      "CVE-2026-33186"
-    ],
     "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0": [
       "CVE-2025-68121"
     ]

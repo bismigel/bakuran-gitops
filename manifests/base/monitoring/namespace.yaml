@@ -1,0 +1,12 @@
+# The monitoring namespace, on its own so the workloads below read as workloads and not as an
+# appendix to a Namespace document.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    # `privileged` deliberately: node-exporter, the etcd metrics proxy and the
+    # hostNetwork exporters need hostNetwork/hostPath, which baseline forbids.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

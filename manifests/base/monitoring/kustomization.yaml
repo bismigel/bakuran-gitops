@@ -1,8 +1,20 @@
-# Monitoring stack, cluster-agnostic. Alert rules, dashboards, exporters and the
-# Prometheus/Alertmanager/Grafana workloads themselves.
+# Monitoring stack, cluster-agnostic: alert rules, dashboards, exporters, and the Victoria metrics
+# stack (scrape config, store, evaluator) with Grafana in front.
 #
-# Prometheus and Longhorn are NOT here: they are Helm/operator releases owned by
-# their own Applications (manifests/*-config, manifests/edge).
+# The layout, after the 2026-11-21 refactor that deleted Prometheus rather than patching around it:
+#
+#   vm-scrape.yaml          the scrape config, written for VictoriaMetrics (no strictParse flag)
+#   victoriametrics.yaml    the store: scrape, 14d retention, 20Gi
+#   vmalert.yaml            the evaluator: 2 replicas, the same rule ConfigMaps, Alertmanager
+#   grafana.yaml            the read side; datasource uid `prometheus` aliased onto the store
+#   prometheus-archive.yaml the two old Prometheus volumes, kept as an archive, runs nothing
+#   rules/  exporters/  checks/                unchanged
+#   dashboards/                              the TSDB comparison dashboard is deleted with the comparison it
+#                                            showed: both of its datasources now resolve to the same store, and the
+#                                            figures it quoted were the ones corrected on 2026-11-21 (they live in
+#                                            docs/reference/observability.md and the published post)
+#
+# Longhorn is still NOT here: it is a Helm release owned by its own Application.
 #
 # Scrape targets that are production-specific (public hostnames probed by blackbox,
 # the ingress host check) still live in these files; moving them into the overlay
@@ -11,6 +23,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - namespace.yaml
   - exporters/netdev-exporter.yaml
   # The router API key its exporter reads. Declared as an ExternalSecret so a rotation on the router reaches the cluster
   # instead of leaving a dead credential behind a 401 nobody watches (story 10.8).
@@ -18,12 +31,11 @@ resources:
   - rules/alerting-network-devices.yaml
   - dashboards/grafana-dashboard-network-devices.yaml
   - dashboards/grafana-dashboard-opnsense.yaml
-  - dashboards/grafana-dashboard-tsdb-comparison.yaml
   - dashboards/grafana-dashboard-switch.yaml
   - rules/alerting-workloads.yaml
   - rules/alerting.yaml
   - checks/prometheus-watchdog.yaml
-  - exporters/prometheus-alerting.yaml
+  - exporters/prometheus-archive.yaml
   - exporters/blackbox-exporter.yaml
   - exporters/cloudflare-edge-exporter.yaml
   - exporters/etcd-metrics-proxy.yaml
@@ -48,4 +60,5 @@ resources:
   - exporters/kube-vip.yaml
   - checks/login-alerts.yaml
   - exporters/longhorn-metrics-policy.yaml
-  - exporters/monitoring.yaml
+  - exporters/grafana.yaml
+  - exporters/vm-scrape.yaml

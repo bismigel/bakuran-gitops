@@ -11,12 +11,12 @@ alerts:
 - NodeDown
 detect:
   commands:
-  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=up{job="node-exporter"} == 0' | jq -r '.data.result[] | "\(.metric.instance)"'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=up{job="node-exporter"} == 0' | jq -r '.data.result[] | "\(.metric.instance)"'
   expect: notempty
 diagnose:
   commands:
   - kubectl get nodes -o wide
-  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=up{job="node-exporter"}' | jq -r '.data.result[] | "\(.metric.instance) up=\(.value[1])"'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=up{job="node-exporter"}' | jq -r '.data.result[] | "\(.metric.instance) up=\(.value[1])"'
   - kubectl get pods -A -o wide --field-selector status.phase!=Running,status.phase!=Succeeded | head -20
   verdict: 'The node showing NotReady means the machine is down or the kubelet is; a Ready node with up=0 means only the exporter or its
     NetworkPolicy broke. Both look identical from the alert, and the two fixes are different.'

@@ -12,11 +12,11 @@ alerts:
 - EtcdNoLeader
 detect:
   commands:
-  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=sum(etcd_server_has_leader)' | jq -r '.data.result[0].value[1]'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=sum(etcd_server_has_leader)' | jq -r '.data.result[0].value[1]'
   expect: notempty
 diagnose:
   commands:
-  - curl -sG 'http://prometheus.monitoring.svc:9090/api/v1/query' --data-urlencode 'query=etcd_server_has_leader' | jq -r '.data.result[] | "\(.metric.instance) has_leader=\(.value[1])"'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=etcd_server_has_leader' | jq -r '.data.result[] | "\(.metric.instance) has_leader=\(.value[1])"'
   - kubectl get nodes -o wide
   - kubectl -n kube-system get pods -l 'app in (etcd)' -o wide
   - kubectl get endpointslices -n default -l kubernetes.io/service-name=kubernetes -o json | jq -r '.items[].endpoints[] | "endpoint \(.addresses[0]) ready=\(.conditions.ready)"'

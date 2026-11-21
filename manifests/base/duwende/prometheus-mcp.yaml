@@ -20,7 +20,10 @@ spec:
           ports:
             - { name: http, containerPort: 8080 }
           env:
-            - { name: PROMETHEUS_URL, value: "http://prometheus.monitoring.svc.cluster.local:9090" }
+            # VictoriaMetrics speaks the same API, so the tool keeps working and the URL moves with the store
+            # (2026-11-21). Left pointing at Prometheus, every `prometheus_*` call - including the daily
+            # report's "query Prometheus for firing alerts" - would have failed the day Prometheus stopped.
+            - { name: PROMETHEUS_URL, value: "http://victoriametrics.monitoring.svc.cluster.local:8428" }
             - { name: PROMETHEUS_MCP_SERVER_TRANSPORT, value: "http" }
             - { name: PROMETHEUS_MCP_BIND_HOST, value: "0.0.0.0" }
             - { name: PROMETHEUS_MCP_BIND_PORT, value: "8080" }

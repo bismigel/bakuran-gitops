@@ -1,12 +1,21 @@
-# VictoriaMetrics as a SECOND metrics backend in production, for the comparison the owner asked for.
+# THE ESTATE'S METRICS STORE. Scrape, storage and query for every metric this lab keeps.
 #
-# Why in prod and not staging: staging runs on three QEMU guests on a MacBook and production cannot reach it
-# (measured from a pod: prod->prod 200, prod->.82:6443 401, prod->staging 000). A dashboard that reads across
-# that boundary is a broken dashboard. This instance scrapes the SAME targets as Prometheus, so the dashboard can
-# compare two live backends on identical input.
+# It started life as a read-only observer beside Prometheus - the comparison that produced the numbers in
+# `docs/reference/observability.md` (322 MiB against 1140 MiB for the same scrape, March 2026-11-21). The
+# comparison is closed and this is the winner, so the file changed shape with the role: no leniency flag to read
+# Prometheus' config, no second backend to be comparable with.
 #
-# It is a read-only observer: no alerting reads from it, nothing depends on it, and deleting this file removes
-# it cleanly. Measured footprint in staging under 15 000 avalanche series: 164 MiB (Prometheus: 360 MiB).
+# What the other processes used to do, and who does it now:
+#   * scrape    -> this Deployment, reading `vm-scrape-config` (see vm-scrape.yaml for why the config is its own
+#                  file instead of Prometheus' `prometheus.yml` with `strictParse=false`);
+#   * evaluate  -> `vmalert` (vmalert.yaml), two replicas, the same rule ConfigMaps;
+#   * alert     -> Alertmanager, named by vmalert directly;
+#   * read      -> Grafana, whose `prometheus` datasource uid now points here (grafana.yaml);
+#   * history   -> the old Prometheus volumes, kept as an archive and not running (prometheus-archive.yaml).
+#
+# Sizing is a real constraint, not a preference. This volume is Longhorn, and Longhorn ENFORCES its size, unlike
+# local-path, where the Prometheus volume holds 66 GiB against an 8Gi request with nobody complaining. 43 MB/h of
+# ingest is ~31 GB over 30 days, so retention is 14d on a 20Gi volume; the two move together or not at all.
 #
 # TWO ARTEFACTS OF REUSING PROMETHEUS' CONFIG, both accepted rather than papered over (2026-11-21):
 #   * the `prometheus` job scrapes `localhost:9090`, which inside THIS pod is nothing. That target is
@@ -82,12 +91,8 @@ spec:
         - name: victoriametrics
           image: victoriametrics/victoria-metrics:v1.93.14@sha256:077dd0e569d0ee0e0fbdbf8bb227cd1d222f462051e88024f1eb3aa7fec3e733
           args:
-            # THE SAME CONFIG PROMETHEUS USES, mounted from its ConfigMap: identical targets and interval are the
-            # only way the memory/series comparison means anything. strictParse=false because Prometheus' config
-            # carries `evaluation_interval` and `rule_files`, which VictoriaMetrics' scraper does not know
-            # (measured in staging: "field evaluation_interval not found in type promscrape.GlobalConfig").
+            # Its own config, written for this parser: 16 scrape jobs, one global interval, nothing else.
             - -promscrape.config=/etc/prometheus/prometheus.yml
-            - -promscrape.config.strictParse=false
             # The ConfigMap volume updates; the *process* does not, unless it is told to look.
             # `-promscrape.configCheckInterval` is DISABLED by default (`victoria-metrics -help`:
             # "By default, the checking is disabled"), so on 2026-11-21 this pod was running the
@@ -120,7 +125,7 @@ spec:
             periodSeconds: 30
       volumes:
         - name: config
-          configMap: { name: prometheus-config }
+          configMap: { name: vm-scrape-config }
         - name: storage
           persistentVolumeClaim: { claimName: victoriametrics }
 ---
