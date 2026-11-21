@@ -27,6 +27,12 @@ spec:
   template:
     metadata:
       labels: { app: vmalert }
+      annotations:
+        # Picked up by the `kubernetes-pods` scrape job, so each replica is scraped by name rather than through a
+        # ClusterIP that load-balances each scrape to a different pod (2026-11-21).
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8880"
+        prometheus.io/path: /metrics
     spec:
       securityContext:
         runAsNonRoot: true

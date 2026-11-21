@@ -90,13 +90,10 @@ data:
       - job_name: 'victorialogs'
         static_configs:
           - targets: ['victorialogs.observability.svc:9428']
-      - job_name: 'loki'
-        static_configs:
-          - targets: ['loki.observability.svc:3100']
-      # The two trace stores' own metrics, for the traces row on the comparison dashboard.
-      - job_name: 'tempo'
-        static_configs:
-          - targets: ['tempo.observability.svc:3200']
+      # `loki` and `tempo` scrape jobs removed 2026-11-21, when both stores were scaled to zero and the Victoria
+      # stack became the only log/trace backend. Leaving them declared is how a cutover turns into a permanent
+      # `TargetDown`: a job whose Service has no endpoints is an alert, not telemetry, and it fires ten minutes
+      # after the change with no hint that the thing it names was deliberately retired.
       - job_name: 'victoria-traces'
         static_configs:
           - targets: ['victoria-traces.observability.svc:10428']
@@ -110,9 +107,10 @@ data:
       # sent. The `prometheus` job is gone rather than repointed - no rule in this estate reads `prometheus_*`
       # (checked: zero references across the three rule ConfigMaps), and repointing it would break again the day
       # the primary Prometheus is finally scaled to zero.
-      - job_name: 'vmalert'
-        static_configs:
-          - targets: ['vmalert.monitoring.svc:8880']
+      # Not a static Service target: the ClusterIP load-balances each scrape to a random replica, so per-replica
+      # state (rule evaluation errors, group durations) would flap between two pods and neither would be complete.
+      # The `kubernetes-pods` job picks vmalert up by annotation - `prometheus.io/scrape` and
+      # `prometheus.io/port` on the Deployment - so both replicas are scraped by name.
       - job_name: 'otel-collector'
         static_configs:
           - targets: ['otel-collector.observability.svc.cluster.local:8889']
