@@ -430,6 +430,13 @@ data:
         access: proxy
         url: http://prometheus.monitoring.svc:9090
         isDefault: true
+      # The second backend, for the live comparison dashboard. Same targets, scraped independently.
+      # Nothing alerts from it; it is an observer until the comparison decides otherwise.
+      - name: VictoriaMetrics
+        uid: victoriametrics
+        type: prometheus
+        access: proxy
+        url: http://victoriametrics.monitoring.svc:8428
 ---
 apiVersion: v1
 kind: Service
