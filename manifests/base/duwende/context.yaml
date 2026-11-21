@@ -1538,11 +1538,25 @@ data:
       local-path volumes). The global `X-WEBAUTH-USER: admin` ingress header was
       removed (nothing consumed it; it was a latent auto-admin foot-gun). Grafana's
       admin password comes from BWS (`grafana-admin-password`) through ESO.
-    - **Hermes** has **read-only** Kubernetes access (`homelab-agent-read`), a repo-scoped
-      `GH_TOKEN`, and full MCP tool trust (kubernetes/media/prometheus/github) plus a
-      shell. Guardrails are the PR-only rule, the read-only k8s role, the Cloudflare
-      read-only sidecar and human approval for destructive work. Treat it as a
-      privileged operator anyway.
+    - **Hermes** is **not read-only any more**, and saying so was the kind of sentence an
+      agent quotes back as proof it cannot act (corrected 2026-11-21, after the agent's own
+      audit caught it): `homelab-agent-read` is read-only *cluster-wide* — get/list/watch,
+      now including `postgresql.cnpg.io` (backup freshness) and `kagent.dev` (agent
+      prompts) — but `pods/exec` is granted **per namespace** in `media`, `books`,
+      `downloads`, `default`, `immich` and, since 2026-11-21, `duwende` (`create` only,
+      deliberately no `scale` there so it cannot resize its own Deployment). Still denied:
+      `list secrets` anywhere, and `pods/exec` outside those namespaces. It also holds a
+      repo-scoped `GH_TOKEN`, a Forgejo token for the bot user **`hermes`** (a write
+      collaborator on `bakuran-gitops`/`bakuran-infra`/`homelab-context`, scopes
+      `write:repository` + `write:issue`), full MCP tool trust
+      (kubernetes/media/prometheus/github), a shell, and — since the same date — egress to
+      `forgejo:3000`, which closed the last gap between "can read the cluster" and "can open
+      the PR itself". Guardrails are the PR-only rule, the namespaced exec grants, the
+      Cloudflare read-only sidecar and human approval for destructive work. Treat it as a
+      privileged operator, because it is one.
+      Prove the grants with
+      `kubectl auth can-i --list -n duwende --as=system:serviceaccount:duwende:kubernetes-mcp`
+      and `kubectl -n duwende get role,rolebinding hermes-agent-debug`.
     
     ## Resolved recently (this round)
     
