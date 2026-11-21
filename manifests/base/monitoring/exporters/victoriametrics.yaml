@@ -32,56 +32,6 @@ roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: victori
 subjects: [{ kind: ServiceAccount, name: victoriametrics, namespace: monitoring }]
 ---
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: victoriametrics-scrape
-  namespace: monitoring
-data:
-  scrape.yml: |
-    global:
-      scrape_interval: 30s
-    scrape_configs:
-      # Same targets Prometheus uses for the comparison to mean anything. The annotated-pod job covers
-      # kube-state-metrics, alertmanager, the exporters and the apps that opt in.
-      - job_name: kubernetes-pods
-        kubernetes_sd_configs:
-          - role: pod
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-            action: keep
-            regex: true
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-            action: replace
-            target_label: __metrics_path__
-            regex: (.+)
-          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-            action: replace
-            regex: ([^:]+)(?::\d+)?;(\d+)
-            replacement: $1:$2
-            target_label: __address__
-      - job_name: node-exporter
-        kubernetes_sd_configs:
-          - role: pod
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_label_app]
-            action: keep
-            regex: node-exporter
-          - source_labels: [__address__]
-            regex: '([^:]+)(?::\d+)?'
-            replacement: '$1:9100'
-            target_label: __address__
-      - job_name: kube-state-metrics
-        static_configs:
-          - targets: ['kube-state-metrics.monitoring.svc:8080']
-      # Both backends' own management metrics - this is what the comparison panels read.
-      - job_name: prometheus-self
-        static_configs:
-          - targets: ['prometheus.monitoring.svc:9090']
-      - job_name: victoriametrics-self
-        static_configs:
-          - targets: ['127.0.0.1:8428']
----
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: victoriametrics
@@ -111,13 +61,18 @@ spec:
         - name: victoriametrics
           image: victoriametrics/victoria-metrics:v1.93.14@sha256:077dd0e569d0ee0e0fbdbf8bb227cd1d222f462051e88024f1eb3aa7fec3e733
           args:
-            - -promscrape.config=/etc/vm/scrape.yml
+            # THE SAME CONFIG PROMETHEUS USES, mounted from its ConfigMap: identical targets and interval are the
+            # only way the memory/series comparison means anything. strictParse=false because Prometheus' config
+            # carries `evaluation_interval` and `rule_files`, which VictoriaMetrics' scraper does not know
+            # (measured in staging: "field evaluation_interval not found in type promscrape.GlobalConfig").
+            - -promscrape.config=/etc/prometheus/prometheus.yml
+            - -promscrape.config.strictParse=false
             - -storageDataPath=/storage
             - -retentionPeriod=30d
             - -httpListenAddr=:8428
           ports: [{ containerPort: 8428, name: http }]
           volumeMounts:
-            - { name: config, mountPath: /etc/vm, readOnly: true }
+            - { name: config, mountPath: /etc/prometheus, readOnly: true }
             - { name: storage, mountPath: /storage }
           resources:
             requests: { cpu: 50m, memory: 128Mi }
@@ -132,7 +87,7 @@ spec:
             periodSeconds: 30
       volumes:
         - name: config
-          configMap: { name: victoriametrics-scrape }
+          configMap: { name: prometheus-config }
         - name: storage
           persistentVolumeClaim: { claimName: victoriametrics }
 ---

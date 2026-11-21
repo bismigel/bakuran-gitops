@@ -81,6 +81,10 @@ data:
           - targets:
               - 'alertmanager-0.alertmanager-headless.monitoring.svc:9093'
               - 'alertmanager-1.alertmanager-headless.monitoring.svc:9093'
+      # The comparison backend's own management metrics, so the dashboard reads both from one datasource.
+      - job_name: 'victoriametrics'
+        static_configs:
+          - targets: ['victoriametrics.monitoring.svc:8428']
       - job_name: 'prometheus'
         static_configs:
           - targets: ['localhost:9090']
