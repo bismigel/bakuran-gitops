@@ -563,6 +563,7 @@ spec:
               # comment eight lines up is about this exact failure on 2026-10-25, and it happened again on
               # 2026-11-13 with the switch dashboard.
               - configMap: { name: grafana-dashboard-switch }
+              - configMap: { name: grafana-dashboard-tsdb-comparison }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
