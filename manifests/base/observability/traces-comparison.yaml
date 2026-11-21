@@ -1,0 +1,153 @@
+# Two trace stores, fed the same spans by the collector beside them, so the third axis of the comparison is
+# measured rather than argued: Tempo (what large estates run) against VictoriaTraces (same team as
+# VictoriaMetrics/VictoriaLogs, claims 3.7x less RAM than Tempo, but 0.x and five months old).
+#
+# Spans are already being produced: Hermes' FastAPI auto-instrumentation sends ~360 spans / 15 min to
+# otel-collector:4317, whose traces pipeline currently exports only to `logging` - i.e. printed and dropped.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: observability
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc: { endpoint: 0.0.0.0:4317 }
+            http: { endpoint: 0.0.0.0:4318 }
+    storage:
+      trace:
+        backend: local
+        local: { path: /var/tempo/traces }
+        wal: { path: /var/tempo/wal }
+    compactor:
+      compaction:
+        # One week, matching what the log stores keep, so the disk comparison is not skewed by retention.
+        block_retention: 168h
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo-data
+  namespace: observability
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources: { requests: { storage: 10Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: observability
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # RWO volume: a RollingUpdate deadlocks (measured in staging)
+  selector:
+    matchLabels: { app: tempo }
+  template:
+    metadata:
+      labels: { app: tempo }
+    spec:
+      securityContext:
+        # Same reason as Loki: the image runs as 10001 and a Longhorn volume arrives owned by root.
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.6.1@sha256:ef4384fce6e8ad22b95b243d8fc165628cda655376fd50e7850536ad89d71d50
+          args: ['-config.file=/etc/tempo/tempo.yaml']
+          ports:
+            - { containerPort: 3200, name: http }
+            - { containerPort: 4317, name: otlp-grpc }
+          volumeMounts:
+            - { name: config, mountPath: /etc/tempo, readOnly: true }
+            - { name: data, mountPath: /var/tempo }
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /ready, port: 3200 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap: { name: tempo-config }
+        - name: data
+          persistentVolumeClaim: { claimName: tempo-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: observability
+spec:
+  selector: { app: tempo }
+  ports:
+    - { port: 3200, name: http }
+    - { port: 4317, name: otlp-grpc }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: victoria-traces-data
+  namespace: observability
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources: { requests: { storage: 10Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: victoria-traces
+  namespace: observability
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: victoria-traces }
+  template:
+    metadata:
+      labels: { app: victoria-traces }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: victoria-traces
+          image: victoriametrics/victoria-traces:v0.13.0@sha256:3018df8f99429d7d3029167ab9f70848bf0a778c31c49dff16c86c7e34759fbd
+          args:
+            - -storageDataPath=/victoria-traces-data
+            - -httpListenAddr=:10428
+          ports: [{ containerPort: 10428, name: http }]
+          volumeMounts:
+            - { name: data, mountPath: /victoria-traces-data }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 768Mi }
+          readinessProbe:
+            httpGet: { path: /health, port: 10428 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: victoria-traces-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: victoria-traces
+  namespace: observability
+spec:
+  selector: { app: victoria-traces }
+  ports: [{ port: 10428, name: http }]
