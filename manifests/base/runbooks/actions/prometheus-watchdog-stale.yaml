@@ -13,11 +13,12 @@ alerts:
 - AlertmanagerNotReceivingAlerts
 detect:
   commands:
-  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=ALERTS{alertname="Watchdog"}' | jq -r '.data.result | length'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=watchdog:evaluation:alive' | jq -r '.data.result | length'
   expect: notempty
 diagnose:
   commands:
-  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=ALERTS{alertname="Watchdog"}' | jq -r '.data.result[] | "\(.metric.instance) state=\(.metric.alertstate)"'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=watchdog:evaluation:alive' | jq -r '.data.result[] | "\(.metric.instance) value=\(.value[1])"'
+  - curl -sG 'http://victoriametrics.monitoring.svc:8428/api/v1/query' --data-urlencode 'query=kube_cronjob_status_last_successful_time{cronjob="evaluation-watchdog"}' | jq -r '.data.result[] | "last_success=\(.value[1])"'
   - kubectl -n monitoring get pods -l 'app in (vmalert,alertmanager)' -o wide
   - kubectl -n monitoring logs -l app=vmalert --tail=20 | grep -iE 'error|rule|evaluat' | tail -10
   - curl -s 'http://alertmanager.monitoring.svc:9093/api/v2/status' | jq -r '.cluster.status'

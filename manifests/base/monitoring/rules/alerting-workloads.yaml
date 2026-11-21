@@ -18,7 +18,10 @@ data:
       - name: workloads
         rules:
           - alert: ContainerHighCPU
-            expr: sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m])) > 0.8
+            # The Forgejo runner is a build host: a buildah job using a core for 20 minutes is the job,
+            # not an incident. It has its own CPU limit now; the node-pressure signal is the node
+            # metrics, not this alert. Keep the rule for long-running app containers.
+            expr: sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{container!="", container!="POD", namespace!="forgejo"}[5m])) > 0.8
             for: 20m
             labels:
               severity: warning
@@ -252,7 +255,7 @@ data:
             expr: |
               label_replace(
                 sum by (node, disk_path) (
-                  longhorn_replica_info * on (volume) group_left longhorn_volume_capacity_bytes
+                  longhorn_replica_info * on (volume) group_left() max by (volume) (longhorn_volume_capacity_bytes)
                 ),
                 "disk_path", "$1", "disk_path", "^(.*)/$"
               )
@@ -318,8 +321,8 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free space claimed"
-              description: "Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (bakuran-infra/docs/REBUILD.md)."
+              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free bytes promised"
+              description: "At the 200% over-provisioning allowance, 1.6 is 80% of the allowance; this fires at 80%, before scheduling is refused. Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (bakuran-infra/docs/REBUILD.md)."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
           # Over-commitment is measured against the *over-provisioning allowance*, not against free
           # bytes, since 2026-11-05 (`storage-over-provisioning-percentage: 200`). At that setting
@@ -332,8 +335,8 @@ data:
             labels:
               severity: critical
             annotations:
-              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} is fully committed ({{ humanizePercentage $value }} of free space claimed)"
-              description: "There is no room for another replica of any size on this disk. Rebuilds targeting it will fail over or stay Pending."
+              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free bytes promised (critical: above 180%; the 200% allowance is not exhausted)"
+              description: "This is the 90%-of-allowance threshold, not literally full. At the 200% setting 1.86 means ~93% of the allowance is promised, so there is still room for one more modest replica but not a full rebuild. Check the actual bytes with LonghornDiskActualSpaceLow; if that is also close, move replicas or expand the disk."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingovercommitted"
           # The invariant the 2026-10-30 cleanup argues for: replicas belong on the
           # dedicated partitions, not on the filesystem holding etcd and the
