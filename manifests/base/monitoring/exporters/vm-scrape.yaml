@@ -42,6 +42,12 @@ data:
           - source_labels: [__meta_kubernetes_pod_container_init]
             action: drop
             regex: "true"
+          # The annotation gives a port number; the SD emits one target per container port. RE2 has
+          # no backreferences, so keep the named metrics ports the estate uses. vmalert's `http`
+          # port is covered by the explicit job below.
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: ".*(metrics|prometheus).*"
           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
             action: replace
             target_label: __metrics_path__
@@ -60,10 +66,11 @@ data:
             regex: true
           # A Service creates one target per port. kube-dns has 53/udp, 53/tcp and 9153/tcp, and all
           # three carried the same labels, so VictoriaMetrics kept only the first and logged a
-          # duplicate-target error for the metrics port. Keep the port the annotation names.
-          - source_labels: [__meta_kubernetes_service_port_number, __meta_kubernetes_service_annotation_prometheus_io_port]
+          # duplicate-target error for the metrics port. kube-dns is the only annotated Service here,
+          # and its metrics port is named `metrics`; keep that and drop the DNS ports.
+          - source_labels: [__meta_kubernetes_service_port_name]
             action: keep
-            regex: (.+);\1
+            regex: metrics
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
             action: replace
             target_label: __metrics_path__
@@ -73,6 +80,22 @@ data:
             regex: ([^:]+)(?::\d+)?;(\d+)
             replacement: $1:$2
             target_label: __address__
+      # vmalert exposes on a port named `http`, which the generic pod keep drops. Scrape each pod by
+      # IP so the two replicas' rule state stays separate (the ClusterIP would load-balance).
+      - job_name: 'vmalert'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_label_app]
+            action: keep
+            regex: monitoring;vmalert
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: http
+          - source_labels: [__meta_kubernetes_pod_ip]
+            action: replace
+            target_label: __address__
+            replacement: $1:8880
       - job_name: 'kube-state-metrics'
         kubernetes_sd_configs:
           - role: endpoints
