@@ -43,6 +43,7 @@ resources:
   - exporters/jellyfin-bitrate.yaml
   - checks/jellyfin-login-watch.yaml
   - exporters/kube-state-metrics.yaml
+  - exporters/victoriametrics.yaml
   - exporters/kube-vip.yaml
   - checks/login-alerts.yaml
   - exporters/longhorn-metrics-policy.yaml
