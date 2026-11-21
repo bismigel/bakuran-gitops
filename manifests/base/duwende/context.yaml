@@ -1538,6 +1538,13 @@ data:
       local-path volumes). The global `X-WEBAUTH-USER: admin` ingress header was
       removed (nothing consumed it; it was a latent auto-admin foot-gun). Grafana's
       admin password comes from BWS (`grafana-admin-password`) through ESO.
+    - **The TSDB comparison dashboard shows cost, not parity.** `grafana.bismigel.dev/d/tsdb-comparison` compares
+      memory/CPU/ingest/series between Prometheus and VictoriaMetrics, which is how the observer was quoted at
+      "84% of the series in 15% of the memory" while it was scraping 14 of 19 jobs and none of cadvisor
+      (2026-11-21, fixed in `bakuran-gitops` #164 — details in `observability.md`). A dashboard that answers "which
+      is cheaper" and not "are they being fed the same thing" will report a cheaper backend every time the observer
+      is broken. Needed: a Mixed-datasource panel running `count(up)` per backend, and the job-set difference,
+      next to the cost rows. Until then, run the check by hand before quoting any number from it.
     - **Hermes** is **not read-only any more**, and saying so was the kind of sentence an
       agent quotes back as proof it cannot act (corrected 2026-11-21, after the agent's own
       audit caught it): `homelab-agent-read` is read-only *cluster-wide* — get/list/watch,
