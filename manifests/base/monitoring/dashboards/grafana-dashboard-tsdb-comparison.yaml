@@ -1,8 +1,8 @@
 # Managed by GitOps. Edit panels here; Grafana reloads them within 30s.
 #
-# LIVE comparison. Both backends scrape the same config (VM mounts prometheus-config), and Prometheus also scrapes
-# VictoriaMetrics' own /metrics, so one datasource plots both. Panel 5 runs count(up) through each datasource so a
-# divergence is visible rather than inferred.
+# LIVE comparison of both signals. Metrics: Prometheus vs VictoriaMetrics (same config by construction).
+# Logs: VictoriaLogs vs Loki, both fed by the same otel-logs collector. All panels read Prometheus, which
+# scrapes both backends' own /metrics - so one datasource, no cross-datasource joins.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,14 +12,14 @@ data:
   tsdb-comparison.json: |
     {
       "uid": "tsdb-comparison",
-      "title": "TSDB comparison \u2014 Prometheus vs VictoriaMetrics (live)",
+      "title": "Observability comparison \u2014 metrics and logs (live)",
       "tags": [
         "homelab",
         "comparison"
       ],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 3,
+      "version": 4,
       "refresh": "30s",
       "time": {
         "from": "now-6h",
@@ -28,17 +28,29 @@ data:
       "panels": [
         {
           "id": 1,
+          "type": "row",
+          "title": "METRICS \u2014 Prometheus vs VictoriaMetrics (same config, same 45 targets)",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "collapsed": false
+        },
+        {
+          "id": 2,
           "type": "timeseries",
-          "title": "Resident memory (MiB) \u2014 lower is better",
+          "title": "Memory (MiB) \u2014 lower is better",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
           "gridPos": {
-            "h": 8,
-            "w": 12,
+            "h": 7,
+            "w": 8,
             "x": 0,
-            "y": 0
+            "y": 1
           },
           "targets": [
             {
@@ -54,61 +66,7 @@ data:
           ]
         },
         {
-          "id": 2,
-          "type": "timeseries",
-          "title": "CPU cores used",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 0
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "legendFormat": "Prometheus",
-              "expr": "rate(process_cpu_seconds_total{job=\"prometheus\"}[5m])"
-            },
-            {
-              "refId": "B",
-              "legendFormat": "VictoriaMetrics",
-              "expr": "rate(process_cpu_seconds_total{job=\"victoriametrics\"}[5m])"
-            }
-          ]
-        },
-        {
           "id": 3,
-          "type": "timeseries",
-          "title": "Ingest rate (samples or rows per second)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 8
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "legendFormat": "Prometheus appended",
-              "expr": "sum(rate(prometheus_tsdb_head_samples_appended_total{job=\"prometheus\"}[5m]))"
-            },
-            {
-              "refId": "B",
-              "legendFormat": "VictoriaMetrics ingested",
-              "expr": "sum(rate(vm_rows_inserted_total{job=\"victoriametrics\",type=\"prometheus\"}[5m]))"
-            }
-          ]
-        },
-        {
-          "id": 4,
           "type": "timeseries",
           "title": "Series stored",
           "datasource": {
@@ -116,10 +74,10 @@ data:
             "uid": "prometheus"
           },
           "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 8
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 1
           },
           "targets": [
             {
@@ -129,59 +87,144 @@ data:
             },
             {
               "refId": "B",
-              "legendFormat": "VictoriaMetrics (rows inserted, cumulative)",
-              "expr": "sum(vm_rows_inserted_total{job=\"victoriametrics\"})"
+              "legendFormat": "VM active series (tsid cache)",
+              "expr": "vm_cache_entries{job=\"victoriametrics\",type=\"storage/tsid\"}"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "Ingest rate (samples or rows /s)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 1
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Prometheus appended",
+              "expr": "sum(rate(prometheus_tsdb_head_samples_appended_total{job=\"prometheus\"}[5m]))"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VM ingested",
+              "expr": "sum(rate(vm_rows_added_to_storage_total{job=\"victoriametrics\"}[5m]))"
             }
           ]
         },
         {
           "id": 5,
+          "type": "row",
+          "title": "LOGS \u2014 VictoriaLogs vs Loki (one collector, two sinks, identical input)",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 8
+          },
+          "collapsed": false
+        },
+        {
+          "id": 6,
           "type": "timeseries",
-          "title": "Same PromQL through each backend \u2014 the counts should match",
+          "title": "Memory (MiB)",
           "datasource": {
-            "type": "datasource",
-            "uid": "-- Mixed --"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "gridPos": {
-            "h": 8,
-            "w": 12,
+            "h": 7,
+            "w": 8,
             "x": 0,
-            "y": 16
+            "y": 9
           },
           "targets": [
             {
               "refId": "A",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "legendFormat": "Prometheus",
-              "expr": "count(up)"
+              "legendFormat": "VictoriaLogs",
+              "expr": "process_resident_memory_bytes{job=\"victorialogs\"} / 1048576"
             },
             {
               "refId": "B",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "victoriametrics"
-              },
-              "legendFormat": "VictoriaMetrics",
-              "expr": "count(up)"
+              "legendFormat": "Loki",
+              "expr": "process_resident_memory_bytes{job=\"loki\"} / 1048576"
             }
           ]
         },
         {
-          "id": 6,
-          "type": "text",
-          "title": "How to read this",
+          "id": 7,
+          "type": "timeseries",
+          "title": "Ingest rate (rows/s vs lines/s)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 16
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 9
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "VictoriaLogs rows/s",
+              "expr": "sum(rate(vl_rows_ingested_total{job=\"victorialogs\"}[5m]))"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "Loki lines/s",
+              "expr": "sum(rate(loki_distributor_lines_received_total{job=\"loki\"}[5m]))"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Total stored (cumulative \u2014 Loki started 2026-11-21, VictoriaLogs days earlier)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 9
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "VictoriaLogs rows",
+              "expr": "sum(vl_rows_ingested_total{job=\"victorialogs\"})"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "Loki lines",
+              "expr": "sum(loki_distributor_lines_received_total{job=\"loki\"})"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "text",
+          "title": "What this shows, and what it does not",
+          "gridPos": {
+            "h": 12,
+            "w": 24,
+            "x": 0,
+            "y": 17
           },
           "options": {
             "mode": "markdown",
-            "content": "Both backends scrape the **same config** (VictoriaMetrics mounts Prometheus' own `prometheus-config`), so the series and memory numbers compare the same work.\n\n**Panel 1 is the decision.** Staging A/B (15 000 avalanche series, steady state): VictoriaMetrics **164 MiB** vs Prometheus **360 MiB**, disk **118 MB vs 499 MB**, latency a wash (26\u201380 ms).\n\n**Panel 5 is the correctness check:** the same `count(up)` through each must return the same number. Divergence means one is not seeing the same targets.\n\nVictoriaMetrics is an **observer**: nothing alerts from it. Deleting `manifests/base/monitoring/exporters/victoriametrics.yaml` removes it."
+            "content": "### Metrics \u2014 decided\n\nMeasured 2026-11-21, same `prometheus-config`, 45 targets, 30 s: **VictoriaMetrics holds ~84% of the series in ~15% of the memory** (154 MiB vs 1049 MiB), and answers the same PromQL at least as fast (7\u201318 ms vs 17\u201322 ms). Prometheus stays the *interface* \u2014 rules, exporters, PromQL \u2014 VictoriaMetrics is the store.\n\n### Logs \u2014 not decided, and the graph says why\n\nLoki was added on 2026-11-21 and starts **empty**, so the cumulative and disk panels are not comparable yet. What *is* comparable already: **memory is close** (Loki ~190 MiB vs VictoriaLogs ~110 MiB \u2014 nowhere near the 10\u00d7 gap metrics showed) and **query latency is the same order** (~130\u2013170 ms vs ~150\u2013320 ms for a namespace scan of 200 entries).\n\nDeployment effort, which is the other half of the answer: VictoriaLogs took **3 objects and 4 flags**, zero config file. Loki took **4 objects and 31 lines of `loki.yml`**, and needed three fixes to accept a single log line: the contrib collector removed its `loki` exporter, Loki 2.9 has no OTLP endpoint (hence 3.2.1), and the Longhorn volume needs `fsGroup: 10001`.\n\n### What to conclude\n\nMetrics: replace. Logs: **keep the incumbent unless a week of equal volume shows an advantage** \u2014 the incumbent's whole justification is fewer moving parts, and Loki has not yet earned replacing it.\n\nRaw numbers and the staging run: `homelab-context/docs/reference/observability.md`."
           }
         }
       ]

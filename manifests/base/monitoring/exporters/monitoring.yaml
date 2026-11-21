@@ -85,6 +85,14 @@ data:
       - job_name: 'victoriametrics'
         static_configs:
           - targets: ['victoriametrics.monitoring.svc:8428']
+      # The two log stores' own metrics, so the comparison panels read from one datasource. Both are observers:
+      # VictoriaLogs is the incumbent, Loki is the challenger added 2026-11-21.
+      - job_name: 'victorialogs'
+        static_configs:
+          - targets: ['victorialogs.observability.svc:9428']
+      - job_name: 'loki'
+        static_configs:
+          - targets: ['loki.observability.svc:3100']
       - job_name: 'prometheus'
         static_configs:
           - targets: ['localhost:9090']
