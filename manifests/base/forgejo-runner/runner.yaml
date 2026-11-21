@@ -214,9 +214,14 @@ spec:
           emptyDir: {}
         # Buildah's storage on a real filesystem rather than the pod's overlay, because it must mount overlays inside
         # it. 5 Gi is ~8x the largest build measured here (610 MB with the vfs driver, which copies layers).
+        # emptyDir, not the local-path PVC. This is the trap I walked into one commit ago: a single RWO
+        # volume bound to one node, combined with a hard anti-affinity that requires the replicas to land on
+        # *different* nodes, is unsatisfiable - the new pod sat Pending with no node that could host it.
+        # Buildah's scratch is transient by nature (`--storage-driver vfs` copies layers per build); losing
+        # it on restart means re-pulling base images on the next build, which is cheaper than a CI that
+        # cannot schedule.
         - name: build-scratch
-          persistentVolumeClaim:
-            claimName: forgejo-build-scratch
+          emptyDir: {}
 ---
 # Scratch for container builds. local-path on patola, not Longhorn: transient, node-local work, and a replicated volume
 # would be three copies of a build cache - and three runners now share this one, so buildah stays on one node even
@@ -227,6 +232,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: forgejo-build-scratch
   namespace: forgejo
+  annotations:
+    # Unmounted since buildah's scratch became an emptyDir (2026-11-21) - see the comment on the volume.
+    # Kept declared, never pruned: a manifest that stops declaring a bound PVC is how it disappears
+    # (ADR 0002). Release by name once nothing wants it.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path
