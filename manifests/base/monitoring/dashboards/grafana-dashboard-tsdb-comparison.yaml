@@ -213,18 +213,111 @@ data:
           ]
         },
         {
-          "id": 9,
-          "type": "text",
-          "title": "What this shows, and what it does not",
+          "id": 10,
+          "type": "row",
+          "title": "TRACES \u2014 Tempo vs VictoriaTraces (one collector, two sinks, identical spans)",
           "gridPos": {
-            "h": 12,
+            "h": 1,
             "w": 24,
             "x": 0,
             "y": 17
           },
+          "collapsed": false
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Memory (MiB)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 18
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Tempo",
+              "expr": "process_resident_memory_bytes{job=\"tempo\"} / 1048576"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VictoriaTraces",
+              "expr": "process_resident_memory_bytes{job=\"victoria-traces\"} / 1048576"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Spans per second (should be identical)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 18
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Tempo received",
+              "expr": "sum(rate(tempo_distributor_spans_received_total{job=\"tempo\"}[5m]))"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VictoriaTraces ingested",
+              "expr": "sum(rate(vt_rows_ingested_total{job=\"victoria-traces\",type=\"opentelemetry_traces_otlphttp_protobuf\"}[5m]))"
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "Total spans stored (cumulative \u2014 both started the same minute)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 18
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "legendFormat": "Tempo",
+              "expr": "sum(tempo_distributor_spans_received_total{job=\"tempo\"})"
+            },
+            {
+              "refId": "B",
+              "legendFormat": "VictoriaTraces",
+              "expr": "sum(vt_rows_ingested_total{job=\"victoria-traces\",type=\"opentelemetry_traces_otlphttp_protobuf\"})"
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "type": "text",
+          "title": "What this shows, and what it does not",
+          "gridPos": {
+            "h": 13,
+            "w": 24,
+            "x": 0,
+            "y": 25
+          },
           "options": {
             "mode": "markdown",
-            "content": "### Metrics \u2014 decided\n\nMeasured 2026-11-21, same `prometheus-config`, 45 targets, 30 s: **VictoriaMetrics holds ~84% of the series in ~15% of the memory** (154 MiB vs 1049 MiB), and answers the same PromQL at least as fast (7\u201318 ms vs 17\u201322 ms). Prometheus stays the *interface* \u2014 rules, exporters, PromQL \u2014 VictoriaMetrics is the store.\n\n### Logs \u2014 not decided, and the graph says why\n\nLoki was added on 2026-11-21 and starts **empty**, so the cumulative and disk panels are not comparable yet. What *is* comparable already: **memory is close** (Loki ~190 MiB vs VictoriaLogs ~110 MiB \u2014 nowhere near the 10\u00d7 gap metrics showed) and **query latency is the same order** (~130\u2013170 ms vs ~150\u2013320 ms for a namespace scan of 200 entries).\n\nDeployment effort, which is the other half of the answer: VictoriaLogs took **3 objects and 4 flags**, zero config file. Loki took **4 objects and 31 lines of `loki.yml`**, and needed three fixes to accept a single log line: the contrib collector removed its `loki` exporter, Loki 2.9 has no OTLP endpoint (hence 3.2.1), and the Longhorn volume needs `fsGroup: 10001`.\n\n### What to conclude\n\nMetrics: replace. Logs: **keep the incumbent unless a week of equal volume shows an advantage** \u2014 the incumbent's whole justification is fewer moving parts, and Loki has not yet earned replacing it.\n\nRaw numbers and the staging run: `homelab-context/docs/reference/observability.md`."
+            "content": "### Metrics \u2014 decided\n\nSame `prometheus-config`, 45 targets, 30 s: VictoriaMetrics holds **~84% of the series in ~15% of the memory** (154 vs 1049 MiB) at equal-or-better query latency (7\u201318 ms vs 17\u201322 ms). Replace the store, keep Prometheus' interface (PromQL, rules, exporters).\n\n### Logs \u2014 incumbent holds, for deployment cost rather than memory\n\nMemory is close (**~197 MiB Loki vs ~126 MiB VictoriaLogs**, nowhere near the 10\u00d7 gap metrics showed) and query latency is the same order. The difference is effort: VictoriaLogs is **3 objects + 4 flags**, Loki **4 objects + 31 lines of `loki.yml`** and needed three fixes to accept one log line. Its cumulative/disk panels are not comparable yet \u2014 Loki started 2026-11-21.\n\n### Traces \u2014 new, and both fed by the same spans\n\nHermes' FastAPI auto-instrumentation sends spans to the collector, which now exports to **both** stores. First measurement, identical input: **Tempo 77 MiB vs VictoriaTraces 27 MiB** (2.9\u00d7), 4 objects + 23 lines of YAML against 3 objects + 2 flags. Both reported exactly **5 625 spans**, which is the symmetry check.\n\nCaveat that belongs on the page: VictoriaTraces is **0.13**, five months old, and its README warns that on-disk formats and APIs may change. Leaner is not the same as safe for a fleet.\n\n### The gap in all three\n\nThis proves the *plumbing*, not the *experience*. A Datadog user misses clicking a slow span and seeing its logs; that needs one business service instrumented end to end and Panels linking trace\u2192log. Not measured yet.\n\nRaw numbers and the staging run: `homelab-context/docs/reference/observability.md`."
           }
         }
       ]
