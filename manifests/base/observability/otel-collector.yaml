@@ -29,14 +29,9 @@ data:
         verbosity: detailed
       prometheus:
         endpoint: "0.0.0.0:8889"
-      # The two trace stores, for the same reason the log pipeline has two sinks: identical spans, so memory,
-      # disk and query latency compare like for like. `logging` stays so a missing backend is visible in the
-      # collector's own log rather than silently dropped.
-      otlp/tempo:
-        endpoint: tempo.observability.svc:4317
-        tls: { insecure: true }
-        retry_on_failure: { enabled: true }
-        sending_queue: { enabled: true, queue_size: 5000 }
+      # ONE trace store, decision taken 2026-11-21 (owner): the Victoria stack owns the estate's telemetry, so
+      # the comparison pair is over and Tempo's exporter is gone. `logging` stays so a missing backend is visible
+      # in the collector's own log rather than silently dropped.
       otlphttp/vtraces:
         traces_endpoint: http://victoria-traces.observability.svc:10428/insert/opentelemetry/v1/traces
         compression: gzip
@@ -48,7 +43,7 @@ data:
           receivers: [otlp]
           processors: [batch]
           # Hermes' auto-instrumented spans stop being a log line here and start being data.
-          exporters: [logging, otlp/tempo, otlphttp/vtraces]
+          exporters: [logging, otlphttp/vtraces]
         metrics:
           receivers: [otlp]
           processors: [batch]

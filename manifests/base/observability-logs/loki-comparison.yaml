@@ -61,7 +61,12 @@ metadata:
   name: loki
   namespace: observability
 spec:
-  replicas: 1
+  # SCALED TO ZERO 2026-11-21, and this file is now a tombstone: its own header said "if the numbers say
+  # VictoriaLogs, this file is deleted and nothing else changes" - the decision came from the owner rather than
+  # the numbers, but it is the same decision. Kept rather than deleted because the file also declares
+  # `loki-data`, and deleting a manifest is how a PVC gets pruned (ADR 0002). Nothing writes here any more: the
+  # collector's `otlphttp/loki` exporter is gone in the same change.
+  replicas: 0
   # RWO volume: a RollingUpdate deadlocks with both pods Pending (measured in staging on 2026-11-20).
   strategy: { type: Recreate }
   selector:

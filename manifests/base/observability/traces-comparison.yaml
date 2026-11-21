@@ -45,7 +45,11 @@ metadata:
   name: tempo
   namespace: observability
 spec:
-  replicas: 1
+  # SCALED TO ZERO 2026-11-21: the owner decided the Victoria stack owns the estate's telemetry, so the
+  # comparison is closed and the collector no longer ships traces here. Kept, not deleted, because deleting this
+  # file would also prune `tempo-data` - and a PVC is not removed on a schedule decision (ADR 0002). The volume
+  # stays until someone asks for it back or asks for it gone, by name.
+  replicas: 0
   strategy: { type: Recreate }   # RWO volume: a RollingUpdate deadlocks (measured in staging)
   selector:
     matchLabels: { app: tempo }
