@@ -1,0 +1,32 @@
+# A Service so HolmesGPT has an address, not just a port.
+#
+# Until 2026-11-21 the Deployment declared `containerPort: 5050` and nothing could
+# reach it by name: every `kubectl port-forward` had to target the pod
+# (`deploy/holmesgpt`), and any caller in the cluster would have had to hard-code a
+# pod IP or be re-pointed after every rollout. Nothing consumes it yet - that is the
+# point of adding it now, before the first caller, so the name exists and the next
+# story wires to `holmesgpt.ops-advisor.svc:5050` instead of inventing a second
+# convention.
+#
+# ClusterIP only: this is an investigator (ADR 0012), it reads the cluster and
+# answers questions, and nothing about that belongs on the LAN or at the edge. There
+# is no Ingress and none should be added without a decision recorded first - the
+# namespace has no NetworkPolicy at all, so a Service is reachable by every pod in
+# the cluster the moment it exists, which is exactly the blast radius to keep in mind
+# when someone asks for ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: holmesgpt
+  namespace: ops-advisor
+  labels:
+    app.kubernetes.io/name: holmesgpt
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: holmesgpt
+  ports:
+    - name: http
+      port: 5050
+      targetPort: http
+      protocol: TCP
