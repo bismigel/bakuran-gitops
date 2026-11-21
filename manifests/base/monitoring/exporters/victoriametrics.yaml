@@ -56,7 +56,11 @@ metadata:
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: longhorn
-  resources: { requests: { storage: 10Gi } }
+  # 20Gi, not 10 (2026-11-21): this stops being an observer and becomes the estate's metrics store at
+  # 30-day retention. Longhorn enforces the size (unlike local-path, where Prometheus' 8Gi request holds 66 GiB
+  # of data and nothing complains), so an under-sized volume here fails the write instead of the promise.
+  # `allowVolumeExpansion: true` on the class, so raising it again is one line.
+  resources: { requests: { storage: 20Gi } }
 ---
 apiVersion: apps/v1
 kind: Deployment

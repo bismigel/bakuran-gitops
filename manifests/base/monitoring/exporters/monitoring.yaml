@@ -443,19 +443,21 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
-      - name: Prometheus
-        uid: prometheus
-        type: prometheus
-        access: proxy
-        url: http://prometheus.monitoring.svc:9090
-        isDefault: true
-      # The second backend, for the live comparison dashboard. Same targets, scraped independently.
-      # Nothing alerts from it; it is an observer until the comparison decides otherwise.
+      # VictoriaMetrics is the default read path from 2026-11-21: the estate's metrics belong to the Victoria
+      # stack, and dashboards should read the store that will still be here in a year rather than the process
+      # that is being retired. Both URLs stay, because during the cutover Prometheus is still what scrapes and
+      # is the thing to compare against when a graph looks wrong.
       - name: VictoriaMetrics
         uid: victoriametrics
         type: prometheus
         access: proxy
         url: http://victoriametrics.monitoring.svc:8428
+        isDefault: true
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc:9090
 ---
 apiVersion: v1
 kind: Service

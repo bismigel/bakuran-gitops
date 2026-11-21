@@ -1,0 +1,91 @@
+# vmalert: the rules, evaluated against VictoriaMetrics instead of Prometheus.
+#
+# WHY, in one sentence: the estate decided VictoriaMetrics owns metrics (2026-11-21), and a
+# store decides nothing about paging - the pager is vmalert reading the same three rule
+# ConfigMaps Prometheus reads, through the same PromQL, into the same Alertmanager. Without
+# this, "VictoriaMetrics is the metrics backend" would be a statement about history while
+# every alert still depended on the process being retired.
+#
+# TWO replicas, same trick as `prometheus-alerting`: no `external_labels`, so an alert
+# evaluated by both instances has the same label set, the same Alertmanager fingerprint, and
+# the shared notification log collapses the pair into one message. Adding a per-replica label
+# here would double-page. They are anti-affine, because two identical replicas on one node is
+# one replica.
+#
+# The rules are NOT copied. All three ConfigMaps are the same objects Prometheus mounts, so a
+# rule edit reaches both evaluators in one apply - and a rule that only one of them can parse
+# would be a difference in alerting, which is the thing this page exists to prevent.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmalert
+  namespace: monitoring
+  labels: { app: vmalert }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: vmalert } }
+  template:
+    metadata:
+      labels: { app: vmalert }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: { type: RuntimeDefault }
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector: { matchLabels: { app: vmalert } }
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: vmalert
+          image: victoriametrics/vmalert:v1.93.14@sha256:5cfa7ac31f48d9679d9987adb0f2e920aaf80c34f498585a8cc28c051eaa51d5
+          args:
+            - -rule=/etc/rules/*.yml
+            # The store under evaluation.
+            - -datasource.url=http://victoriametrics.monitoring.svc:8428
+            # Prometheus wrote `ALERTS`/`ALERTS_FOR_STATE` into its own TSDB; vmalert has to be
+            # told where to put them, or every rule that reads alert state (`ALERTS` in the
+            # watchdog, the SLO burn-rate rules) silently sees nothing.
+            - -remoteRead.url=http://victoriametrics.monitoring.svc:8428
+            - -remoteWrite.url=http://victoriametrics.monitoring.svc:8428
+            # Both Alertmanager replicas by stable name, for the same reason Prometheus names
+            # them: with one ClusterIP target kube-proxy picks a pod and the other replica
+            # never learns about the alert.
+            - -notifier.url=http://alertmanager-0.alertmanager-headless.monitoring.svc:9093
+            - -notifier.url=http://alertmanager-1.alertmanager-headless.monitoring.svc:9093
+            - -evaluationInterval=15s
+            - -httpListenAddr=:8880
+            - -external.url=https://grafana.bismigel.dev
+          ports:
+            - { name: http, containerPort: 8880 }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 25m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: rules, mountPath: /etc/rules, readOnly: true }
+      volumes:
+        - name: rules
+          projected:
+            sources:
+              - configMap: { name: prometheus-rules }
+              - configMap: { name: prometheus-rules-workloads }
+              - configMap: { name: prometheus-rules-network-devices }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmalert
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  selector: { app: vmalert }
+  ports:
+    - { name: http, port: 8880, targetPort: http }
