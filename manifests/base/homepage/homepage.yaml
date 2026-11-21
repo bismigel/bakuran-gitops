@@ -40,10 +40,6 @@ data:
             href: https://grafana.bismigel.dev
             description: Dashboards (incl. Homelab Power)
             icon: grafana
-        - Prometheus:
-            href: https://prometheus.bismigel.dev
-            description: Metrics and alerts
-            icon: prometheus
         - Longhorn:
             href: https://longhorn.bismigel.dev
             description: Storage

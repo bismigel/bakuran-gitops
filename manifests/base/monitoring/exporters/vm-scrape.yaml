@@ -35,6 +35,13 @@ data:
           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
             action: keep
             regex: true
+          # Pod annotations are on the pod, not the container, so every init container on a pod with
+          # `prometheus.io/scrape` inherited it too. Cilium's init containers all resolved to the same
+          # instance/job labels, and VictoriaMetrics logged "skipping duplicate scrape target" every
+          # 15 seconds. Init containers do not serve the metrics port.
+          - source_labels: [__meta_kubernetes_pod_container_init]
+            action: drop
+            regex: "true"
           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
             action: replace
             target_label: __metrics_path__
@@ -51,6 +58,12 @@ data:
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
             action: keep
             regex: true
+          # A Service creates one target per port. kube-dns has 53/udp, 53/tcp and 9153/tcp, and all
+          # three carried the same labels, so VictoriaMetrics kept only the first and logged a
+          # duplicate-target error for the metrics port. Keep the port the annotation names.
+          - source_labels: [__meta_kubernetes_service_port_number, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: keep
+            regex: (.+);\1
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
             action: replace
             target_label: __metrics_path__

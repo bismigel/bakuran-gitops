@@ -83,7 +83,7 @@ spec:
                   # admin class: the LAN-only UI surfaces (Access in front of them externally)
                   for h in argocd.bismigel.dev sonarr.bismigel.dev radarr.bismigel.dev \
                            prowlarr.bismigel.dev bazarr.bismigel.dev qbittorrent.bismigel.dev \
-                           sabnzbd.bismigel.dev grafana.bismigel.dev prometheus.bismigel.dev \
+                           sabnzbd.bismigel.dev grafana.bismigel.dev \
                            longhorn.bismigel.dev homepage.bismigel.dev agent.bismigel.dev \
                            lazylibrarian.bismigel.dev runbook.bismigel.dev; do
                     check ingress-nginx-admin-controller.ingress-nginx-admin.svc.cluster.local "$h" admin

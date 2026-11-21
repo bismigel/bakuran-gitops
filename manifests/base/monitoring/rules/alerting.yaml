@@ -152,10 +152,11 @@ data:
           # "succeeds" leaves no other trace, so surface it even when nothing broke.
           - alert: WireGuardRestarted
             expr: increase(wireguard_unit_restarts[15m]) > 0
+            for: 1m
             labels: { severity: warning }
             annotations:
-              summary: "wg-quick-{{ $labels.iface }} restarted on {{ $labels.instance }}"
-              description: "A wg-quick restart has taken this node off the network before (NETWORK.md 7.1). Confirm egress and LAN reachability."
+              summary: "wireguard on {{ $labels.instance }} restarted"
+              description: "The WireGuard unit restarted. A restart has taken a node off the network before (NETWORK.md 7.1). Confirm egress and LAN reachability."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardrestarted"
           - alert: WireGuardMetricsMissing
             expr: absent(wireguard_latest_handshake_seconds)

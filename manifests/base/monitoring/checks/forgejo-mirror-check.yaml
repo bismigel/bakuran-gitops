@@ -77,8 +77,12 @@ spec:
                     }
                     
                     # Every repository this instance mirrors, in either direction.
+                    # EasyShortlist is private and deliberately has no GitHub mirror (its CLAUDE.md:
+                    # "Forgejo ... no GitHub mirror"). Counting it as stale made this check fail and kept
+                    # the whole monitoring Application Degraded. Check only repos that have a mirror.
                     repos=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/search?limit=100" \
-                      | tr ',' '\n' | grep -o '"full_name":"[^"]*/[^"]*"' | cut -d'"' -f4 | cut -d/ -f2 | sort -u)
+                      | tr ',' '\n' | grep -o '"full_name":"[^"]*/[^"]*"' | cut -d'"' -f4 | cut -d/ -f2 | sort -u \
+                      | grep -vx easyshortlist)
                     
                     if [ -z "$repos" ]; then
                       echo "FAIL: no repositories returned by the API"
@@ -136,6 +140,7 @@ spec:
                 runAsNonRoot: true
                 runAsUser: 65534
                 capabilities: { drop: ["ALL"] }
+                seccompProfile: { type: RuntimeDefault }
           volumes:
             - name: token
               secret:

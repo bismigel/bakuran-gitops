@@ -64,11 +64,15 @@ metadata:
   namespace: monitoring
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
-  # 20Gi, not 10 (2026-11-21): this stops being an observer and becomes the estate's metrics store at
-  # 30-day retention. Longhorn enforces the size (unlike local-path, where Prometheus' 8Gi request holds 66 GiB
-  # of data and nothing complains), so an under-sized volume here fails the write instead of the promise.
-  # `allowVolumeExpansion: true` on the class, so raising it again is one line.
+  # local-path, not longhorn (2026-11-21, after the migration): the monitor must not live on the
+  # storage it reports on. The 20Gi Longhorn volume pushed patola:/mnt/data to 186% of its scheduling
+  # allowance, and the LonghornDiskSchedulingOverCommitted alert fired for the metrics store itself.
+  # This follows the old Prometheus decision: local-path trades history on node loss for independence
+  # from Longhorn. The volume is pinned to sitaw-amd by the Deployment's nodeSelector below.
+  #
+  # 20Gi is measured, not guessed: full ingest was ~43 MB/h, so 14 days projects to ~14 GiB. local-path
+  # does not enforce the request the way Longhorn does; the retention and the disk-fill alerts are the guard.
+  storageClassName: local-path
   resources: { requests: { storage: 20Gi } }
 ---
 apiVersion: apps/v1
@@ -87,6 +91,11 @@ spec:
       labels: { app: victoriametrics }
     spec:
       serviceAccountName: victoriametrics
+      # local-path is a node-local volume. The metrics store belongs on the platform node next to the
+      # old Prometheus archive, not on patola, whose image filesystem is already 85% full and whose
+      # Longhorn disk is the one the scheduling alert names.
+      nodeSelector:
+        kubernetes.io/hostname: sitaw-amd
       containers:
         - name: victoriametrics
           image: victoriametrics/victoria-metrics:v1.93.14@sha256:077dd0e569d0ee0e0fbdbf8bb227cd1d222f462051e88024f1eb3aa7fec3e733
@@ -101,11 +110,10 @@ spec:
             # The symptom is invisible: `count(up)` simply differs between the two backends.
             - -promscrape.configCheckInterval=30s
             - -storageDataPath=/storage
-            # 14d, not 30d, and the number comes from the disk: this volume took 170 MB in the first hour of
-            # full ingest (~43 MB/h), so 30 days projects to ~31 GB against a 20Gi Longhorn volume. Longhorn
-            # enforces the size, and there is no room to schedule a 40Gi volume today - the
-            # LonghornDiskSchedulingOverCommitted alert is firing for exactly that reason. Declaring a retention
-            # the disk cannot hold is how a metrics store starts refusing writes at 03:00. Raise both together.
+            # 14d, not 30d, and the number comes from measured ingest: ~43 MB/h, so 14 days projects to
+            # ~14 GiB against the 20Gi local-path request. The old 30-day estimate (~31 GB) is what forced
+            # the move off Longhorn. local-path does not enforce the request; the DiskFillingUp and
+            # RootFilesystemDaysToFull alerts are the guard now. Raise retention and storage together.
             - -retentionPeriod=14d
             - -httpListenAddr=:8428
           ports: [{ containerPort: 8428, name: http }]
@@ -113,12 +121,21 @@ spec:
             - { name: config, mountPath: /etc/prometheus, readOnly: true }
             - { name: storage, mountPath: /storage }
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 768Mi }
+            # 768Mi was an observer's limit. The production store OOMKilled at 680Mi on 2026-11-21, and
+            # every vmalert rule failed for ~5 minutes while the store restarted. 2Gi is the measured
+            # working set with room for the 14d retention and the full scrape set.
+            requests: { cpu: 50m, memory: 512Mi }
+            limits: { memory: 2Gi }
           readinessProbe:
             httpGet: { path: /health, port: 8428 }
             initialDelaySeconds: 5
             periodSeconds: 10
+          # A new TSDB on local-path has to scan/replay before it answers; a liveness probe alone can
+          # kill it during that window. This gives startup 150s, then liveness takes over.
+          startupProbe:
+            httpGet: { path: /health, port: 8428 }
+            failureThreshold: 30
+            periodSeconds: 5
           livenessProbe:
             httpGet: { path: /health, port: 8428 }
             initialDelaySeconds: 30
