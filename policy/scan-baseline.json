@@ -57,27 +57,14 @@
       "CVE-2026-91729",
       "GHSA-6q48-6c7w-9gw2"
     ],
-    "ghcr.io/immich-app/immich-machine-learning:v3.3.4": [
-      "CVE-2026-112393",
-      "CVE-2026-112398",
-      "CVE-2026-112403",
-      "CVE-2026-112900",
-      "CVE-2026-13221",
-      "CVE-2026-42496",
+    "ghcr.io/immich-app/immich-machine-learning:v3.4.2": [
       "CVE-2026-63374",
-      "CVE-2026-8376",
-      "CVE-2026-96639",
       "GHSA-6q48-6c7w-9gw2"
     ],
-    "ghcr.io/immich-app/immich-server:v3.3.4": [
-      "CVE-2026-106445",
-      "CVE-2026-106446",
-      "CVE-2026-111497",
+    "ghcr.io/immich-app/immich-server:v3.4.2": [
       "CVE-2026-42216",
       "CVE-2026-42217",
-      "CVE-2026-59873",
-      "CVE-2026-6653",
-      "CVE-2026-90711"
+      "CVE-2026-6653"
     ],
     "ghcr.io/karakeep-app/karakeep-chrome:release": [
       "CVE-2026-6653"

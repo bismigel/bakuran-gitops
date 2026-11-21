@@ -88,7 +88,7 @@ spec:
                   - { key: kubernetes.io/hostname, operator: In, values: ["sitaw-amd"] }
       containers:
         - name: machine-learning
-          image: ghcr.io/immich-app/immich-machine-learning:v3.3.4@sha256:1ab8674e7cec41009abb3812de62a16cc1917e73d486233a5471b048d26fc14d
+          image: ghcr.io/immich-app/immich-machine-learning:v3.4.2@sha256:739405742a79bd7447227c553bb62ed5491aa36acf00bc667af7f9c93b6fae91
           env:
             - name: TRANSFORMERS_CACHE
               value: /cache
@@ -172,7 +172,19 @@ spec:
           effect: NoSchedule
       containers:
         - name: immich-server
-          image: ghcr.io/immich-app/immich-server:v3.3.4@sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f
+          # v3.3.4 -> v3.4.2 (2026-11-21). Patch-level by Immich's own numbering and the release notes
+          # say so: web/iOS fixes (duplicate combobox keys, slideshow controls, filename alignment,
+          # integrity-report downloads, hashed CSP styles) plus a FUTO Backups version bump. **No
+          # database or extension change is mentioned**, which is what decides whether `immich-pg`
+          # moves too - it does not, and it must not move by accident: that image is our own build
+          # pinned to vector 0.8.1 + vchord 0.4.3, the pairing Immich wrote its indexes with (ADR 0010).
+          #
+          # The upgrade is verified by the app, not by the tag: the migration runs on first boot, so
+          # after the rollout the check is `immich-server` logs ("Migrations", no error) and the asset
+          # count against the pre-upgrade number.
+          #
+          # Digests read from the registry header for the tags (ADR 0007), not typed.
+          image: ghcr.io/immich-app/immich-server:v3.4.2@sha256:fc880c1bf665b4aab1e74c15e56ab871225989cd546536e6b77e771869af06bd
           env:
             - name: DB_HOSTNAME
               # The CNPG `-rw` service (story 8.2). Promotion is a DNS-level change the app never sees, so failover
