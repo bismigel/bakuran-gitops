@@ -39,9 +39,15 @@ rules:
   - apiGroups: ["longhorn.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
+  # backup freshness and the agent's own definition were both unreadable until
+  # 2026-11-21, and both are pure reads: `backups.postgresql.cnpg.io` answers "is the
+  # Immich database backed up, and when", and `agents.kagent.dev` holds the prompt a
+  # kagent runs with. Neither is a Secret; naming the groups is how this list stays a
+  # statement about what the agent may *see*.
   - apiGroups:
       [external-secrets.io, cert-manager.io, monitoring.coreos.com,
-       opentelemetry.io, coordination.k8s.io, apiregistration.k8s.io]
+       opentelemetry.io, coordination.k8s.io, apiregistration.k8s.io,
+       postgresql.cnpg.io, kagent.dev]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
 ---
