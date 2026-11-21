@@ -124,7 +124,11 @@ spec:
             # 768Mi was an observer's limit. The production store OOMKilled at 680Mi on 2026-11-21, and
             # every vmalert rule failed for ~5 minutes while the store restarted. 2Gi is the measured
             # working set with room for the 14d retention and the full scrape set.
-            requests: { cpu: 50m, memory: 512Mi }
+            # The store, not an observer (2026-11-21). 50m was inherited from the comparison instance and is
+            # the reason a plain 6h panel took 5.3s while its node was busy: a 50m request buys no CPU under
+            # contention, and the scheduler has no reason to protect it. Measured while serving dashboards:
+            # ~350-600m of CPU and ~600Mi resident.
+            requests: { cpu: 500m, memory: 768Mi }
             limits: { memory: 2Gi }
           readinessProbe:
             httpGet: { path: /health, port: 8428 }
