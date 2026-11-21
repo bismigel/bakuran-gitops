@@ -75,6 +75,23 @@ spec:
     spec:
       containers:
         - name: karakeep
+          # 0.34.1 -> 0.35.0 (2026-11-21). The parts that matter to this manifest:
+          #
+          #   * **no data-dir migration.** The images gained `no_new_privs` and dropped almost all
+          #     capabilities (#3276) but still start as root, and upstream says so explicitly: "moving
+          #     away from root altogether isn't a backward compatible change". So `/data` keeps its
+          #     ownership and there is nothing to chown. Going unprivileged is a deliberate future
+          #     change with its own PR, not a side effect of a tag bump.
+          #   * the release is mostly **security** (open redirect on /signup GHSA-xcgp-hwgr-q92j, SSRF
+          #     guard for NAT64/IPv4-translated addresses GHSA-r2p4-9phf-453g, and a batch of
+          #     authorisation fixes on shared lists) plus a web/mobile redesign. That is the reason to
+          #     take it in a week when nothing else is moving.
+          #   * no env changes: `NEXTAUTH_*`, `AUTH_TRUSTED_ORIGINS` and `DATA_DIR` are untouched
+          #     upstream, so the env block below stays as the 0.34 migration left it.
+          #
+          # Digest read from the registry header for the tag, not typed (ADR 0007):
+          #   ghcr.io/v2/karakeep-app/karakeep/manifests/0.35.0 -> Docker-Content-Digest
+          #
           # 0.33.2 -> 0.34.1 (2026-11-06). The release notes are unusually specific about this one:
           #
           #   * auth moved from next-auth to **better-auth**; web sessions become database sessions instead of JWTs, so
@@ -86,7 +103,7 @@ spec:
           #   * emails are lowercased in the database as part of the auth move.
           #
           # Digest taken from the registry header, not typed (ADR 0007).
-          image: ghcr.io/karakeep-app/karakeep:0.34.1@sha256:69ae5315c618b7c14c1af3e34c6e211acdb231793af424ecd1cab0b70691d987
+          image: ghcr.io/karakeep-app/karakeep:0.35.0@sha256:6f7d32ef296ddf1fc7c67ff56b8a201b7006a6a47b92b202afee1338841b353d
           env:
             - { name: DATA_DIR, value: /data }
             # Public registration closed (no invite UI exists; open it briefly to

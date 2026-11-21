@@ -1,6 +1,6 @@
 {
   "_comment": "CRITICAL findings that predate the scan having a working trigger (2026-11-15). Each image lists the CVEs known at baseline time. A finding NOT in this list fails the build; an entry here for an image no longer deployed fails too, so the baseline cannot rot. Burn it down by bumping images and removing entries.",
-  "generated": "2026-11-15",
+  "generated": "2026-11-21",
   "images": {
     "alpine/socat:1.8.0.0": [
       "CVE-2026-31789"
@@ -82,18 +82,16 @@
     "ghcr.io/karakeep-app/karakeep-chrome:release": [
       "CVE-2026-6653"
     ],
-    "ghcr.io/karakeep-app/karakeep:0.34.1": [
+    "ghcr.io/karakeep-app/karakeep:0.35.0": [
       "CVE-2023-45853",
       "CVE-2023-6879",
       "CVE-2024-24790",
       "CVE-2025-47917",
       "CVE-2025-68121",
-      "CVE-2026-111497",
       "CVE-2026-34873",
       "CVE-2026-34875",
       "CVE-2026-58016",
-      "CVE-2026-6653",
-      "GHSA-cg2g-xh64-v4q7"
+      "CVE-2026-6653"
     ],
     "ghcr.io/kube-vip/kube-vip:v0.8.7": [
       "CVE-2025-68121",
