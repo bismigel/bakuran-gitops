@@ -1,0 +1,41 @@
+# EasyShortlist — Phase B: the Application only.
+#
+# Everything it needs already exists: the namespace with PSA `restricted`
+# (manifests/base/namespaces/psa.yaml), the project's source and destination entries
+# (clusters/prod/projects/projects.yaml), and ArgoCD's read credential for the private repository
+# (manifests/base/external-secrets/argocd-repos.yaml). `root` recurses this directory, so the file
+# alone is the change - there is no kustomization to edit.
+#
+# Deliberately NOT here: the backup CronJob's Barman/ScheduledBackup plugin, a Longhorn recurring
+# backup for its volume, or an entry in `bakuran-infra`'s `backup-apps.nix`. The app holds candidate
+# PII (CVs), and the estate's generic backup paths would copy candidate rows into every backup target.
+# The app carries its own encrypted, non-candidate backup job instead.
+#
+# Alerts and their runbook page are a follow-up: `gitops` CI requires each alert's runbook_url to
+# resolve to a page *and* an anchor, so they land together, not with this.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: easyshortlist
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: prod
+  source:
+    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/easyshortlist.git
+    targetRevision: main
+    path: deploy/k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: easyshortlist
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # The namespace comes from namespaces/psa.yaml (with its PSA labels), not CreateNamespace.
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
