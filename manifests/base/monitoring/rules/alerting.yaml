@@ -557,6 +557,23 @@ data:
       group_interval: 10m
       repeat_interval: 12h
       routes:
+        # SEVERITY SPLIT (2026-11-22, from the numbers: 77 Telegram messages in six hours and **293
+        # alert state transitions** - the messages were not a metronome, they were fire/resolve pairs from
+        # alerts that flap. A warning that flaps costs two messages under `send_resolved: true` and says
+        # nothing the second time it fires.
+        #
+        #   critical -> announce, and announce the resolution (you want to know the page is over)
+        #   warning  -> announce once, then stay quiet (there is nobody to page, and `resolved` for a
+        #               warning is the least useful message this bot can send)
+        - matchers: ['severity="critical"']
+          receiver: telegram
+          group_by: ["alertname", "node"]
+          repeat_interval: 12h
+        - matchers: ['severity="warning"']
+          receiver: telegram-warn
+          group_by: ["alertname", "node"]
+          group_interval: 10m
+          repeat_interval: 24h
         # Login alerts (posted by the access-login-watch CronJob): notify
         # immediately and don't follow up with a "resolved" message.
         - matchers: ['alertname="AppLogin"']
@@ -618,6 +635,12 @@ data:
           - bot_token_file: /etc/alertmanager/secret/bot-token
             chat_id: 607008268
             send_resolved: true
+      # Warnings: one message per group, no resolution, and a 24h reminder instead of 12h. Same chat.
+      - name: telegram-warn
+        telegram_configs:
+          - bot_token_file: /etc/alertmanager/secret/bot-token
+            chat_id: 607008268
+            send_resolved: false
       - name: telegram-login
         telegram_configs:
           - bot_token_file: /etc/alertmanager/secret/bot-token
