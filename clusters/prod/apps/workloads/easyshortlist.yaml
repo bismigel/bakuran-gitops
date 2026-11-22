@@ -39,3 +39,65 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      # Without this the sync re-applies the ignored fields and the next comparison flips back to OutOfSync.
+      - RespectIgnoreDifferences=true
+
+  # The CNPG operator writes ~50 fields into `Cluster.spec` that no manifest declares (webhook defaults: `wal_level`,
+  # `enablePDB`, probes, replication slots, the `inherit`/`connectionLimit` of each managed role). ArgoCD holds
+  # coarse ownership of the `postgresql`/`managed` maps on this object, so each default read as an undeclared field
+  # and the app sat `OutOfSync/Healthy` on `Cluster/easyshortlist-pg` - pods fine, comparison wrong (2026-11-22).
+  #
+  # Measured, not guessed: flatten `spec` of the rendered overlay (`kubectl kustomize deploy/k8s/overlays/prod`) and
+  # of the live object, diff every leaf path - 55 came back. `/resources/*` is excluded because PR #44 reconciles
+  # those. A subtree pointer is used only where nothing inside it is ours; `postgresql/parameters` is listed per key
+  # because the autovacuum/logging knobs in deploy/k8s/base/postgres.yaml are declared state and must stay comparable.
+  ignoreDifferences:
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /affinity
+        - /bootstrap/initdb
+        - /enablePDB
+        - /failoverDelay
+        - /logLevel
+        - /managed/roles/*/connectionLimit
+        - /managed/roles/*/inherit
+        - /maxSyncReplicas
+        - /minSyncReplicas
+        - /monitoring/customQueriesConfigMap/*/key
+        - /monitoring/customQueriesConfigMap/*/name
+        - /monitoring/disableDefaultQueries
+        - /postgresGID
+        - /postgresUID
+        - /postgresql/parameters/archive_mode
+        - /postgresql/parameters/archive_timeout
+        - /postgresql/parameters/dynamic_shared_memory_type
+        - /postgresql/parameters/full_page_writes
+        - /postgresql/parameters/log_destination
+        - /postgresql/parameters/log_directory
+        - /postgresql/parameters/log_filename
+        - /postgresql/parameters/log_rotation_age
+        - /postgresql/parameters/log_rotation_size
+        - /postgresql/parameters/log_truncate_on_rotation
+        - /postgresql/parameters/logging_collector
+        - /postgresql/parameters/max_parallel_workers
+        - /postgresql/parameters/max_replication_slots
+        - /postgresql/parameters/max_worker_processes
+        - /postgresql/parameters/shared_memory_type
+        - /postgresql/parameters/shared_preload_libraries
+        - /postgresql/parameters/ssl_max_protocol_version
+        - /postgresql/parameters/ssl_min_protocol_version
+        - /postgresql/parameters/wal_keep_size
+        - /postgresql/parameters/wal_level
+        - /postgresql/parameters/wal_log_hints
+        - /postgresql/parameters/wal_receiver_timeout
+        - /postgresql/parameters/wal_sender_timeout
+        - /postgresql/syncReplicaElectionConstraint
+        - /primaryUpdateMethod
+        - /probes
+        - /replicationSlots
+        - /smartShutdownTimeout
+        - /startDelay
+        - /stopDelay
+        - /storage/resizeInUseVolumes
+        - /switchoverDelay
