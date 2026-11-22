@@ -60,12 +60,8 @@ spec:
         - /enablePDB
         - /failoverDelay
         - /logLevel
-        - /managed/roles/*/connectionLimit
-        - /managed/roles/*/inherit
         - /maxSyncReplicas
         - /minSyncReplicas
-        - /monitoring/customQueriesConfigMap/*/key
-        - /monitoring/customQueriesConfigMap/*/name
         - /monitoring/disableDefaultQueries
         - /postgresGID
         - /postgresUID
@@ -101,3 +97,11 @@ spec:
         - /stopDelay
         - /storage/resizeInUseVolumes
         - /switchoverDelay
+      # `jsonPointers` does not expand `*`; these four name every element of a list, so they are jq. Using a
+      # wildcard pointer here looks right and silently matches nothing - which is how the first attempt at this
+      # left the app `OutOfSync` with the ignore list in place (2026-11-22).
+      jqPathExpressions:
+        - .spec.managed.roles[].connectionLimit
+        - .spec.managed.roles[].inherit
+        - .spec.monitoring.customQueriesConfigMap[].key
+        - .spec.monitoring.customQueriesConfigMap[].name
