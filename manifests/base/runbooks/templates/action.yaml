@@ -38,6 +38,9 @@ spec:
         - - name: argocd-component-down
             when: '"{{workflow.parameters.action}}" == "argocd-component-down"'
             template: run-argocd-component-down
+        - - name: backup-archive-stale
+            when: '"{{workflow.parameters.action}}" == "backup-archive-stale"'
+            template: run-backup-archive-stale
         - - name: deployment-replicas-unavailable
             when: '"{{workflow.parameters.action}}" == "deployment-replicas-unavailable"'
             template: run-deployment-replicas-unavailable
@@ -97,6 +100,25 @@ spec:
           kubectl -n argocd logs -l app.kubernetes.io/name=argocd-repo-server --tail=25 | grep -iE 'error|fatal|refus|timeout' | tail -10
           
           printf '\nverdict: %s\n' 'repo-server down means nothing can render, so every Application goes Unknown and the cluster keeps running its last known state; application-controller down means nothing reconciles, so drift accumulates silently. Both look like "ArgoCD is broken" and only the second one is quiet.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # backup-archive-stale - The newest R2 backup object is stale, or the backup-age metric has stopped arriving
+    - name: run-backup-archive-stale
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=homelab_backup_metrics_error' | jq -r '.data.result[] | ("error " + .metric.dataset + "=" + .value[1])'
+          kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=homelab_backup_metrics_last_run_seconds'
+          kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=absent(homelab_backup_age_seconds)'
+          
+          printf '\nverdict: %s\n' 'error=1 for a dataset means the listing failed, so the timestamp is deliberately absent and the staleness number is not evidence of anything. last_run stale (or absent) points at the unit rather than at R2. An age that keeps climbing with error=0 means the listing works and nothing is being uploaded - go to the backup unit'\''s journal, and then check that the R2 credential can still write, because a read-only key passes every other test.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:

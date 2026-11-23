@@ -1,0 +1,36 @@
+# The newest object in R2 is older than 36h, or the metric that says so has stopped arriving.
+# Both are the "the estate knew and could not say" shape: the appdata archive stopped uploading on
+# 2026-11-21, the unit exited 1 every night, and the only report was a push to an Alertmanager
+# endpoint closed by story 10.10. An exit code describes the attempt; the object describes the backup.
+id: backup-archive-stale
+title: The newest R2 backup object is stale, or the backup-age metric has stopped arriving
+severity: high
+blast_radius: external
+reversible: true
+runbook: bismigel-site/org/runbook/07-backups-recovery.org
+runbook_repo: bismigel-site
+measured: '2026-11-23'
+alerts:
+- BackupArchiveStale
+- BackupAgeMetricsMissing
+detect:
+  commands:
+  - kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=homelab_backup_age_seconds' | jq -r '.data.result[] | (.metric.dataset + " " + .value[1] + " s")'
+  expect: notempty
+diagnose:
+  commands:
+  - kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=homelab_backup_metrics_error' | jq -r '.data.result[] | ("error " + .metric.dataset + "=" + .value[1])'
+  - kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=homelab_backup_metrics_last_run_seconds'
+  - kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=absent(homelab_backup_age_seconds)'
+  verdict: >-
+    error=1 for a dataset means the listing failed, so the timestamp is deliberately absent and the
+    staleness number is not evidence of anything. last_run stale (or absent) points at the unit rather
+    than at R2. An age that keeps climbing with error=0 means the listing works and nothing is being
+    uploaded - go to the backup unit's journal, and then check that the R2 credential can still write,
+    because a read-only key passes every other test.
+remedy:
+  commands: []
+  why_safe: >-
+    No automatic remedy. Re-running the backup is a one-line command an operator should watch (it
+    writes to the bucket), and a "stale credential" theory has to be tested with a write probe, not
+    assumed - the 2026-11-23 incident had reads working perfectly while every upload returned 403.

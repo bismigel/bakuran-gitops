@@ -9,6 +9,33 @@ data:
     groups:
       - name: infra
         rules:
+          # --- is the backup actually getting to R2 (2026-11-23) -------------------
+          # The appdata archive stopped uploading on 2026-11-21. `homelab-backup-apps`
+          # exited 1 every night and the only report of it was a push to an
+          # Alertmanager endpoint that story 10.10 had closed - so the estate knew,
+          # in a journal nobody reads, and could not say. These two rules read the
+          # metric the host now writes (modules/backup-age-metrics.nix) instead of an
+          # exit code, because an exit code describes the attempt and the object
+          # describes the backup.
+          - alert: BackupArchiveStale
+            expr: (time() - homelab_backup_newest_timestamp_seconds{dataset=~"appdata|credentials"}) > 36 * 3600
+            for: 30m
+            labels: { severity: critical }
+            annotations:
+              summary: "the newest {{ $labels.dataset }} object in R2 is {{ $value | humanizeDuration }} old (limit 36h)"
+              description: "The archive, not one app: the guard sits above the upload, so a single SKIP means nothing was uploaded. Check the timer ran, then the journal, then whether the R2 credential can still WRITE (a read-only key passes every other check)."
+              runbook_url: "https://runbook.bismigel.dev/runbook/07-backups-recovery/#backuparchivestale"
+          - alert: BackupAgeMetricsMissing
+            # Same lesson as WireGuardMetricsMissing and StrayCNIMetricsMissing: a monitor
+            # whose metric never arrives is not a monitor. Without the series,
+            # BackupArchiveStale above cannot fire - the two fail together silently.
+            expr: absent(homelab_backup_age_seconds)
+            for: 1h
+            labels: { severity: warning }
+            annotations:
+              summary: "homelab_backup_* metrics are absent - the backup-age unit is not reporting"
+              description: "Check homelab-backup-age-metrics on sitaw-amd and that /var/lib/node-exporter/textfile/backup-age.prom exists and is world-readable (the collector runs as nobody and skips an unreadable file silently)."
+              runbook_url: "https://runbook.bismigel.dev/runbook/07-backups-recovery/#backupagemetricsmissing"
           - alert: NodeDown
             expr: up{job="node-exporter"} == 0
             for: 5m

@@ -17,6 +17,8 @@ data:
   ArgoCDRedisHAEndpointsLow: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishaendpointslow"
   ArgoCDRedisHAPodNotReady: "action=- where=cluster severity=critical runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishapodnotready"
   ArgoCDRedisHARestartingOften: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredisharestartingoften"
+  BackupAgeMetricsMissing: "action=backup-archive-stale where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/07-backups-recovery/#backupagemetricsmissing"
+  BackupArchiveStale: "action=backup-archive-stale where=cluster severity=critical runbook=https://runbook.bismigel.dev/runbook/07-backups-recovery/#backuparchivestale"
   BackupMountMissing: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#backupmountmissing"
   CAdvisorScrapeFailing: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#cadvisorscrapefailing"
   CloudflareCertificateInactive: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarecertificateinactive"
