@@ -59,6 +59,9 @@ spec:
         - - name: prometheus-watchdog-stale
             when: '"{{workflow.parameters.action}}" == "prometheus-watchdog-stale"'
             template: run-prometheus-watchdog-stale
+        - - name: registry-disk-space-low
+            when: '"{{workflow.parameters.action}}" == "registry-disk-space-low"'
+            template: run-registry-disk-space-low
         - - name: status-api-not-scraped
             when: '"{{workflow.parameters.action}}" == "status-api-not-scraped"'
             template: run-status-api-not-scraped
@@ -230,6 +233,25 @@ spec:
           curl -s 'http://alertmanager.monitoring.svc:9093/api/v2/status' | jq -r '.cluster.status'
           
           printf '\nverdict: %s\n' 'Watchdog absent from the store means vmalert is not evaluating rules - the pipeline is down rather than a rule bug. Both vmalert replicas write it, so a single replica failing is not visible here; that is what the two-replica anti-affinity is for. An alertmanager with a single peer reports "disabled" for high availability - that is the estate, not a fault.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # registry-disk-space-low - The image registry's volume is nearly full, so layer pushes fail and builds stop producing images
+    - name: run-registry-disk-space-low
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n forgejo logs deploy/registry --tail=200 | grep -c 'no space left on device'
+          kubectl -n forgejo get events --sort-by=.lastTimestamp | grep -iE 'registry|zot' | tail -10
+          kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=kubelet_volume_stats_available_bytes{persistentvolumeclaim="registry-data"}' | jq -r '.data.result[] | "available=\(.value[1])"'
+          
+          printf '\nverdict: %s\n' 'A non-zero "no space left" count means pushes are already failing and every build after that point produced no image - the CI symptom and the disk cause are the same event. Available bytes near zero with few recent build failures means it filled quietly between builds.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:

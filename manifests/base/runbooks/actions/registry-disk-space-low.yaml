@@ -1,0 +1,39 @@
+# The image registry's volume is nearly full, and a full registry does not look like a
+# disk problem from anywhere except the node: every build dies at "uploading layer
+# chunked: 500", zot logs "no space left on device", and the app repository sees only
+# that CI stopped producing images. Measured 2026-11-23 with 10805010432 bytes used
+# against a 10Gi request.
+#
+# Read-only until the remedy: growing the claim is a Git change, and pruning by
+# "oldest tag" can delete a digest a prod overlay pins.
+id: registry-disk-space-low
+title: The image registry's volume is nearly full, so layer pushes fail and builds stop producing images
+severity: high
+blast_radius: cluster
+reversible: true
+runbook: bismigel-site/org/runbook/26-storage-etcd-longhorn-disks.org
+runbook_repo: bismigel-site
+measured: '2026-11-23'
+alerts:
+- RegistryDiskSpaceLow
+detect:
+  commands:
+  - kubectl -n forgejo get pvc registry-data -o custom-columns=NAME:.metadata.name,REQUEST:.spec.resources.requests.storage,STATUS:.status.capacity.storage --no-headers
+  - kubectl -n longhorn-system get volume "$(kubectl -n forgejo get pvc registry-data -o jsonpath='{.spec.volumeName}')" -o jsonpath='{.spec.size} requested, {.status.actualSize} stored{"\n"}'
+  expect: notempty
+diagnose:
+  commands:
+  - kubectl -n forgejo logs deploy/registry --tail=200 | grep -c 'no space left on device'
+  - kubectl -n forgejo get events --sort-by=.lastTimestamp | grep -iE 'registry|zot' | tail -10
+  - kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=kubelet_volume_stats_available_bytes{persistentvolumeclaim="registry-data"}' | jq -r '.data.result[] | "available=\(.value[1])"'
+  verdict: >-
+    A non-zero "no space left" count means pushes are already failing and every build after that point produced no
+    image - the CI symptom and the disk cause are the same event. Available bytes near zero with few recent build
+    failures means it filled quietly between builds.
+remedy:
+  commands: []
+  why_safe: >-
+    No automatic remedy, on purpose. Growing the claim is a one-line Git change (bakuran-gitops, allowVolumeExpansion
+    is on and Longhorn expands online - done 2026-11-23, 10Gi to 25Gi), and deleting tags is the durable fix but must
+    be tag-aware: a digest that a prod overlay pins is the rollback target. Neither is safe to automate from a rule
+    that only knows a percentage.

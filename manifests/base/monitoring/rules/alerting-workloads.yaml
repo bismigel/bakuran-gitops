@@ -224,6 +224,25 @@ data:
             annotations:
               summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }} full"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskstoragelow"
+          # --- the image registry's own volume (2026-11-23) ------------------
+          # The claim was 10Gi, the volume reported 10805010432 bytes used, and every
+          # build after that died at `uploading layer chunked: 500` with zot logging
+          # `no space left on device`. From the app side that reads as "CI is stalled":
+          # no release branch appears and nothing says why. The claim is 25Gi now
+          # (#196); this rule is what makes the *next* fill visible before a build
+          # fails. kubelet already publishes both series, so no exporter is needed -
+          # what was missing was the rule.
+          - alert: RegistryDiskSpaceLow
+            expr: |
+              kubelet_volume_stats_available_bytes{namespace="forgejo",persistentvolumeclaim="registry-data"}
+                / kubelet_volume_stats_capacity_bytes{namespace="forgejo",persistentvolumeclaim="registry-data"} < 0.15
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "the image registry has {{ humanizePercentage $value }} of its volume free"
+              description: "At zero a layer push fails with HTTP 500 and builds stop producing images - from the app repository that looks like CI being idle, not like a full disk. Check the tag count and retention before growing the claim again."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#registrydiskspacelow"
           # --- per-disk scheduling headroom (2026-10-30) ---------------------
           # LonghornDiskStorageLow above compares *usage*, which was blind to the
           # failure that actually happened: sitaw-amd's /var/lib/longhorn held 45G

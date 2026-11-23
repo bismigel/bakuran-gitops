@@ -65,6 +65,7 @@ data:
   PublicProbeDown: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicprobedown"
   PublicSLOFastBurn: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicslofastburn"
   PublicSLOSlowBurn: "action=- where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicsloslowburn"
+  RegistryDiskSpaceLow: "action=registry-disk-space-low where=cluster severity=critical runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#registrydiskspacelow"
   RootFilesystemDaysToFull: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#rootfilesystemdaystofull"
   RouterHeartbeatStale: "action=- where=workstation severity=critical runbook=https://runbook.bismigel.dev/runbook/15-alerts/#the-witness-outside-the-cluster-routerheartbeatstale"
   RouterInterfaceErrors: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#routerinterfaceerrors"
