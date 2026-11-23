@@ -106,7 +106,9 @@ configs:
   # Read-only RBAC for the MCP server account. `applications, get` is the only
   # verb that earns its place: it covers sync status, health, managed resources
   # and the app's own spec. No `sync`, no `update`, no `delete` — ArgoCD stays a
-  # read surface for agents, and a deploy remains a merged pull request.
+  # read surface for agents, and a deploy remains a merged pull request. There is
+  # deliberately no `accounts, get`: nothing the MCP does needs to read account
+  # records, so it does not get the permission.
   rbac:
     policy.csv: |
       p, role:mcp-readonly, applications, get, */*, allow
@@ -115,7 +117,6 @@ configs:
       p, role:mcp-readonly, repositories, get, *, allow
       p, role:mcp-readonly, projects, get, *, allow
       p, role:mcp-readonly, logs, get, */*, allow
-      p, role:mcp-readonly, accounts, get, *, allow
       g, mcp-readonly, role:mcp-readonly
   secret:
     createSecret: false
