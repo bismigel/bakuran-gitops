@@ -189,7 +189,22 @@ spec:
           args:
             - |
               set -e
-              apk add --no-cache python3 py3-yaml go nodejs yamllint curl jq kustomize hugo pandoc kubectl buildah netavark postgresql16 >/dev/null
+              # Retried, because a fresh pod starts its first apk before the pod's DNS and egress rules are
+              # programmed: the index then looks empty, apk reports "no such package" for a list of packages that
+              # exist, and `set -e` kills the container. That is the observed crash loop (exit 14, 8 restarts):
+              # each restart repeated the same race, and every task assigned to a dying pod stayed "running"
+              # forever, so a build silently never happened. The same command succeeds a minute later, which is
+              # what the retries buy. A real outage still fails, only after ~40s of trying.
+              n=0
+              until apk add --no-cache python3 py3-yaml go nodejs yamllint curl jq kustomize hugo pandoc kubectl buildah netavark postgresql16 >/dev/null; do
+                n=$((n+1))
+                if [ "$n" -ge 6 ]; then
+                  echo "apk add failed after $n attempts; refusing to run a runner without its tools" >&2
+                  exit 1
+                fi
+                echo "apk add failed (attempt $n), retrying in 10s" >&2
+                sleep 10
+              done
               # trivy is not packaged by Alpine, so it is fetched at container start from a pinned release. The pin
               # matters: an unpinned scanner turns into a scan that fails on a day nobody changed this repository.
               if [ ! -x /usr/local/bin/trivy ]; then

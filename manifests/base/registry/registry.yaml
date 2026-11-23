@@ -18,9 +18,18 @@ metadata:
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: longhorn
+  # 10Gi was fitted to the first few images and ran out on 2026-11-23: the volume reported
+  # 10805010432 bytes used of 10737418240 (actual > requested), and every build after that failed
+  # its last step with `uploading layer chunked: 500` while zot logged `no space left on device`.
+  # A full registry is invisible from the app side — CI just stops producing images — so the size is
+  # paid for up front. 25Gi leaves room for roughly a fortnight of four-image builds at the current
+  # tag rate; retention in zot is the durable fix and is tracked separately, because pruning tags
+  # that a pinned prod overlay references would break a rollback.
+  # Longhorn expands online; allowVolumeExpansion is true on the longhorn StorageClass and each node
+  # has at least 22GB free per replica disk.
   resources:
     requests:
-      storage: 10Gi
+      storage: 25Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
