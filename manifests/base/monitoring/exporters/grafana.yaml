@@ -13,6 +13,15 @@ metadata:
 data:
   datasources.yaml: |
     apiVersion: 1
+    # The datasource below was provisioned as `Prometheus` until 2026-11-21 and renamed to
+    # `Prometheus (legacy uid)` in #175. Grafana looks provisioned datasources up *by name*, so the
+    # rename made it an INSERT with an already-taken uid, and every start since the 2026-11-22
+    # restart died on `data source with the same uid already exists` (crashloop, 247 restarts).
+    # Deleting the stale row by name before the insert is Grafana's documented rename path, and it
+    # is a no-op from the second start on: the row is already renamed by then.
+    deleteDatasources:
+      - name: Prometheus
+        orgId: 1
     datasources:
       # A role-named default (`metrics`), and the OLD uid kept as an alias on the same URL. 216 panels pin
       # `prometheus`, and rewriting them to say the same thing is churn with a failure mode; the alias costs one
