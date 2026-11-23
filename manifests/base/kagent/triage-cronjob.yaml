@@ -47,7 +47,20 @@ spec:
               image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
               command: ["/bin/sh", "-c"]
               args:
-                - apk add --no-cache curl jq >/dev/null && exec /scripts/triage.sh
+                # apk update first, and retried with the add: the alpine image carries a baked-in index, so a
+                # plain `apk add` answers "no such package" for curl and jq while the pod's DNS and egress are
+                # still being programmed - the same race that crash-looped the Forgejo runner (2026-11-23). Here
+                # it does not crash-loop: the job fails, the triage job records nothing, and the alert it was
+                # meant to triage stays silent. Measured failure of exactly this line: triage-29924360.
+                - |
+                  set -e
+                  n=0
+                  until apk update >/dev/null 2>&1 && apk add --no-cache curl jq >/dev/null; do
+                    n=$((n+1))
+                    if [ "$n" -ge 6 ]; then echo "apk add failed after $n attempts" >&2; exit 1; fi
+                    sleep 10
+                  done
+                  exec /scripts/triage.sh
               env:
                 - name: TELEGRAM_CHAT_ID
                   value: "607008268"
