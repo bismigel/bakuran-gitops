@@ -26,6 +26,7 @@ data:
     |---|---|---|
     | what is true *right now*, measured | [`STATE.md`](STATE.md) — regenerate with `state` | nodes, pods, backup freshness |
     | what the infrastructure *is*, verified and dated | [`docs/reference/network.md`](docs/reference/network.md), [`docs/reference/storage.md`](docs/reference/storage.md), [`docs/reference/system.md`](docs/reference/system.md) | addressing, mounts, invariants |
+    | which key protects what, and what it does not do | [`docs/reference/key-map.md`](docs/reference/key-map.md) | SOPS age, backup age, k3s at-rest key, BWS machine accounts, kubeconfig, R2, Forgejo tokens |
     | *why* a decision was made, and what it costs | [`docs/decisions/`](docs/decisions/README.md) | why the tunnel unit holds no endpoint |
     | what is being *built*, and what "done" means | [`PLAN.md`](PLAN.md) / [`PLAN.org`](PLAN.org) (generated) → [`plan/`](plan/README.md) | initiative → epics → stories, with `verify:` on each |
     | how to do a day-2 operation | [`OPERATIONS.md`](OPERATIONS.md) | one section per alert |
