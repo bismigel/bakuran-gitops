@@ -28,7 +28,7 @@ spec:
   # The image is now built by Forgejo Actions and pushed to the estate's own registry (git.bismigel.dev),
   # not ghcr.io: the build no longer depends on GitHub's runners or a GHCR credential. Same tag (`14.19`,
   # which CNPG parses for major-version upgrades) and the digest decides what runs (ADR 0007).
-  imageName: registry.bismigel.dev/bismigel/immich-pg:14.19@sha256:bdcc73a7fe5f7710e4a248337b9e850de29b29563b0cd2989b947b8bb432a3e6
+  imageName: registry.bismigel.dev/bismigel/immich-pg:14.19@sha256:c7a31b01b123a3275aae36689d58f1a963b8fc80bf68b3139da2399a43315e27
   imagePullSecrets:
     # zot, the estate's one registry for its own images - the same `registry-cred` shape media-mcp uses, so
     # there is a single pattern rather than two. ghcr-secret stays because the owner wants the GHCR
