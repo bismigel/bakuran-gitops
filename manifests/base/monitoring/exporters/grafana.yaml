@@ -19,15 +19,20 @@ data:
     # restart died on `data source with the same uid already exists` (crashloop, 247 restarts).
     # Deleting the stale row by name before the insert is Grafana's documented rename path, and it
     # is a no-op from the second start on: the row is already renamed by then.
+    # `VictoriaMetrics` is residue: a row that exists in Grafana and in no file, left by the 2026-11-21 backend swap.
+    # Grafana keeps a provisioned row after it disappears from the file, which is how a dead entry stayed selectable
+    # in every panel's datasource picker - and an operator choosing the wrong one of three identical URLs is a
+    # mistake with no error message. Measured 2026-11-24: 204 panel references, all pinning uid `prometheus`.
     deleteDatasources:
       - name: Prometheus
         orgId: 1
+      - name: VictoriaMetrics
+        orgId: 1
     datasources:
-      # A role-named default (`metrics`), and the OLD uid kept as an alias on the same URL. 216 panels pin
-      # `prometheus`, and rewriting them to say the same thing is churn with a failure mode; the alias costs one
-      # entry and disappears the day those dashboards are regenerated. Naming the default for the *role* is what
-      # stops this file from being edited every time the backend changes: the panels that use `metrics` survived
-      # Prometheus -> VictoriaMetrics without a change, and the next swap will too.
+      # A role-named default (`metrics`), and the OLD uid kept as an alias on the same URL. Every one of the 204
+      # panel references pins `prometheus` (measured 2026-11-24), so the alias is the row that does the work and the
+      # default is the one nobody selects - but rewriting 204 panels to say the same thing is churn with a failure
+      # mode, and a default named for the role is what stops this file being edited when the backend changes.
       - name: Metrics
         uid: metrics
         type: prometheus
