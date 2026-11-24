@@ -1,0 +1,102 @@
+# EasyShortlist (shortlist) alert and recording rules, copied from the app repository's deploy/observability/
+# (rules/easyshortlist-slo.yml and slo/). The app repo is the source; this copy differs on purpose in two ways:
+#   - EasyShortlistAvailabilityBurnRate is left out: it reads ingress-nginx request metrics, which this estate does
+#     not scrape. Availability is covered by the public probe of https://easyshortlist.ciceley.cc/healthz
+#     (vm-scrape.yaml) through PublicProbeDown and the PublicSLO* rules, like every other public app.
+#   - runbook_url points at the estate runbook (page 28) instead of the repo's placeholder host.
+# The app's counters are labelled CounterVecs: a series appears only after the first increment, so a rule over
+# leak blocks, failures or disagreements is silent (not broken) until then.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metrics-rules-easyshortlist
+  namespace: monitoring
+data:
+  easyshortlist.yml: |
+    groups:
+      - name: easyshortlist-slo-job-failure
+        interval: 1m
+        rules:
+          - record: slo:easyshortlist_job_failure:ratio_5m
+            expr: |
+              sum(rate(easyshortlist_pipeline_failures_total[5m]))
+              /
+              clamp_min(sum(rate(easyshortlist_pipeline_jobs_total[5m])), 1e-9)
+          - record: slo:easyshortlist_job_failure:ratio_1h
+            expr: |
+              sum(rate(easyshortlist_pipeline_failures_total[1h]))
+              /
+              clamp_min(sum(rate(easyshortlist_pipeline_jobs_total[1h])), 1e-9)
+          - record: slo:easyshortlist_job_failure:ratio_24h
+            expr: |
+              sum(rate(easyshortlist_pipeline_failures_total[24h]))
+              /
+              clamp_min(sum(rate(easyshortlist_pipeline_jobs_total[24h])), 1e-9)
+          - record: slo:easyshortlist_job_failure:burn_rate_5m
+            expr: slo:easyshortlist_job_failure:ratio_5m / 0.02
+          - record: slo:easyshortlist_job_failure:burn_rate_1h
+            expr: slo:easyshortlist_job_failure:ratio_1h / 0.02
+      - name: easyshortlist-slo-time-to-score
+        interval: 1m
+        rules:
+          - record: slo:easyshortlist_time_to_score:p95_5m
+            expr: histogram_quantile(0.95, sum by (le) (rate(easyshortlist_pipeline_job_seconds_bucket{kind="score"}[5m])))
+          - record: slo:easyshortlist_time_to_score:p95_1h
+            expr: histogram_quantile(0.95, sum by (le) (rate(easyshortlist_pipeline_job_seconds_bucket{kind="score"}[1h])))
+          - record: slo:easyshortlist_time_to_score:p95_7d
+            expr: histogram_quantile(0.95, sum by (le) (rate(easyshortlist_pipeline_job_seconds_bucket{kind="score"}[7d])))
+          - record: slo:easyshortlist_time_to_score:bad_ratio_5m
+            expr: |
+              (
+                sum(rate(easyshortlist_pipeline_job_seconds_count{kind="score"}[5m]))
+                -
+                sum(rate(easyshortlist_pipeline_job_seconds_bucket{kind="score", le="120"}[5m]))
+              )
+              /
+              clamp_min(sum(rate(easyshortlist_pipeline_job_seconds_count{kind="score"}[5m])), 1e-9)
+          - record: slo:easyshortlist_time_to_score:bad_ratio_1h
+            expr: |
+              (
+                sum(rate(easyshortlist_pipeline_job_seconds_count{kind="score"}[1h]))
+                -
+                sum(rate(easyshortlist_pipeline_job_seconds_bucket{kind="score", le="120"}[1h]))
+              )
+              /
+              clamp_min(sum(rate(easyshortlist_pipeline_job_seconds_count{kind="score"}[1h])), 1e-9)
+          - record: slo:easyshortlist_time_to_score:burn_rate_5m
+            expr: slo:easyshortlist_time_to_score:bad_ratio_5m / 0.05
+          - record: slo:easyshortlist_time_to_score:burn_rate_1h
+            expr: slo:easyshortlist_time_to_score:bad_ratio_1h / 0.05
+      - name: easyshortlist-slo-alerts
+        interval: 1m
+        rules:
+          - alert: EasyShortlistTimeToScoreBurnRate
+            expr: slo:easyshortlist_time_to_score:burn_rate_1h > 14.4 and slo:easyshortlist_time_to_score:burn_rate_5m > 14.4
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "More than 5% of score jobs are slower than 120s and the 1h/5m burn rate is 14.4x"
+              runbook_url: "https://runbook.bismigel.dev/runbook/28-easyshortlist/#easyshortlisttimetoscoreburnrate"
+          - alert: EasyShortlistJobFailureBurnRate
+            expr: slo:easyshortlist_job_failure:burn_rate_1h > 14.4 and slo:easyshortlist_job_failure:burn_rate_5m > 14.4
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "EasyShortlist is burning its 2%/24h job-failure budget 14.4x faster than allowed"
+              runbook_url: "https://runbook.bismigel.dev/runbook/28-easyshortlist/#easyshortlistjobfailureburnrate"
+          - alert: EasyShortlistLeakBlock
+            expr: sum by (stage) (increase(easyshortlist_leak_blocks_total[5m])) > 0
+            for: 1m
+            labels: { severity: warning }
+            annotations:
+              summary: "A leak block refused an LLM call (stage in labels): a vault value survived redaction; a human should inspect the redaction failure"
+              runbook_url: "https://runbook.bismigel.dev/runbook/28-easyshortlist/#easyshortlistleakblock"
+          - alert: EasyShortlistScoreDisagreement
+            expr: |
+              sum(increase(easyshortlist_score_disagreements_total[1h]))
+                / clamp_min(sum(increase(easyshortlist_pipeline_jobs_total{kind="score",outcome="ok"}[1h])), 1) > 0.25
+            for: 30m
+            labels: { severity: warning }
+            annotations:
+              summary: "More than a quarter of CVs scored in the last hour have an AI alignment far from their per-requirement ratings: check the prompt or the model"
+              runbook_url: "https://runbook.bismigel.dev/runbook/28-easyshortlist/#easyshortlistscoredisagreement"

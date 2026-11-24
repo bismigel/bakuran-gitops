@@ -28,6 +28,7 @@ resources:
   # The router API key its exporter reads. Declared as an ExternalSecret so a rotation on the router reaches the cluster
   # instead of leaving a dead credential behind a 401 nobody watches (story 10.8).
   - exporters/opnsense-api-secret.yaml
+  - rules/alerting-easyshortlist.yaml
   - rules/alerting-network-devices.yaml
   - dashboards/grafana-dashboard-network-devices.yaml
   - dashboards/grafana-dashboard-opnsense.yaml
