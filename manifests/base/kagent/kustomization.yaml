@@ -10,6 +10,7 @@ resources:
   - triage-runner-rbac.yaml
   - triage-state-pvc.yaml
   - triage-script.yaml
+  - registry-cred.yaml
   - triage-cronjob.yaml
   - guard-vap.yaml
   - guard-vap-binding.yaml
