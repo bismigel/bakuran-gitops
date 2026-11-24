@@ -6,7 +6,12 @@
 #     what `checks.yml` pulls with `R="forgejo:3000"`.
 #
 # The triage toolset was built into the second by the workflow that knows how to push there, so this namespace needs
-# a reader for it. Bitwarden already holds one (`forgejo-registry-reader-user` / `-token`), used here rather than a
+# a reader for it.
+#
+# The host is Forgejo's **pinned ClusterIP**, not its service name: kubelet resolves an image reference with the NODE's
+# resolver, which knows nothing about `*.svc`, so `forgejo.forgejo.svc:3000` fails as `no such host` (measured
+# 2026-11-24). CI can use the service name - it builds inside a pod - but a pulled image cannot. Same reason the
+# estate's other builds push to 10.43.200.10:5000. Bitwarden already holds one (`forgejo-registry-reader-user` / `-token`), used here rather than a
 # second copy of anything. The reader is read-only by design: publishing images stays CI's job, and a pull secret
 # that can push is a pull secret that can overwrite what a rollback depends on.
 apiVersion: external-secrets.io/v1
@@ -25,7 +30,7 @@ spec:
       type: kubernetes.io/dockerconfigjson
       data:
         .dockerconfigjson: |
-          {"auths":{"forgejo.forgejo.svc:3000":{"username":"{{ .username }}","password":"{{ .password }}","auth":"{{ printf "%s:%s" .username .password | b64enc }}"}}}
+          {"auths":{"10.43.153.202:3000":{"username":"{{ .username }}","password":"{{ .password }}","auth":"{{ printf "%s:%s" .username .password | b64enc }}"}}}
   data:
     - secretKey: username
       remoteRef:

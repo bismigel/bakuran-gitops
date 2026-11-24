@@ -54,7 +54,10 @@ spec:
               # This host, not registry.bismigel.dev: the estate has two registries and they are not interchangeable
               # (see forgejo-registry-pull.yaml). CI's token can push to this one; zot needs a writer credential that
               # lives only in the image-publishing repos. Moving this to zot later is a one-line change plus that secret.
-              image: forgejo.forgejo.svc:3000/bismigel/triage-tools:sha-2d22ba38aea3@sha256:ed1b1d06436f278af4fdf1097f58be9620b3fd862eaeb21bedd2cfdefce3182d
+              #
+              # The PINNED ClusterIP, not `forgejo.forgejo.svc:3000`: kubelet resolves image references with the node's
+              # resolver, which has no `*.svc` names - measured as `no such host` on 2026-11-24.
+              image: 10.43.153.202:3000/bismigel/triage-tools:sha-2d22ba38aea3@sha256:ed1b1d06436f278af4fdf1097f58be9620b3fd862eaeb21bedd2cfdefce3182d
               command: ["/bin/sh", "-c"]
               args:
                 # No install step: the image carries curl and jq. A job that needs the network to start cannot
