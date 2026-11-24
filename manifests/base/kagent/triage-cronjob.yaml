@@ -44,25 +44,30 @@ spec:
                 claimName: triage-state
           # zot, not Docker Hub: the same `registry-cred` shape the estate's other workloads use.
           imagePullSecrets:
-            - name: forgejo-registry-pull
+            - name: registry-cred
           containers:
             - name: triage
-              # The tools are IN this image: the same pinned alpine base plus `apk add curl jq`, built at BUILD time by
-              # homelab-context's triage-image workflow. The pod needs no network to start, so it cannot lose the race
-              # that failed six times over 60s on 2026-11-24 and left the alert it was meant to triage unread.
-              #
-              # This host, not registry.bismigel.dev: the estate has two registries and they are not interchangeable
-              # (see forgejo-registry-pull.yaml). CI's token can push to this one; zot needs a writer credential that
-              # lives only in the image-publishing repos. Moving this to zot later is a one-line change plus that secret.
-              #
-              # The PINNED ClusterIP, not `forgejo.forgejo.svc:3000`: kubelet resolves image references with the node's
-              # resolver, which has no `*.svc` names - measured as `no such host` on 2026-11-24.
-              image: 10.43.153.202:3000/bismigel/triage-tools:sha-2d22ba38aea3@sha256:ed1b1d06436f278af4fdf1097f58be9620b3fd862eaeb21bedd2cfdefce3182d
+              # Alpine, with the install retried, because the prebuilt toolset cannot be pulled YET. What we know
+              # now, in order, each measured on 2026-11-24: CI can only push to Forgejo's registry
+              # (10.43.x:3000), kubelet cannot resolve `*.svc` names (`no such host`), and it refuses that registry's
+              # plain HTTP (`server gave HTTP response to HTTPS client`) because only zot is in the nodes'
+              # insecure-registries config. So the toolset belongs in ZOT, and pushing there needs the writer
+              # credential that lives in the image-publishing repos. Once that secret exists on this repository's CI,
+              # the workflow merged in homelab-context already targets zot and this line becomes a pin.
+              image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
               command: ["/bin/sh", "-c"]
               args:
-                # No install step: the image carries curl and jq. A job that needs the network to start cannot
-                # diagnose the network.
-                - exec /scripts/triage.sh
+                # Temporary, until the toolset is publishable to zot: `apk update` first and retried together with the
+                # add, six attempts over ~60s. It only buys the pod's resolver time to settle.
+                - |
+                  set -e
+                  n=0
+                  until apk update >/dev/null 2>&1 && apk add --no-cache curl jq >/dev/null; do
+                    n=$((n+1))
+                    if [ "$n" -ge 6 ]; then echo "apk add failed after $n attempts" >&2; exit 1; fi
+                    sleep 10
+                  done
+                  exec /scripts/triage.sh
               env:
                 - name: TELEGRAM_CHAT_ID
                   value: "607008268"
