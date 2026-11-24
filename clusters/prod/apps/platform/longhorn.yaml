@@ -19,18 +19,25 @@ spec:
         longhornManager: { resources: { requests: { cpu: 20m, memory: 128Mi } } }
         longhornUI: { resources: { requests: { cpu: 10m, memory: 32Mi } } }
         defaultSettings:
-          # Three, not two. The rule is about how many nodes can *hold* replicas, not how
-          # many are schedulable today: with 2 replicas on a 3-node cluster Longhorn is free
-          # to place both on whichever two nodes it likes, so "survives losing one node" is
-          # only true for the node that happens to have no replica.
-          # Longhorn's guidance: "if you have three or more nodes for storage, use 3"
-          # (longhorn.io/docs/1.9.0/references/settings/).
-          # 2026-11-01: jellyfin-config, bazarr-config and lazylibrarian-config had both
-          # replicas on .80 + .82; .82's manager exited fatally and marked its replicas
-          # failed and they were deleted; .80 then lost power - three volumes faulted with
-          # their only copy on an absent node. A third replica on .81 would have kept every
-          # pod startable.
-          defaultReplicaCount: 3
+          # Two since 2026-11-24. The written rule was "three, not two", and the incident behind
+          # it (2026-11-01: three volumes had BOTH replicas on .80+.82, .82's manager died, then
+          # .80 lost power, and every pod was unstartable) is real - but its root cause was
+          # placement, not count: with `replica-soft-anti-affinity: false` Longhorn was free to
+          # put both replicas on two of the three nodes. That setting is `true` since 2026-11-19,
+          # so two replicas now means two different nodes.
+          #
+          # What forced the change: promised bytes, not written bytes. 33 volumes x 3 replicas =
+          # 95 replicas promising 374 GiB on disks whose free space is ~1.1 TB, and
+          # `patola-thinkcentre:/mnt/data` sat at 1.81x its free space - over the critical
+          # `LonghornDiskSchedulingOverCommitted` line, so the next rebuild larger than the
+          # shortfall could not be placed and the alarm could not be cleared by moving replicas
+          # (tried: Longhorn's scheduler refills the disk with the most free space every time).
+          # Two replicas removes a third of the promise and with it the whole class of alarm.
+          #
+          # The trade is explicit: any single node loss keeps every volume available, and a
+          # second failure before the rebuild finishes loses that volume's data. The Immich
+          # volumes (the only dataset whose loss is not accepted) stay at 3, set per volume.
+          defaultReplicaCount: 2
         # The chart's pre-upgrade Job is a Helm hook that ArgoCD runs on first
         # install before longhorn-service-account exists -> disable it.
         preUpgradeChecker:
@@ -40,11 +47,10 @@ spec:
           # storageClassName explicitly and we migrate deliberately.
           defaultClass: false
           # Must match defaultReplicaCount, or a PVC created through the StorageClass gets
-          # different redundancy from one created through the UI. The old comment reasoned
-          # from "2 schedulable nodes"; adding .80 and retiring .83 changed that and the
-          # setting did not follow. Config volumes are 1-8GiB claims holding under 1GiB, so a
-          # third replica costs a few hundred MiB and buys the whole property.
-          defaultClassReplicaCount: 3
+          # different redundancy from one created through the UI - the two are one decision in
+          # two places, which is why they carry the same comment. Immich does not use this
+          # class's default: its claims are created with numberOfReplicas 3 explicitly.
+          defaultClassReplicaCount: 2
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
