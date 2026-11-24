@@ -45,7 +45,17 @@ spec:
               args:
                 - |
                   set -eu
-                  apk add --no-cache rsync >/dev/null
+                  # The package install is retried, not trusted: this job failed three times in a row on
+                  # 2026-11-24 (BackoffLimitExceeded) because `apk add` needs the cluster's DNS and egress to
+                  # settle before the pod's first second - a job that syncs auth must not fail because a mirror
+                  # was slow on the one run it mattered. Same shape as the runner's install.
+                  n=0
+                  until apk update >/dev/null 2>&1 && apk add --no-cache rsync >/dev/null 2>&1; do
+                    n=$((n+1))
+                    if [ "$n" -ge 6 ]; then echo "apk add failed after $n attempts" >&2; exit 1; fi
+                    echo "apk add failed (attempt $n), retrying in 10s" >&2
+                    sleep 10
+                  done
                   # A source that is empty is a broken mount, not an empty library: refuse rather than mirror nothing.
                   find /from -maxdepth 1 -mindepth 1 -print -quit | grep -q . || { echo "/from is empty - refusing"; exit 1; }
                   echo "source: $(du -sh /from | cut -f1), $(find /from -type f | wc -l) files"
