@@ -3,11 +3,11 @@
 # Why: without it every client points at one node (sitaw-amd, .82). That node is
 # not special, but losing it broke `kubectl` for humans and for anything outside
 # the cluster, even though the other two servers were healthy. This advertises
-# 192.168.2.100 over ARP from whichever control-plane node currently holds the
+# 192.168.10.100 over ARP from whichever control-plane node currently holds the
 # leader lease.
 #
 # The address must also be in the API server certificate, or TLS fails even
-# though the TCP connection works — that is the `--tls-san=192.168.2.100` line in
+# though the TCP connection works — that is the `--tls-san=192.168.10.100` line in
 # each host's k3s flags (bakuran-infra, 2026-10-28).
 #
 # ARP mode, not BGP: this is one flat L2 segment. If the network is ever cut into
@@ -107,7 +107,7 @@ spec:
             - name: svc_enable
               value: "true"
             - name: vip_pool
-              value: "192.168.2.84/32"
+              value: "192.168.10.84/32"
             - name: vip_leaderelection
               value: "true"
             # 15/10/2, not 5/3/1. kube-vip's leader-election client EXITS when it
@@ -126,7 +126,7 @@ spec:
             - name: vip_retryperiod
               value: "2"
             - name: address
-              value: "192.168.2.100"
+              value: "192.168.10.100"
           resources:
             requests:
               cpu: 10m
@@ -219,7 +219,7 @@ spec:
               done
           env:
             - name: VIP
-              value: "192.168.2.100"
+              value: "192.168.10.100"
           securityContext:
             capabilities:
               add: ["NET_ADMIN"]

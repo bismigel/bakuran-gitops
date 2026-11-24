@@ -92,8 +92,8 @@ data:
             # 'and' operation"), which fails silently as an empty result - hence
             # the `*`-by-kube_pod_info (=1) to carry host_ip onto the left side.
             # Match host_ip because kube_pod_info has no node-exporter instance:
-            # kube_pod_info.host_ip="192.168.2.81", node_boot_time_seconds
-            # .instance="192.168.2.81:9100", so the port is stripped on the right.
+            # kube_pod_info.host_ip="192.168.10.81", node_boot_time_seconds
+            # .instance="192.168.10.81:9100", so the port is stripped on the right.
             expr: |
               (
                 (increase(kube_pod_container_status_restarts_total[1h]) > 3)

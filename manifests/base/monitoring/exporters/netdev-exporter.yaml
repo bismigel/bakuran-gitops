@@ -10,7 +10,7 @@
 #   * HTTPS status and TLS certificate expiry for the two that serve a UI
 #   * WAN liveness through a TCP connect to a public resolver (privilege-free;
 #     ICMP would need CAP_NET_RAW, and dpinger is the router's own job)
-#   * a real DNS query to 192.168.2.1, so the adblocking resolver is monitored
+#   * a real DNS query to 192.168.10.1, so the adblocking resolver is monitored
 #     as a service rather than only as a host
 #   * OPNsense API: per-interface counters, memory, pf state table, DHCP leases,
 #     and gateway loss/delay *when dpinger is enabled* (it currently is not, so
@@ -34,7 +34,7 @@ data:
     import json, os, socket, ssl, struct, threading, time, traceback, urllib.request
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
-    OPNSENSE = os.environ.get("OPNSENSE_URL", "https://192.168.2.1")
+    OPNSENSE = os.environ.get("OPNSENSE_URL", "https://192.168.10.1")
     KEY = os.environ.get("OPNSENSE_KEY", "")
     SECRET = os.environ.get("OPNSENSE_SECRET", "")
     # TWO variables, and the reason this file has a commit of its own: until 2026-11-24 the one variable was both
@@ -47,10 +47,10 @@ data:
     SNAPSHOT = []      # the lines the handler serves
     LOCK = threading.Lock()
 
-    TARGETS = {"router": ("192.168.2.1", 443), "switch": ("192.168.2.3", 22),
-               "ap": ("192.168.2.2", 443)}
-    HTTPS = {"router": "https://192.168.2.1/", "switch": "https://192.168.2.3/",
-             "ap": "https://192.168.2.2/"}
+    TARGETS = {"router": ("192.168.10.1", 443), "switch": ("192.168.10.3", 22),
+               "ap": ("192.168.10.2", 443)}
+    HTTPS = {"router": "https://192.168.10.1/", "switch": "https://192.168.10.3/",
+             "ap": "https://192.168.10.2/"}
     WAN_PROBE = ("1.1.1.1", 443)
 
     def out(lines, name, kind, help_text, value, labels=None):
@@ -126,7 +126,7 @@ data:
         t = time.monotonic()
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(4)
-        s.sendto(q, ("192.168.2.1", 53))
+        s.sendto(q, ("192.168.10.1", 53))
         data, _ = s.recvfrom(512)
         ms = (time.monotonic() - t) * 1000
         s.close()
@@ -287,7 +287,7 @@ spec:
             - secretRef:
                 name: opnsense-api
           env:
-            - { name: OPNSENSE_URL, value: "https://192.168.2.1" }
+            - { name: OPNSENSE_URL, value: "https://192.168.10.1" }
           ports:
             - { name: metrics, containerPort: 9190 }
           readinessProbe:

@@ -26,7 +26,7 @@ data:
         "schemaVersion": 39,
         "version": 1,
         "refresh": "1m",
-        "description": "The switch itself, scraped at 192.168.2.3:9100 (job `switch`) after `prometheus-node-exporter-lua` was installed on the device on 2026-11-13. `grafana-dashboard-network-devices.yaml` covers whether the device answers and how fast; this covers what it is doing \u2014 per-port counters, CPU, memory, link state.\n\nThese series carry **no `node` label** (the exporter is not a Kubernetes node exporter), so everything here keys on `instance`/`device`. A query joining on `node` would silently return nothing \u2014 that is why this dashboard exists separately rather than being bolted onto the ones that assume a node.",
+        "description": "The switch itself, scraped at 192.168.10.3:9100 (job `switch`) after `prometheus-node-exporter-lua` was installed on the device on 2026-11-13. `grafana-dashboard-network-devices.yaml` covers whether the device answers and how fast; this covers what it is doing \u2014 per-port counters, CPU, memory, link state.\n\nThese series carry **no `node` label** (the exporter is not a Kubernetes node exporter), so everything here keys on `instance`/`device`. A query joining on `node` would silently return nothing \u2014 that is why this dashboard exists separately rather than being bolted onto the ones that assume a node.",
         "time": {
           "from": "now-6h",
           "to": "now"

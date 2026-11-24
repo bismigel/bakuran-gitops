@@ -13,13 +13,13 @@ alerts:
 - WireGuardNoHandshake
 detect:
   commands:
-  - ssh root@192.168.2.81 'journalctl -u tunnel-election --since "15 min ago" | grep -c "did not handshake"'
+  - ssh root@192.168.10.81 'journalctl -u tunnel-election --since "15 min ago" | grep -c "did not handshake"'
   expect: contains:1
 diagnose:
   commands:
-  - ssh root@192.168.2.81 'wg show proton0 latest-handshakes; wg show proton0 | grep -E "endpoint|allowed"'
+  - ssh root@192.168.10.81 'wg show proton0 latest-handshakes; wg show proton0 | grep -E "endpoint|allowed"'
   - kubectl -n kube-system get secret wg-proton-private-key -o jsonpath='{.data.private-key}' | base64 -d | wg pubkey
-  - ssh root@192.168.2.81 'wg show proton0 public-key'
+  - ssh root@192.168.10.81 'wg show proton0 public-key'
   verdict: 'No handshake, or a public key from the Secret that differs from the live interface, means the key in the cluster is stale. A second concurrent tunnel cannot be the answer: Proton allows one session per account (measured 2026-11-13).'
 remedy:
   commands: []

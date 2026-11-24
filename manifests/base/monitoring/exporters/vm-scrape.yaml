@@ -164,7 +164,7 @@ data:
       # must use `instance` instead - see the dashboard and any rule touching switch health.
       - job_name: 'switch'
         static_configs:
-          - targets: ['192.168.2.3:9100']
+          - targets: ['192.168.10.3:9100']
             labels:
               instance: 'gs108tv3'
               site: 'lan'

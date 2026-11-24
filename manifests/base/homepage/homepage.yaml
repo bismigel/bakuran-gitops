@@ -105,7 +105,7 @@ data:
             icon: karakeep
     - Infrastructure:
         - Kubernetes API:
-            href: https://192.168.2.82:6443
+            href: https://192.168.10.82:6443
             description: k3s API server
             icon: kubernetes
         - Homepage:
@@ -272,7 +272,7 @@ spec:
             - name: PGID
               value: "1000"
             - name: HOMEPAGE_ALLOWED_HOSTS
-              value: "192.168.2.82:30080,127.0.0.1:30080,localhost:30080,homepage.homepage.svc:3000,homepage.homepage.svc.cluster.local:3000,homepage.bismigel.dev"
+              value: "192.168.10.82:30080,127.0.0.1:30080,localhost:30080,homepage.homepage.svc:3000,homepage.homepage.svc.cluster.local:3000,homepage.bismigel.dev"
           volumeMounts:
             - name: config
               mountPath: /app/config

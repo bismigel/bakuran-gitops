@@ -85,14 +85,14 @@ spec:
     # only the Jellyfin HTTP port.
     #
     # The pod CIDR is not a widening for convenience — it is what makes the service VIP work at all
-    # (2026-11-05, story 8.3). A client reaching `192.168.2.84` is DNAT'd and then **masqueraded** by
+    # (2026-11-05, story 8.3). A client reaching `192.168.10.84` is DNAT'd and then **masqueraded** by
     # the node holding the VIP, so the pod sees the *node's* cilium_host address (10.42.1.x), not the
     # client's LAN address. Without this rule the packet matched nothing and was dropped: ICMP
     # answered (the node holds the VIP), TCP timed out, and every node in the cluster reported 200
     # because their own IPVS intercepted the VIP before it ever left the node.
     - from:
         - ipBlock:
-            cidr: 192.168.2.0/24
+            cidr: 192.168.10.0/24
         - ipBlock:
             cidr: 10.42.0.0/16
       ports:
@@ -312,7 +312,7 @@ spec:
           port: 443
     - to:
         - ipBlock:
-            cidr: 192.168.2.0/24
+            cidr: 192.168.10.0/24
       ports:
         - protocol: TCP
           port: 6443
@@ -355,7 +355,7 @@ spec:
           port: 53
     - to:
         - ipBlock:
-            cidr: 192.168.2.12/32
+            cidr: 192.168.10.12/32
       ports:
         - protocol: TCP
           port: 11434
@@ -514,7 +514,7 @@ spec:
           port: 443
     - to:
         - ipBlock:
-            cidr: 192.168.2.0/24
+            cidr: 192.168.10.0/24
       ports:
         - protocol: TCP
           port: 6443

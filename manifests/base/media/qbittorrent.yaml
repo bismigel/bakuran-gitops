@@ -155,7 +155,7 @@ spec:
       volumes:
           # **Imports copy, they do not hardlink — measured 2026-11-12, and it is not this manifest's fault.** A
           # `subPath` mount of an NFS volume is a *separate NFS mount* (`/proc/mounts` inside Sonarr shows
-          # `192.168.2.82:/mnt/media/tv` and `192.168.2.82:/mnt/media`), and `link()` requires the same **vfsmount**, not
+          # `192.168.10.82:/mnt/media/tv` and `192.168.10.82:/mnt/media`), and `link()` requires the same **vfsmount**, not
           # merely the same filesystem: `ln` returns `Cross-device link` even though both report the same `st_dev`. The
           # old `hostPath` mounts behaved identically — two bind mounts — so this predates the move to NFS.
           #
@@ -163,7 +163,7 @@ spec:
           # configuration change inside each app, not a manifest edit. Tracked as 10.12 rather than pretended otherwise.
         - name: media
           nfs:
-            server: 192.168.2.82
+            server: 192.168.10.82
             path: /mnt/media
         - name: config
           persistentVolumeClaim:

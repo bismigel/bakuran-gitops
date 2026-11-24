@@ -51,7 +51,7 @@ spec:
   excludedCIDRs:
     - 10.42.0.0/16 # pod network
     - 10.43.0.0/16 # service network
-    - 192.168.2.0/24 # the LAN, including the media pool and the VIP
+    - 192.168.10.0/24 # the LAN, including the media pool and the VIP
     - 10.2.0.0/16 # the tunnel itself
   egressGateway:
     nodeSelector:

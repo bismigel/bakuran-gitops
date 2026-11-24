@@ -181,10 +181,10 @@ spec:
             # LAN URL clients should use. NOT the NodePort (30906/30096 is
             # loopback-only under the edge lock, so it's unreachable from the LAN).
             #
-            # The **name**, not a node address (2026-11-05, story 8.3). This was `http://192.168.2.81:8096` — the media
+            # The **name**, not a node address (2026-11-05, story 8.3). This was `http://192.168.10.81:8096` — the media
             # node — so a client that follows the advertised URL was sent to a machine that may not be running Jellyfin
             # at all. Found by moving the pod to `.80` and reading `/System/Info/Public` back: the server reported
-            # `localAddress: http://192.168.2.81:8096` while listening on a different node, and `.81:8096` was returning
+            # `localAddress: http://192.168.10.81:8096` while listening on a different node, and `.81:8096` was returning
             # nothing (its `hostPort` only exists on the node the pod is on).
             #
             # Hardcoding a node here would have made the rest of 8.3 pointless for exactly the clients the failover is
@@ -248,7 +248,7 @@ spec:
         # media mount in this estate is a hostPath.
         - name: media
           nfs:
-            server: 192.168.2.82
+            server: 192.168.10.82
             path: /mnt/media
 ---
 apiVersion: v1
@@ -262,18 +262,18 @@ metadata:
     # that is chosen rather than discovered is what the TV's bookmarks and the Unbound override and
     # the firewall rule all depend on. If this annotation and the pool ever disagree, the annotation
     # wins — and `vip_pool` is a single address on purpose so they cannot.
-    kube-vip.io/loadbalancerIPs: "192.168.2.84"
+    kube-vip.io/loadbalancerIPs: "192.168.10.84"
 spec:
-  # LoadBalancer via kube-vip. `192.168.2.84`, requested explicitly with the annotation — `vip_pool`
+  # LoadBalancer via kube-vip. `192.168.10.84`, requested explicitly with the annotation — `vip_pool`
   # alone left this `<pending>`, with no allocation and no error.
   #
   # This was reverted to NodePort once, on 2026-11-05, and the reason matters: the first VIP attempt
   # did not serve TCP. But most of the debugging that followed it was **invalid**, because with the
   # Service back to NodePort, kube-proxy had no rules for the VIP at all — probes against
-  # `192.168.2.84` were measuring a stale address, not a broken one. Re-applied to test once, with the
+  # `192.168.10.84` were measuring a stale address, not a broken one. Re-applied to test once, with the
   # Service in the state it is supposed to be in.
   type: LoadBalancer
-  # The VIP is the only address anyone uses (the TV dials `jellyfin.lan` -> 192.168.2.84). A LoadBalancer Service also
+  # The VIP is the only address anyone uses (the TV dials `jellyfin.lan` -> 192.168.10.84). A LoadBalancer Service also
   # allocates a NodePort unless told otherwise, and NodePorts are about to stop being loopback-only: under Cilium's
   # kube-proxy replacement they are served on every node address, and `nixos-fw` cannot restore the restriction because
   # Cilium DNATs in BPF before netfilter. So: no NodePort here either.
