@@ -796,6 +796,7 @@ data:
           "id": 15,
           "type": "table",
           "title": "Deployments not fully available",
+          "description": "Empty means every Deployment has as many available replicas as it asks for - the panel has no threshold to trip, it lists the gap and renders nothing when the gap is zero. An empty panel here is the healthy state, not a broken query (verified 2026-11-24: 88 Deployments, all satisfied).",
           "gridPos": {
             "h": 8,
             "w": 8,
@@ -1269,7 +1270,7 @@ data:
           "id": 105,
           "type": "stat",
           "title": "Media pool used",
-          "description": "The mergerfs pool on the media node: used / total. The single number that decides when the library needs pruning.",
+          "description": "The media mount, used / total: the single number that decides when the library needs pruning. Read from mountpoint, not fstype: it was written as fstype=\"fuse.mergerfs\" and went blank when the pool was replaced by plain btrfs (on .82) and an NFS mount (on .81) - a filesystem type is an implementation detail, the mount is the fact.",
           "gridPos": {
             "x": 20,
             "y": 0,
@@ -1323,7 +1324,7 @@ data:
           },
           "targets": [
             {
-              "expr": "max by (instance) (node_filesystem_size_bytes{fstype=\"fuse.mergerfs\"} - node_filesystem_avail_bytes{fstype=\"fuse.mergerfs\"}) / max by (instance) (node_filesystem_size_bytes{fstype=\"fuse.mergerfs\"}) * 100",
+              "expr": "max by (instance) (node_filesystem_size_bytes{mountpoint=\"/mnt/media\"} - node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"}) / max by (instance) (node_filesystem_size_bytes{mountpoint=\"/mnt/media\"}) * 100",
               "refId": "A",
               "datasource": {
                 "type": "prometheus",

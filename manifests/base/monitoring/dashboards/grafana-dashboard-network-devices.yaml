@@ -263,15 +263,6 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               }
-            },
-            {
-              "expr": "rate(opnsense_interface_tx_errors[15m])",
-              "legendFormat": "{{iface}} tx",
-              "refId": "B",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              }
             }
           ]
         },

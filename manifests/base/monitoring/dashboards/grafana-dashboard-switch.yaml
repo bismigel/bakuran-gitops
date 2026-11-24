@@ -395,7 +395,7 @@ data:
           },
           {
             "id": 9,
-            "title": "Temperature",
+            "title": "Port speed (Mbit/s)",
             "type": "timeseries",
             "gridPos": {
               "x": 12,
@@ -403,14 +403,14 @@ data:
               "w": 12,
               "h": 7
             },
-            "description": "Only present if the device exports thermal zones; absent panels are honest, empty ones are not.",
+            "description": "Negotiated link speed per port. This panel used to read node_thermal_zone_temp_celsius{job=\"switch\"}: the GS108Tv3 is fanless and its OpenWrt image exposes no thermal zone or hwmon sensor (verified 2026-11-24 - the switch's 492 node_* series contain none matching temp or thermal), so the panel could never fill. An empty panel is not honest, it is a lie about coverage; the measurement the switch does make goes here instead.",
             "datasource": {
               "type": "prometheus",
               "uid": "prometheus"
             },
             "fieldConfig": {
               "defaults": {
-                "unit": "celsius",
+                "unit": "Mbits",
                 "custom": {
                   "lineWidth": 1,
                   "fillOpacity": 8
@@ -430,8 +430,8 @@ data:
             "targets": [
               {
                 "refId": "A",
-                "expr": "node_thermal_zone_temp_celsius{job=\"switch\"}",
-                "legendFormat": "{{zone}}"
+                "expr": "node_network_speed_bytes{job=\"switch\"} * 8 / 1e6",
+                "legendFormat": "{{device}}"
               }
             ]
           }
