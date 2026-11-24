@@ -1324,7 +1324,7 @@ data:
     
     Egress remains open. Infrastructure namespaces are intentionally not managed.
     
-    Jellyfin keeps a LAN-only `192.168.10.0/24:8096` exception for TV clients;
+    Jellyfin keeps a LAN-only `192.168.2.0/24:8096` exception for TV clients;
     the public path stays on the tunnel.
     
     Verified: public URLs return 200, all pods Ready, media to Jellyfin and
