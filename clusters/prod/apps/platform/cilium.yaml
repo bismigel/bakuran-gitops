@@ -16,6 +16,9 @@ spec:
     helm:
       releaseName: cilium
       values: |
+        # Outranks every workload: if the agent is evicted the node loses pod networking and
+        # the eviction it was meant to survive becomes an outage. See manifests/base/priority-classes/.
+        priorityClassName: homelab-critical
         # The API VIP (kube-vip), not a node IP. Cilium uses this only to reach the
         # API for registration and config; with a node IP here, any agent that
         # restarted while that node was down could never reinitialise - even though
