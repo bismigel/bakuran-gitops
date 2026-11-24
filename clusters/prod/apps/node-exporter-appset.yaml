@@ -16,7 +16,7 @@ spec:
     spec:
       project: prod
       source:
-        repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+        repoURL: https://github.com/bismigel/bakuran-gitops.git
         targetRevision: main
         path: manifests/base/node-exporter
       destination:
