@@ -37,6 +37,7 @@ data:
           "id": 2,
           "type": "stat",
           "title": "Containers above 90% memory limit",
+          "description": "Lists containers whose working set is over 90% of their memory limit; empty means nothing is close. It needs BOTH series to join - container_memory_working_set_bytes and kube_pod_container_resource_limits{resource=\"memory\"} - so a completely missing cAdvisor or kube-state-metrics would also render empty; the watchdog rules, not this panel, are what notice that.",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

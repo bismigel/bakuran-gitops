@@ -198,7 +198,7 @@ data:
         {
           "type": "timeseries",
           "title": "Interface errors",
-          "description": "Non-zero here means physical trouble \u2014 duplex, cabling, or a failing NIC.",
+          "description": "OPNsense exports rx_errors only: there is no opnsense_interface_tx_errors series (verified 2026-11-24 by listing every opnsense_interface_* metric - rx_bytes, rx_errors, rx_packets, tx_bytes, tx_packets). A tx line would be a panel that can never fill. Non-zero here means physical trouble - duplex, cabling, or a failing NIC.",
           "gridPos": {
             "h": 8,
             "w": 12,
@@ -233,15 +233,6 @@ data:
               "refId": "A",
               "expr": "rate(opnsense_interface_rx_errors{iface=~\"em0|em1|vlan01\"}[5m])",
               "legendFormat": "{{iface}} rx",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              }
-            },
-            {
-              "refId": "B",
-              "expr": "rate(opnsense_interface_tx_errors{iface=~\"em0|em1|vlan01\"}[5m])",
-              "legendFormat": "{{iface}} tx",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
