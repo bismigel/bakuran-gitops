@@ -45,7 +45,7 @@ data:
         {
           "id": 1,
           "type": "stat",
-          "title": "Cluster power (W)",
+          "title": "Cluster power (W): measured vs modelled",
           "gridPos": {
             "x": 0,
             "y": 0,
@@ -55,10 +55,16 @@ data:
           "targets": [
             {
               "expr": "sum(rate(kepler_node_package_joules_total{mode=\"dynamic\"}[5m])) + sum(rate(kepler_node_dram_joules_total{mode=\"dynamic\"}[5m]))",
-              "refId": "A"
+              "refId": "A",
+              "legendFormat": "measured (package+DRAM)"
+            },
+            {
+              "expr": "sum(rate(kepler_node_platform_joules_total{mode=\"dynamic\"}[5m]))",
+              "refId": "B",
+              "legendFormat": "platform (model)"
             }
           ],
-          "description": "Measured RAPL energy: CPU package + DRAM. Excludes disks, board and PSU losses.",
+          "description": "Two different quantities, and the panel used to show only the first under the name \"cluster power\", which read as a 13x understatement (23 W vs 296 W measured 2026-11-24).\n\nA (measured) is RAPL: CPU package + DRAM, excluding idle cores, disks, board and PSU losses. B (model) is Kepler's platform estimate - `kepler_node_info` reports `platform_power_source: none` on these hosts, so nothing meters it; Kepler derives it from a per-architecture model and splits the result across containers to produce the per-pod panel below. Neither is wall draw.",
           "fieldConfig": {
             "defaults": {
               "unit": "watt"
@@ -86,7 +92,7 @@ data:
         {
           "id": 2,
           "type": "stat",
-          "title": "Energy (24h)",
+          "title": "Energy 24h: package+DRAM (kWh)",
           "gridPos": {
             "x": 4,
             "y": 0,
@@ -99,7 +105,7 @@ data:
               "refId": "A"
             }
           ],
-          "description": "Measured CPU package energy over the last 24h, in kWh.",
+          "description": "Measured RAPL energy (CPU package + DRAM) over the last 24h, in kWh. Not the estate's electricity: disks, board and PSU losses are not in it, and on these hosts they dominate.",
           "fieldConfig": {
             "defaults": {
               "unit": "kwatth"
@@ -127,7 +133,7 @@ data:
         {
           "id": 3,
           "type": "stat",
-          "title": "Average (24h)",
+          "title": "Average 24h: measured (W)",
           "gridPos": {
             "x": 8,
             "y": 0,
@@ -398,7 +404,8 @@ data:
         {
           "id": 10,
           "type": "timeseries",
-          "title": "Top pods by power (W)",
+          "title": "Top pods by attributed power (W)",
+          "description": "An attribution, not a measurement: Kepler divides a power budget by cgroup CPU share, so read it as a ranking. The budget is the platform MODEL (`platform_power_source: none` on these hosts), which is why these values sum to ~296 W while RAPL measures 23 W of CPU package. Useful for \"who is burning it\", useless as watts.",
           "gridPos": {
             "x": 0,
             "y": 13,
@@ -412,7 +419,7 @@ data:
               "legendFormat": "{{pod_name}}"
             }
           ],
-          "description": "Honest per-container attribution, useful for spotting runaway workloads.",
+          "description": "An attribution, not a measurement: Kepler divides a power budget by each cgroup's CPU share, so read it as a ranking, not as watts. The budget is the platform MODEL - `kepler_node_info` reports `platform_power_source: none` on these hosts - which is why these values sum to ~296 W while RAPL measures 23 W of CPU package. It answers \"which workload is burning the most\", and it answers that well.",
           "fieldConfig": {
             "defaults": {
               "unit": "watt",
