@@ -31,16 +31,27 @@ value: "200"
 # `.82:/mnt/media-nvme`, with `.80` holding the smallest disk (135 GiB) closest to its limit.
 # Raising the over-provisioning allowance made that invisible rather than fixing it.
 #
-# `best-effort` lets Longhorn move replicas itself when a disk is out of balance with the others,
-# instead of leaving every future volume to land wherever the scheduler happens to look. It is
-# deliberately not `least-effort`: with three disks of very different sizes the point is to actually
-# balance, and a volume rebuild is cheap here (9 GiB of real data across all volumes).
+# `least-effort` since 2026-11-24, and the reason `best-effort` had to go is a measurement, not a taste.
+#
+# `best-effort` balances by ACTUAL bytes, while the disk alarms read PROMISED bytes
+# (`longhorn:disk_scheduled_to_free_ratio`). On three disks of very different sizes those two disagree,
+# and the balancer systematically worsens the alarm: `patola-thinkcentre:/mnt/data` is the smallest disk
+# (134 GiB) holding thin volumes, so its real usage stays low, so the balancer keeps moving replicas onto
+# it - promised bytes went 166 GiB -> 191 GiB within ten minutes of re-enabling scheduling on that disk,
+# with no volume created. A reviewer can see it in one query; the balancer cannot.
+#
+# The 2026-11-05 note said a rebuild is cheap here (9 GiB of real data across all volumes). That is no
+# longer true: rebuilding one 25 GiB replica onto the backup disk ran at ~8 MiB/s, so the "it rebalances
+# itself, cheaply" premise now costs 20-40 minutes per move and competes with backups for that disk.
+#
+# `least-effort` is Longhorn's default: new replicas are still placed by the scheduler (which prefers the
+# disk with the most free space), it just stops the background shuffling that re-creates overcommit.
 apiVersion: longhorn.io/v1beta2
 kind: Setting
 metadata:
   name: replica-auto-balance
   namespace: longhorn-system
-value: best-effort
+value: least-effort
 ---
 # Two settings that decide whether "survive one node" is true, reviewed against the measured state on 2026-11-19.
 #
