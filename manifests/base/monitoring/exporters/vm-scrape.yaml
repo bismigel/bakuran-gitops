@@ -263,6 +263,8 @@ data:
               # different signals - StatusApiCheckFailing covers the second.
               - https://status.bismigel.dev/healthz
               - https://ciceley.cc/
+              # /healthz (liveness, never checks dependencies): reachability of the app through the edge.
+              - https://easyshortlist.ciceley.cc/healthz
               - https://jellyfin.bismigel.dev/
               - https://immich.bismigel.dev/api/server/ping
               - https://karakeep.bismigel.dev/

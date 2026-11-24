@@ -84,6 +84,7 @@ spec:
               - configMap: { name: metrics-rules }
               - configMap: { name: metrics-rules-workloads }
               - configMap: { name: metrics-rules-network-devices }
+              - configMap: { name: metrics-rules-easyshortlist }
 ---
 apiVersion: v1
 kind: Service

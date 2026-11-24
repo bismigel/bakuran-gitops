@@ -123,3 +123,12 @@ group:
   alerts:
   - WireGuardMetricsMissing
   - WireGuardRestarted
+- reason: 'EasyShortlist app SLOs and safety alerts: the app''s own signals are the diagnosis - /admin "Processing issues" (IDs and codes only), the app logs (leak_kind, candidate ids) and the shortlist dashboards. runbook 28'
+  # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
+  # (`workstation`). Required for every group; check-alert-coverage fails without it.
+  where: cluster
+  alerts:
+  - EasyShortlistJobFailureBurnRate
+  - EasyShortlistLeakBlock
+  - EasyShortlistScoreDisagreement
+  - EasyShortlistTimeToScoreBurnRate
