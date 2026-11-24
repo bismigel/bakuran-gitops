@@ -1,0 +1,57 @@
+# PriorityClasses: which workloads get sacrificed first when the node is under pressure.
+#
+# WHY (2026-11-24): the estate had no PriorityClass of its own. Under memory pressure the kubelet
+# ranks eviction victims by QoS class and then by priority, so with every pod at priority 0 the
+# victim is whichever innocent happens to be biggest — measured behaviour in similar clusters is
+# that a CNI or storage pod gets killed to save a Grafana sidecar. That is the wrong order, and it
+# turns a pressure event into a networking or storage outage.
+#
+# WHAT THIS DOES NOT DO: it does not order startup and it does not break a dependency cycle. A
+# PriorityClass cannot make Cilium bootstrap before ArgoCD — see docs/guides/cold-start.md for
+# that. This file is only about graceful degradation: sacrifice the least important thing first.
+#
+# The numbers are deliberately far apart. Kubernetes reserves >= 2000000000 for its own
+# system-critical components, and the Longhorn chart already creates `longhorn-critical` at
+# 1000000000. Ours sit below all of those:
+#
+#   system-node-critical      2000001000   (Kubernetes)
+#   system-cluster-critical   2000000000   (Kubernetes)
+#   longhorn-critical         1000000000   (the Longhorn chart's own class)
+#   homelab-critical            900000000   <- this file: CNI, DNS, secrets, certs, VIP
+#   homelab-platform            500000000   <- this file: GitOps and monitoring
+#   homelab-app                      1000   <- this file: the default for everything else
+#
+# `homelab-app` is the global default, so a manifest that says nothing gets app priority. That is
+# intentional: the safe default is "sacrifice me", not "sacrifice whatever the scheduler saw first".
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-critical
+value: 900000000
+globalDefault: false
+description: >-
+  Pod networking, cluster DNS, secret delivery, certificates and the API VIP. If one of these is
+  evicted the node stops being able to run or reach anything, so it must outlive every workload.
+  Set explicitly on the Cilium, CoreDNS, external-secrets, cert-manager and kube-vip pods.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-platform
+value: 500000000
+globalDefault: false
+description: >-
+  The things that put other things on the cluster: ArgoCD's components and the monitoring stack.
+  They may be preempted by homelab-critical, and may preempt applications, but nothing else
+  outranks them.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-app
+value: 1000
+globalDefault: true
+description: >-
+  The default for every workload that does not name a class. Applications, CronJobs and one-off
+  jobs. Being the global default is the point: the pod nobody thought about is the pod that gets
+  evicted first, rather than a coin flip between it and the CNI.

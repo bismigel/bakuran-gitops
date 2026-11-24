@@ -1,0 +1,28 @@
+# The cluster's own PriorityClasses. Applied as its own Application so the objects exist before
+# any workload can name them; a workload created first simply fails admission and is retried by
+# ArgoCD, which is a two-second flicker rather than a design flaw.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: priority-classes
+  namespace: argocd
+  annotations:
+    # First sync wave of the platform apps: nothing should schedule before its sacrifice order
+    # is defined. (This is ordering *within ArgoCD's apply loop*, not startup ordering - see the
+    # header of the manifest for what this file does and does not solve.)
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: prod
+  source:
+    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/priority-classes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
