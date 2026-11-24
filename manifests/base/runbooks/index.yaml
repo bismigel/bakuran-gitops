@@ -56,6 +56,7 @@ data:
   MediaPoolCritical: "action=- where=workstation severity=critical runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolcritical"
   MediaPoolDaysToFull: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapooldaystofull"
   MediaPoolFillingUp: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolfillingup"
+  NetdevCollectBroken: "action=netdev-collect-broken where=cluster severity=warning runbook=https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#netdevcollectbroken"
   NetworkDeviceTlsExpiringSoon: "action=- where=workstation severity=warning runbook=https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#networkdevicetlsexpiringsoon"
   NetworkDeviceUnreachable: "action=- where=workstation severity=critical runbook=https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#networkdeviceunreachable"
   NodeDown: "action=nodedown where=cluster severity=critical runbook=https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#nodedown"
