@@ -1,0 +1,109 @@
+# The Longhorn Node objects: which disks exist, where they are, and which of them may receive
+# replicas. Declared here since 2026-11-24 (previously they existed only as runtime patches, so
+# nobody could answer "what disks does the cluster promise" from a clone of this repo).
+#
+# Two rules encoded below:
+#
+# 1. `default-disk-*` is the disk Longhorn creates by itself at `/var/lib/longhorn`, i.e. inside
+#    the OS filesystem that also holds etcd, k3s and the container image store. It is
+#    `allowScheduling: false` on all three nodes. The runbook says replicas belong on the
+#    dedicated partitions, and on 2026-11-24 the scheduler was caught placing rebuilds on them
+#    (`.82`'s OS disk went from 1.21x to 2.75x promised in one evening of replica moves).
+#    Existing replicas on those disks are left where they are: evicting them is a rebuild each,
+#    and the point of this file is to stop the bleeding, not to relitigate old placements.
+#
+# 2. `storageReserved` is bytes withheld from Longhorn on that disk, for the filesystem's own
+#    needs. The two `nvme`/`data`/`longhorn` partitions reserve nothing because they hold nothing
+#    but Longhorn; the OS disks keep Longhorn's 25% default, which is what `/var/lib/longhorn`
+#    shares with the OS.
+#
+# `path` is repeated for each disk even though Longhorn would keep it: a disk whose path is not
+# in git is a disk whose data location nobody declared.
+#
+# Verified against the live objects 2026-11-24 (`kubectl -n longhorn-system get nodes.longhorn.io
+# -o json`), which is why `/mnt/data`, `/mnt/media-nvme`, `/mnt/longhorn` and
+# `/mnt/backup-sd/longhorn` all appear here with their real reservation values.
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: patola-thinkcentre
+  namespace: longhorn-system
+spec:
+  allowScheduling: true
+  tags: []
+  disks:
+    data:
+      path: /mnt/data
+      allowScheduling: true
+      storageReserved: 0
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
+    default-disk-6aef81d7852e3ab6:
+      path: /var/lib/longhorn/
+      allowScheduling: false
+      storageReserved: 31526778470
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: sitaw-amd
+  namespace: longhorn-system
+spec:
+  allowScheduling: true
+  tags:
+    - large-disk
+  disks:
+    nvme:
+      path: /mnt/media-nvme
+      allowScheduling: true
+      storageReserved: 0
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
+    backup-sd:
+      # `/mnt/backup-sd` is a USB card reader that also carries the weekly media mirror, so it is
+      # capacity and not speed: a replica rebuilt onto it measured 2.5-8 MiB/s (2026-11-24), the
+      # same copy took two minutes onto `nvme`. It is schedulable because the estate needs the
+      # bytes; do not expect it to make a rebuild fast.
+      path: /mnt/backup-sd/longhorn
+      allowScheduling: true
+      storageReserved: 107374182400
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
+    default-disk-18b0d424735c5693:
+      path: /var/lib/longhorn/
+      allowScheduling: false
+      storageReserved: 31526778470
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: calamansi-intel
+  namespace: longhorn-system
+spec:
+  allowScheduling: true
+  tags:
+    - large-disk
+  disks:
+    longhorn:
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 10737418240
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
+    default-disk-9fc632c1dea049fc:
+      path: /var/lib/longhorn/
+      allowScheduling: false
+      storageReserved: 31526778470
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
