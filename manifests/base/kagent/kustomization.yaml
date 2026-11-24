@@ -11,6 +11,7 @@ resources:
   - triage-state-pvc.yaml
   - triage-script.yaml
   - registry-cred.yaml
+  - forgejo-registry-pull.yaml
   - triage-cronjob.yaml
   - guard-vap.yaml
   - guard-vap-binding.yaml

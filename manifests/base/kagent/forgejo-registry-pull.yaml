@@ -1,0 +1,35 @@
+# Pull credential for Forgejo's own container registry (2026-11-24).
+#
+# The estate has TWO registries and they are not interchangeable:
+#   - zot (registry.bismigel.dev -> 10.43.200.10:5000) hosts WORKLOAD images; pods pull with `registry-cred`;
+#   - Forgejo's registry (git.bismigel.dev, in-cluster forgejo:3000) hosts CI ARTEFACTS - the checks image, and
+#     what `checks.yml` pulls with `R="forgejo:3000"`.
+#
+# The triage toolset was built into the second by the workflow that knows how to push there, so this namespace needs
+# a reader for it. Bitwarden already holds one (`forgejo-registry-reader-user` / `-token`), used here rather than a
+# second copy of anything. The reader is read-only by design: publishing images stays CI's job, and a pull secret
+# that can push is a pull secret that can overwrite what a rollback depends on.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: forgejo-registry-pull
+  namespace: kagent
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: forgejo-registry-pull
+    template:
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: |
+          {"auths":{"forgejo.forgejo.svc:3000":{"username":"{{ .username }}","password":"{{ .password }}","auth":"{{ printf "%s:%s" .username .password | b64enc }}"}}}
+  data:
+    - secretKey: username
+      remoteRef:
+        key: forgejo-registry-reader-user
+    - secretKey: password
+      remoteRef:
+        key: forgejo-registry-reader-token
