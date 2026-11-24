@@ -53,6 +53,9 @@ spec:
         - - name: longhorn-volume-faulted
             when: '"{{workflow.parameters.action}}" == "longhorn-volume-faulted"'
             template: run-longhorn-volume-faulted
+        - - name: netdev-collect-broken
+            when: '"{{workflow.parameters.action}}" == "netdev-collect-broken"'
+            template: run-netdev-collect-broken
         - - name: nodedown
             when: '"{{workflow.parameters.action}}" == "nodedown"'
             template: run-nodedown
@@ -196,6 +199,25 @@ spec:
           kubectl -n longhorn-system get pods -l app=longhorn-manager -o wide
           
           printf '\nverdict: %s\n' 'Faulted with all nodes Ready means a replica disk failed or was evicted, not a node outage - the volume still serves reads from its remaining replica and the repair is a rebuild, not a restore. Faulted with a node NotReady is the case where doing nothing for an hour is what turns a rebuild into a restore from backup.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # netdev-collect-broken - The network-device exporter cannot collect, so its device metrics are absent rather than zero
+    - name: run-netdev-collect-broken
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=netdev_collect_ok' | jq -r '.data.result[] | .value[1]'
+          kubectl -n monitoring exec deploy/netdev-exporter -- python -c 'import sys; sys.path.insert(0,"/app"); import exporter; print(len(exporter.collect()), "metrics")'
+          kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=absent(netdev_wan_up)' | jq -r '.data.result | length'
+          
+          printf '\nverdict: %s\n' 'A traceback that names a line in collect() is the bug. If the same command succeeds when run by hand in the pod, the fault is in the long-lived process rather than the code (a shape that only changes after a reboot, a stale session). While collect_ok is 0, WanUnreachable and RouterResolverDown are unknown, not true: verify the network by hand before acting on either.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:

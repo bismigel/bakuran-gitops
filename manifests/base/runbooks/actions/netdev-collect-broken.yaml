@@ -1,0 +1,36 @@
+# The exporter that produces every network-device metric could not assemble a snapshot.
+#
+# Read-only by design: the router is almost certainly fine, and the useful action is to look at
+# the exporter, not to touch the network. Before this existed, a failing collector kept its last
+# snapshot and the stale zeros fired WanUnreachable and RouterResolverDown as critical against a
+# router that answered DNS (2026-11-24).
+id: netdev-collect-broken
+title: The network-device exporter cannot collect, so its device metrics are absent rather than zero
+severity: medium
+blast_radius: external
+reversible: true
+runbook: bismigel-site/org/runbook/24-network-devices-router-switch-ap.org
+runbook_repo: bismigel-site
+measured: '2026-11-24'
+alerts:
+- NetdevCollectBroken
+detect:
+  commands:
+  - kubectl -n monitoring logs deploy/netdev-exporter --tail=20 | grep -A6 "collect failed"
+  expect: notempty
+diagnose:
+  commands:
+  - kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=netdev_collect_ok' | jq -r '.data.result[] | .value[1]'
+  - kubectl -n monitoring exec deploy/netdev-exporter -- python -c 'import sys; sys.path.insert(0,"/app"); import exporter; print(len(exporter.collect()), "metrics")'
+  - kubectl -n monitoring get --raw '/api/v1/namespaces/monitoring/services/victoriametrics:8428/proxy/api/v1/query?query=absent(netdev_wan_up)' | jq -r '.data.result | length'
+  verdict: >-
+    A traceback that names a line in collect() is the bug. If the same command succeeds when run by
+    hand in the pod, the fault is in the long-lived process rather than the code (a shape that only
+    changes after a reboot, a stale session). While collect_ok is 0, WanUnreachable and
+    RouterResolverDown are unknown, not true: verify the network by hand before acting on either.
+remedy:
+  commands: []
+  why_safe: >-
+    No automatic remedy. A collector that restarts itself hides the class of bug that caused this
+    one - a variable reused as both a registry and a snapshot, which produced a frozen snapshot for
+    the life of the pod. The operator restarts the pod only after reading the traceback.
