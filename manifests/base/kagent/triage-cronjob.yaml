@@ -42,25 +42,22 @@ spec:
             - name: state
               persistentVolumeClaim:
                 claimName: triage-state
+          # zot, not Docker Hub: the same `registry-cred` shape the estate's other workloads use.
+          imagePullSecrets:
+            - name: registry-cred
           containers:
             - name: triage
-              image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+              # The tools are IN this image. It is built from the same pinned alpine base plus `apk add curl jq`
+              # at build time (homelab-context/.forgejo/workflows/triage-image.yml), so the pod needs no network to
+              # start. Installing at start raced the pod's own DNS and failed six times over 60s on 2026-11-24:
+              # the job exited non-zero, the alert it was meant to triage was never looked at, and JobPodsFailing
+              # fired over a tool install.
+              image: registry.bismigel.dev/bismigel/triage-tools:sha-2d22ba38aea3@sha256:ed1b1d06436f278af4fdf1097f58be9620b3fd862eaeb21bedd2cfdefce3182d
               command: ["/bin/sh", "-c"]
               args:
-                # apk update first, and retried with the add: the alpine image carries a baked-in index, so a
-                # plain `apk add` answers "no such package" for curl and jq while the pod's DNS and egress are
-                # still being programmed - the same race that crash-looped the Forgejo runner (2026-11-23). Here
-                # it does not crash-loop: the job fails, the triage job records nothing, and the alert it was
-                # meant to triage stays silent. Measured failure of exactly this line: triage-29924360.
-                - |
-                  set -e
-                  n=0
-                  until apk update >/dev/null 2>&1 && apk add --no-cache curl jq >/dev/null; do
-                    n=$((n+1))
-                    if [ "$n" -ge 6 ]; then echo "apk add failed after $n attempts" >&2; exit 1; fi
-                    sleep 10
-                  done
-                  exec /scripts/triage.sh
+                # No install step. The image carries curl and jq; a job that needs the network to start is a job
+                # that fails whenever the network is the thing being diagnosed.
+                - exec /scripts/triage.sh
               env:
                 - name: TELEGRAM_CHAT_ID
                   value: "607008268"
