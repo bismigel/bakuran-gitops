@@ -28,8 +28,26 @@ data:
                 wired host including the cluster; AP (.2) takes only Wi-Fi.
               runbook_url: "https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#networkdeviceunreachable"
 
+          # Both rules below require a WORKING collector. On 2026-11-24 the exporter threw in one block, kept its
+          # previous snapshot, and the 0s it had written hours earlier fired these two as critical against a router
+          # that answered DNS and routed fine. `netdev_collect_ok` is the fact that says whether the other two mean
+          # anything; without it, "we could not measure" rendered as "it is down", and the estate spent an hour
+          # chasing a healthy router.
+          - alert: NetdevCollectBroken
+            # The exporter could not assemble a snapshot. Its own metrics are then ABSENT rather than zero (the
+            # exporter replaces the snapshot with this marker), so anything that waited for `wan_up == 0` would go
+            # quiet - which is how a monitor reads as healthy while blind. This is the rule that says so.
+            expr: netdev_collect_ok == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "the network-device exporter cannot collect - WanUnreachable and RouterResolverDown are blind"
+              description: "Check the exporter's log for the traceback it now prints (it used to print one message with no line). The router is probably fine; what is broken is our ability to look at it."
+              runbook_url: "https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#netdevcollectbroken"
+
           - alert: WanUnreachable
-            expr: netdev_wan_up == 0
+            expr: netdev_wan_up == 0 and on() netdev_collect_ok == 1
             for: 5m
             labels:
               severity: critical
@@ -42,7 +60,7 @@ data:
               runbook_url: "https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#wanunreachable"
 
           - alert: RouterResolverDown
-            expr: netdev_dns_up == 0
+            expr: netdev_dns_up == 0 and on() netdev_collect_ok == 1
             for: 3m
             labels:
               severity: critical

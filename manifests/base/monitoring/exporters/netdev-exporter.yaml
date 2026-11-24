@@ -31,7 +31,7 @@ data:
     stdlib only. Each collect() is wrapped: one dead device must not blank the
     whole exposition, otherwise an AP outage would also hide the router.
     """
-    import json, os, socket, ssl, struct, threading, time, urllib.request
+    import json, os, socket, ssl, struct, threading, time, traceback, urllib.request
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     OPNSENSE = os.environ.get("OPNSENSE_URL", "https://192.168.2.1")
@@ -129,7 +129,11 @@ data:
         return (1 if rcode == 0 else 0), ms
 
     def collect():
-        lines = []
+        # Every successful collect says so. Without this, a failing collector is indistinguishable from a healthy
+        # network: on 2026-11-24 this exporter threw in one block, kept its previous snapshot, and the 0s it had
+        # written hours earlier fired WanUnreachable and RouterResolverDown against a router that answered DNS and
+        # routed fine. A monitor whose absence looks like an outage is worse than no monitor.
+        lines = ["netdev_collect_ok 1"]
         # --- reachability of the three devices ---
         for name, (host, port) in TARGETS.items():
             try:
@@ -217,7 +221,15 @@ data:
                 with LOCK:
                     CACHE = lines
             except Exception as e:
+                # The traceback matters: this printed the same message every 30 s for hours without naming a line,
+                # and "list indices must be integers or slices, not str" alone does not say which call returned a
+                # list. One line in the log is the difference between a five-minute fix and this evening.
                 print("collect failed:", e, flush=True)
+                traceback.print_exc()
+                # Replace the snapshot rather than keep it. `netdev_collect_ok 0` is a fact; the previous
+                # wan_up/dns_up values are a guess, and a stale guess is what fired the false criticals.
+                with LOCK:
+                    CACHE = ["netdev_collect_ok 0"]
             time.sleep(30)
 
     class Handler(BaseHTTPRequestHandler):
