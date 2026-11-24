@@ -37,7 +37,14 @@ data:
     OPNSENSE = os.environ.get("OPNSENSE_URL", "https://192.168.2.1")
     KEY = os.environ.get("OPNSENSE_KEY", "")
     SECRET = os.environ.get("OPNSENSE_SECRET", "")
-    CACHE = {}
+    # TWO variables, and the reason this file has a commit of its own: until 2026-11-24 the one variable was both
+    # the "have I already emitted HELP/TYPE for this metric" registry (a dict) AND the snapshot the HTTP handler
+    # served (a list). refresh() assigned the list to it on the first successful collect, so every later out() call
+    # raised `list indices must be integers or slices, not str`, refresh() discarded the new snapshot on every
+    # subsequent cycle, and the exporter served the values from that first collect for the rest of the pod's life.
+    # That is how WanUnreachable and RouterResolverDown ended up firing on a router that answered DNS.
+    SEEN = {}          # metric name -> True, so HELP/TYPE is emitted once per snapshot
+    SNAPSHOT = []      # the lines the handler serves
     LOCK = threading.Lock()
 
     TARGETS = {"router": ("192.168.2.1", 443), "switch": ("192.168.2.3", 22),
@@ -47,10 +54,10 @@ data:
     WAN_PROBE = ("1.1.1.1", 443)
 
     def out(lines, name, kind, help_text, value, labels=None):
-        if name not in CACHE:
+        if name not in SEEN:
             lines.append(f"# HELP {name} {help_text}")
             lines.append(f"# TYPE {name} {kind}")
-            CACHE[name] = True
+            SEEN[name] = True
         lab = ""
         if labels:
             lab = "{" + ",".join(f'{k}="{v}"' for k, v in labels.items()) + "}"
@@ -214,12 +221,12 @@ data:
         return lines
 
     def refresh():
-        global CACHE
+        global SNAPSHOT
         while True:
             try:
                 lines = collect()
                 with LOCK:
-                    CACHE = lines
+                    SNAPSHOT = lines
             except Exception as e:
                 # The traceback matters: this printed the same message every 30 s for hours without naming a line,
                 # and "list indices must be integers or slices, not str" alone does not say which call returned a
@@ -229,7 +236,7 @@ data:
                 # Replace the snapshot rather than keep it. `netdev_collect_ok 0` is a fact; the previous
                 # wan_up/dns_up values are a guess, and a stale guess is what fired the false criticals.
                 with LOCK:
-                    CACHE = ["netdev_collect_ok 0"]
+                    SNAPSHOT = ["netdev_collect_ok 0"]
             time.sleep(30)
 
     class Handler(BaseHTTPRequestHandler):
@@ -237,7 +244,7 @@ data:
             if self.path != "/metrics":
                 self.send_response(404); self.end_headers(); return
             with LOCK:
-                body = ("\n".join(CACHE) + "\n").encode()
+                body = ("\n".join(SNAPSHOT) + "\n").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; version=0.0.4")
             self.send_header("Content-Length", str(len(body)))
