@@ -71,4 +71,4 @@ spec:
             - name: library
               persistentVolumeClaim: { claimName: immich-library-rwx-v2, readOnly: true }
             - name: pool
-              nfs: { server: 192.168.2.82, path: /mnt/media/immich }
+              nfs: { server: 192.168.10.82, path: /mnt/media/immich }

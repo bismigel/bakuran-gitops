@@ -15,7 +15,7 @@ spec:
           argocd.argoproj.io/secret-type: repository
       data:
         type: git
-        url: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/status-api.git
+        url: https://github.com/bismigel/status-api.git
         username: bismigel
         password: "{{ .password }}"
   data:

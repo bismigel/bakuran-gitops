@@ -106,7 +106,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>Enabled</AuthenticationRequired>#' \
-                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.10.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -147,7 +147,7 @@ spec:
           # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
           # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
-            server: 192.168.2.82
+            server: 192.168.10.82
             path: /mnt/media
         - name: config
           persistentVolumeClaim:
@@ -206,7 +206,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>Enabled</AuthenticationRequired>#' \
-                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.10.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -256,7 +256,7 @@ spec:
           # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
           # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
-            server: 192.168.2.82
+            server: 192.168.10.82
             path: /mnt/media
         - name: config
           persistentVolumeClaim:
@@ -312,7 +312,7 @@ spec:
               sed -i \
                 -e 's#<AuthenticationMethod>[^<]*</AuthenticationMethod>#<AuthenticationMethod>Forms</AuthenticationMethod>#' \
                 -e 's#<AuthenticationRequired>[^<]*</AuthenticationRequired>#<AuthenticationRequired>Enabled</AuthenticationRequired>#' \
-                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.2.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
+                -e 's#<AllowedHosts>[^<]*</AllowedHosts>#<AllowedHosts>192.168.10.81,127.0.0.1,localhost,sonarr,radarr,prowlarr,bazarr,sonarr.media.svc,sonarr.media.svc.cluster.local,radarr.media.svc,radarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media.svc.cluster.local,sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev</AllowedHosts>#' \
                 "$f"
               chown 1000:1000 "$f" 2>/dev/null || true
           volumeMounts:
@@ -362,7 +362,7 @@ spec:
           # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
           # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
-            server: 192.168.2.82
+            server: 192.168.10.82
             path: /mnt/media
         - name: config
           persistentVolumeClaim:
@@ -454,7 +454,7 @@ spec:
           # same way, so this predates the move to NFS. Fixing it needs one mount plus app-side paths —
           # configuration inside each app, not a manifest edit. Tracked as 10.12.
           nfs:
-            server: 192.168.2.82
+            server: 192.168.10.82
             path: /mnt/media
         - name: config
           persistentVolumeClaim:

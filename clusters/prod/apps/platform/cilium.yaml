@@ -20,7 +20,7 @@ spec:
         # API for registration and config; with a node IP here, any agent that
         # restarted while that node was down could never reinitialise - even though
         # etcd and the API had survived on the other two.
-        # The LOCAL API, not the VIP. A cold start used to wait for 192.168.2.100, which kube-vip could
+        # The LOCAL API, not the VIP. A cold start used to wait for 192.168.10.100, which kube-vip could
         # only announce after winning a lease through 10.43.0.1 - which Cilium provides, because
         # kube-proxy replacement is on. On 2026-11-15 a power cut closed that cycle and the cluster sat
         # for 27 minutes with three Ready nodes and nothing able to run.

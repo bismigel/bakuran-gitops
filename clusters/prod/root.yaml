@@ -29,12 +29,12 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    - repoURL: https://github.com/bismigel/bakuran-gitops.git
       targetRevision: main
       path: clusters/prod/apps
       directory:
         recurse: true
-    - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    - repoURL: https://github.com/bismigel/bakuran-gitops.git
       targetRevision: main
       path: clusters/prod/projects
   destination:

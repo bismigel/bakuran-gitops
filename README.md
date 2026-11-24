@@ -44,7 +44,7 @@ flowchart TB
   prom -.->|offsite copy| r2[(R2)]
 ```
 
-Three nodes, no node special: losing any one leaves etcd quorum and a working API at a floating address (`192.168.2.100`). The edge is a
+Three nodes, no node special: losing any one leaves etcd quorum and a working API at a floating address (`192.168.10.100`). The edge is a
 Cloudflare Tunnel — there is no inbound port forward anywhere.
 
 ## How it works
@@ -66,7 +66,7 @@ One **3-node k3s cluster** (embedded etcd), all three schedulable, none tainted:
 | `calamansi-intel` | .81 | the media stack (pinned by `nodeSelector`), `/mnt/media`, the WireGuard tunnel |
 | `patola-thinkcentre` | .80 | third etcd member, Immich (server, Postgres, Redis) |
 
-The API is a floating address at `192.168.2.100`, held by whichever node wins the lease — losing any one node leaves quorum and a
+The API is a floating address at `192.168.10.100`, held by whichever node wins the lease — losing any one node leaves quorum and a
 working API. `.83` is not a member: it is the staging host, running the rehearsal cluster from `clusters/staging/`.
 
 Networking is Cilium VXLAN with **kube-proxy disabled on all three hosts**; every Application targets `https://kubernetes.default.svc`,

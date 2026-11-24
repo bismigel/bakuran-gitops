@@ -25,7 +25,7 @@ metadata:
 spec:
   project: prod
   source:
-    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/easyshortlist.git
+    repoURL: https://github.com/bismigel/easyshortlist.git
     targetRevision: main
     path: deploy/k8s/overlays/prod
   destination:

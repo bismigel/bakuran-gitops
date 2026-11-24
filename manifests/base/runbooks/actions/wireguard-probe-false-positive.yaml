@@ -13,12 +13,12 @@ alerts:
 - WireGuardNoEgress
 detect:
   commands:
-  - ssh root@192.168.2.81 'curl -s -o /dev/null -m 8 -w "%{http_code}" https://1.1.1.1/'
-  - ssh root@192.168.2.81 'curl -s -o /dev/null -m 8 -w "%{http_code}" https://ifconfig.me'
+  - ssh root@192.168.10.81 'curl -s -o /dev/null -m 8 -w "%{http_code}" https://1.1.1.1/'
+  - ssh root@192.168.10.81 'curl -s -o /dev/null -m 8 -w "%{http_code}" https://ifconfig.me'
   expect: any-fail
 diagnose:
   commands:
-  - ssh root@192.168.2.81 'for u in https://ifconfig.me https://one.one.one.one/ https://1.1.1.1/; do printf "%s " "$u"; curl -s -o /dev/null -m 8 -w "%{http_code}\n" "$u"; done'
+  - ssh root@192.168.10.81 'for u in https://ifconfig.me https://one.one.one.one/ https://1.1.1.1/; do printf "%s " "$u"; curl -s -o /dev/null -m 8 -w "%{http_code}\n" "$u"; done'
   verdict: One target failing while the others answer 200 means the VPN server filters that host. That is a probe bug, not an outage - fix the target (it is one.one.one.one since 2026-11-14) and leave the tunnel alone.
 remedy:
   commands: []

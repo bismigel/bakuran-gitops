@@ -14,14 +14,14 @@ spec:
         releaseName: kagent
         valueFiles:
           - $values/manifests/base/kagent/values.yaml
-    - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    - repoURL: https://github.com/bismigel/bakuran-gitops.git
       targetRevision: main
       ref: values
     # The tool server the chart's `kagent-tools` subchart used to render (story 10.14). It is a source of THIS Application
     # on purpose: an object that moves from chart-owned to declared-owned must change owner *inside* one sync, or the app
     # that stops rendering it prunes it before the app that declares it applies it - which is exactly what happened on
     # 2026-11-18, with both apps reporting `Synced` throughout.
-    - repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    - repoURL: https://github.com/bismigel/bakuran-gitops.git
       targetRevision: main
       path: manifests/base/kagent/tool-server
       # NOT `kustomize: {}`: the API drops an empty map on the round trip, so the live Application never matched this

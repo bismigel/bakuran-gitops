@@ -17,12 +17,12 @@ spec:
     # it looks, so the CIDR rules below never got a chance:
     #
     #   drop (Policy denied) ... identity world->49057: 10.42.1.204:49258 -> 10.42.3.251:8096 tcp SYN   (on .81)
-    #   tcpdump on .80: eno1 In  192.168.20.50 -> 192.168.2.84:8096 [S]
+    #   tcpdump on .80: eno1 In  192.168.20.50 -> 192.168.10.84:8096 [S]
     #                   cilium_vxlan Out 10.42.1.204 -> 10.42.3.251:8096 [S]      # DNAT'd and forwarded fine
     #
     # So `ipBlock: 10.42.0.0/16` in the namespace NetworkPolicy — which *is* in the realised policy map — does
     # not admit this traffic, and `fromCIDR: 192.168.20.0/24` below does not either. Only entity `world` does,
-    # which was verified by adding it and watching 192.168.2.84:8096 go from timeouts to 200.
+    # which was verified by adding it and watching 192.168.10.84:8096 go from timeouts to 200.
     #
     # This does not widen exposure beyond what the pod already had: it is reachable only through the LAN VIP and
     # its `hostPort`, both of which are LAN-only by design (these clients cannot complete a Cloudflare Access

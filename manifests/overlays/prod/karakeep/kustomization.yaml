@@ -32,4 +32,4 @@ patches:
         value: { name: NEXTAUTH_URL, value: "https://karakeep.bismigel.dev" }
       - op: add
         path: /spec/template/spec/containers/0/env/7
-        value: { name: OLLAMA_BASE_URL, value: "http://192.168.2.12:11434" }
+        value: { name: OLLAMA_BASE_URL, value: "http://192.168.10.12:11434" }

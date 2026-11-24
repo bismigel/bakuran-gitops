@@ -9,7 +9,7 @@ metadata:
 spec:
   description: Bakuran staging cluster (KVM on .83)
   sourceRepos:
-    - http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    - https://github.com/bismigel/bakuran-gitops.git
     - git@github.com:bismigel/bakuran-infra.git
   destinations:
     - {server: https://kubernetes.default.svc, namespace: books}

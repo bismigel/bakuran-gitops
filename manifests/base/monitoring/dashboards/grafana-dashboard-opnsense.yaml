@@ -90,7 +90,7 @@ data:
         {
           "type": "timeseries",
           "title": "LAN throughput (em0)",
-          "description": "Internal 192.168.2.0/24 traffic through the router. NFS from .82 to .81 shows here.",
+          "description": "Internal 192.168.10.0/24 traffic through the router. NFS from .82 to .81 shows here.",
           "gridPos": {
             "h": 8,
             "w": 12,

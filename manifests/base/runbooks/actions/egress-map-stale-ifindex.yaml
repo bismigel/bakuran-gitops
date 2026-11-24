@@ -17,7 +17,7 @@ detect:
   expect: any-fail
 diagnose:
   commands:
-  - ssh root@192.168.2.81 'cat /sys/class/net/proton0/ifindex'
+  - ssh root@192.168.10.81 'cat /sys/class/net/proton0/ifindex'
   - kubectl -n kube-system exec $(kubectl -n kube-system get pods -l k8s-app=cilium --field-selector spec.nodeName=calamansi-intel -o name | head -1 | cut -d/ -f2) -c cilium-agent -- cilium-dbg bpf egress list | head -4
   verdict: If the map's 'Egress Ifindex' differs from the live ifindex, this is it. Recreating proton0 changes the index and Cilium does not re-resolve it, so every selected pod is dropped while reporting Running and Healthy.
 remedy:

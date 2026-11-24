@@ -1,6 +1,6 @@
 # media-mcp — MCP server that exposes the media stack (Sonarr/Radarr/Prowlarr/
 # SABnzbd/qBittorrent/Jellyfin) to the Duwende agent. Source: bismigel/media-mcp.
-# Duwende reaches it at http://192.168.2.81:30097/mcp.
+# Duwende reaches it at http://192.168.10.81:30097/mcp.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -13,7 +13,7 @@ metadata:
 spec:
   project: staging
   source:
-    repoURL: http://forgejo.forgejo.svc.cluster.local:3000/bismigel/bakuran-gitops.git
+    repoURL: https://github.com/bismigel/bakuran-gitops.git
     targetRevision: main
     path: manifests/overlays/staging/books
   destination:

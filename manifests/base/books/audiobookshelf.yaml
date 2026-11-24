@@ -84,7 +84,7 @@ spec:
         # One export, mounted once; every library path is a subPath of it (ADR 0011).
         - name: media
           nfs:
-            server: 192.168.2.82
+            server: 192.168.10.82
             path: /mnt/media
         - name: config
           persistentVolumeClaim:
