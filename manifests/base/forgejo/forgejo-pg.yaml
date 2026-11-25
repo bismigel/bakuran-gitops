@@ -57,6 +57,11 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: forgejo-r2
+        # serverName (2026-11-25): the cluster rebuilt on 2026-11-24 has a new system ID, and the plugin refuses to archive
+        # into a folder that holds another system's WAL (ContinuousArchiving=False, 'Expected empty archive'). The old
+        # folder <name>/ keeps the pre-loss backups and WAL - it is how Forgejo's database was recovered to 2026-11-24 17:58
+        # on 2026-11-25 - so it is left alone, and this cluster writes to its own. Change it only together with a rebuild.
+        serverName: forgejo-pg-2026-11-24
 
   # Keep two instances apart on purpose (ADR 0008): a primary and a replica on the same node is one
   # instance with extra steps.
