@@ -24,7 +24,7 @@ spec:
         - name: registry-cred
       containers:
         - name: media-mcp
-          image: registry.bismigel.dev/bismigel/media-mcp:c1518d86e7fb@sha256:19ae20859aca6ee4ab97753a3f7020621835eb1a48cc8622d0dbcb05a6323ace
+          image: registry.bismigel.dev/bismigel/media-mcp:20261125-rebuild@sha256:79c73e6304ccc1953c0bc318e2a7e14b30c13202cc2761b9e94aa6e10f210e58
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
