@@ -27,7 +27,12 @@ apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: homelab-critical
-value: 900000000
+# 1.1e9, NOT 0.9e9. The Longhorn chart declares its own `longhorn-critical` at 1e9, and priority is
+# eviction order: with the CNI below it, an eviction storm takes cilium pods (and ESO, and
+# cert-manager) before it takes a CSI attacher. Losing the CNI on a node stops that node's pods
+# talking to anything; losing a CSI attacher costs a retry. The threshold is therefore above
+# Longhorn deliberately, and still below the two system-* classes at 2e9.
+value: 1100000000
 globalDefault: false
 description: >-
   Pod networking, cluster DNS, secret delivery, certificates and the API VIP. If one of these is
