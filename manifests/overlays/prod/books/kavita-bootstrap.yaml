@@ -16,8 +16,22 @@
 # returns 400 ("username taken") and this Job fails — which is correct, because
 # that is a credential mismatch a human has to resolve, not something to paper over.
 #
-# Runs as an ArgoCD PostSync hook with hook-delete-policy BeforeHookCreation, so it
-# re-runs on every sync and leaves exactly one Job object behind.
+# Runs as an ordinary Job at sync-wave 5, after the ExternalSecrets have reconciled.
+#
+# It was a PreSync hook until 2026-11-25, and that became a deadlock the day
+# `kavita-secrets` stopped being a hand-applied Secret and became an ExternalSecret:
+# hooks run *before* any wave is applied, so the Job waited on a Secret that only the
+# sync it was blocking could create. The Application sat at
+#
+#   Running: waiting for completion of hook batch/Job/kavita-bootstrap
+#
+# while the pod failed with `secret "kavita-secrets" not found` - nothing in the books
+# namespace was applied at all, for as long as nobody looked.
+#
+# A wave Job solves both problems: it runs after the Secret exists (wave 5 vs the
+# ExternalSecrets at wave 0), and unlike a PostSync hook it is applied even when
+# another resource in the app is Degraded - which was the original reason for choosing
+# PreSync (a CronJob with a failed last run used to block PostSync).
 #
 # Lives in the *overlay*, not the base: it depends on this environment's credential,
 # and staging deliberately has no `kavita-secrets`.
@@ -27,14 +41,9 @@ metadata:
   name: kavita-bootstrap
   namespace: books
   annotations:
-    # PreSync, not PostSync: ArgoCD refuses to run PostSync hooks when the sync
-    # itself fails, and a CronJob whose last run failed ("has not completed its
-    # last execution successfully") does exactly that. With PostSync the bootstrap
-    # could never run in the one situation it exists for. PreSync runs first, and
-    # Kavita is already serving by then because this is a *re*-provision, not first
-    # install.
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Wave 5: after the ExternalSecrets (wave 0) have written `kavita-secrets`, so the
+    # pod's secretKeyRef resolves on a fresh cluster too. Not a hook - see the header.
+    argocd.argoproj.io/sync-wave: "5"
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 3600
