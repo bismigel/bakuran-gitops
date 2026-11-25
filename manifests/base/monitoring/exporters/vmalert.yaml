@@ -48,6 +48,10 @@ spec:
           image: victoriametrics/vmalert:v1.93.14@sha256:5cfa7ac31f48d9679d9987adb0f2e920aaf80c34f498585a8cc28c051eaa51d5
           args:
             - -rule=/etc/rules/*.yml
+            # Re-read the rule files when the mounted ConfigMap changes (2026-11-25). Without it a
+            # merged rule change is live in the ConfigMap and not in vmalert until the pod restarts:
+            # bakuran-gitops #223 (81 -> 58 rules) sat at 81 loaded after ArgoCD had synced it.
+            - -configCheckInterval=1m
             # The store under evaluation.
             - -datasource.url=http://victoriametrics.monitoring.svc:8428
             # Prometheus wrote `ALERTS`/`ALERTS_FOR_STATE` into its own TSDB; vmalert has to be
