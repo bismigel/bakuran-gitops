@@ -205,7 +205,7 @@ spec:
             - name: DB_HOSTNAME
               # The CNPG `-rw` service (story 8.2). Promotion is a DNS-level change the app never sees, so failover
               # needs no restart here — the same reason Forgejo points at `forgejo-pg-rw` (8.5).
-              value: immich-pg-rw
+              value: immich-postgres-rw
             - name: DB_USERNAME
               value: immich
             - name: DB_DATABASE_NAME

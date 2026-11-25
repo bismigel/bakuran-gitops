@@ -68,7 +68,7 @@ spec:
 # ---- Postgres (with the vector extension Immich needs) ----
 apiVersion: external-secrets.io/v1
 # The StatefulSet `immich-postgres` and its Service lived here until 2026-11-05 (story 8.2). The database is now
-# the CloudNativePG cluster in `immich-pg.yaml`, reachable at `immich-pg-rw`. Removed deliberately and *after* the
+# the CloudNativePG cluster in `immich-postgres.yaml`, reachable at `immich-postgres-rw`. Removed deliberately and *after* the
 # app had served from the new cluster for a round trip — not before.
 #
 # **The PVC `immich-postgres` below stays.** ADR 0002 is not a preference: it is the only complete copy of the

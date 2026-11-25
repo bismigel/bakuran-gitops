@@ -28,7 +28,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      cnpg.io/cluster: immich-pg
+      cnpg.io/cluster: immich-postgres
   egress:
     # The API server, by identity rather than address.
     - toEntities:
@@ -55,7 +55,7 @@ spec:
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: immich
-            cnpg.io/cluster: immich-pg
+            cnpg.io/cluster: immich-postgres
       toPorts:
         - ports:
             - { port: "5432", protocol: TCP }
@@ -75,7 +75,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      cnpg.io/cluster: immich-pg
+      cnpg.io/cluster: immich-postgres
   ingress:
     - fromEndpoints:
         - matchLabels:
