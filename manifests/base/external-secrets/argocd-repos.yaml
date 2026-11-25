@@ -77,9 +77,13 @@ spec:
 # EasyShortlist is private from its first commit, so ArgoCD needs a credential before the Application exists -
 # otherwise Phase B's first sync fails with "authentication required" and looks like a manifest problem.
 #
-# A token rather than a deploy key: Forgejo's git server is inside the cluster, and the estate already reads its own
-# repos over HTTP with a token. The token is read-only for this repo; the *write* token CI needs (RELEASE_TOKEN) is a
-# separate Forgejo secret, because a credential that can push must not also be the one ArgoCD fetches with.
+# `argocd-repo-easyshortlist` was a Forgejo read token, and 2026-11-25 rewrote the URL to GitHub while keeping
+# the token - so ArgoCD authenticated to GitHub with a password it no longer accepts and the Application sat
+# Unknown ("Password authentication is not supported for Git operations"). That looked like a repo problem and was
+# a credential problem, the same shape as bismigel-site's.
+#
+# Now the estate's GitHub PAT, the same one `ghcr-secret` and repo-bismigel-site use: one credential to rotate
+# rather than one per repository.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -97,8 +101,10 @@ spec:
       data:
         type: git
         url: https://github.com/bismigel/easyshortlist.git
-        username: bismigel
-        password: "{{ .token }}"
+        username: "{{ .username }}"
+        password: "{{ .password }}"
   data:
-    - secretKey: token
-      remoteRef: { key: argocd-repo-easyshortlist }
+    - secretKey: username
+      remoteRef: { key: ghcr-user }
+    - secretKey: password
+      remoteRef: { key: github-pat }
