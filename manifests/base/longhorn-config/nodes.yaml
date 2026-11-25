@@ -78,6 +78,19 @@ spec:
       evictionRequested: false
       tags: []
       diskType: filesystem
+    wdc:
+      # 465 GB WDC WD5000AAKX, added 2026-11-25 as a replica store. It has 42 306 power-on hours, so
+      # it is a *second* store, never the only place a volume lives: a failure costs one copy of a
+      # volume, where the same drive holding the media library would cost the library. SMART: PASSED,
+      # 0 reallocated, 0 pending.
+      #
+      # 30 GiB reserved: small disk, and a replica store that fills stops rebuilding.
+      path: /mnt/longhorn-wdc
+      allowScheduling: true
+      storageReserved: 32212254720
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
     backup-sd:
       # `/mnt/backup-sd` is a USB card reader that also carries the weekly media mirror, so it is
       # capacity and not speed: a replica rebuilt onto it measured 2.5-8 MiB/s (2026-11-24), the
