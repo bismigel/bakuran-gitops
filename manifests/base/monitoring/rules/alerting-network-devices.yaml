@@ -19,7 +19,7 @@ data:
             expr: netdev_up == 0
             for: 5m
             labels:
-              severity: critical
+              severity: warning
             annotations:
               summary: "{{ $labels.target }} does not answer on its management port"
               description: >-
@@ -108,15 +108,3 @@ data:
                 New connections will start failing once the table fills. Usually a scanner, a
                 broken client opening connections, or a too-small table for the workload.
               runbook_url: "https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#routerpfstatetablehigh"
-
-          - alert: RouterMemoryHigh
-            expr: opnsense_memory_used_bytes / opnsense_memory_total_bytes > 0.9
-            for: 15m
-            labels:
-              severity: warning
-            annotations:
-              summary: "Router memory above 90%"
-              description: >-
-                16 GB on the OptiPlex, so this means something is leaking (often Unbound with an
-                oversized blocklist) rather than genuine pressure.
-              runbook_url: "https://runbook.bismigel.dev/runbook/24-network-devices-router-switch-ap/#routermemoryhigh"

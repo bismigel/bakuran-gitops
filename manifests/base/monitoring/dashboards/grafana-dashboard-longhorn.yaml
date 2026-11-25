@@ -136,7 +136,7 @@ data:
           "id": 11,
           "type": "stat",
           "title": "Disks over 90% pressured",
-          "description": "Disks where more than 75% of the remaining free space is already promised to replicas. Same threshold as LonghornDiskSchedulingHeadroomLow.",
+          "description": "Disks where more than 75% of the remaining free space is already promised to replicas.",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "gridPos": {"h": 5, "w": 8, "x": 16, "y": 22},
           "targets": [{"refId": "A", "expr": "count(longhorn:disk_scheduled_to_free_ratio > 0.9) or vector(0)", "instant": true}],

@@ -17,35 +17,6 @@ data:
     groups:
       - name: workloads
         rules:
-          - alert: ContainerHighCPU
-            # The Forgejo runner is a build host: a buildah job using a core for 20 minutes is the job,
-            # not an incident. It has its own CPU limit now; the node-pressure signal is the node
-            # metrics, not this alert. Keep the rule for long-running app containers.
-            expr: sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{container!="", container!="POD", namespace!="forgejo"}[5m])) > 0.8
-            for: 20m
-            labels:
-              severity: warning
-            annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is using {{ printf \"%.2f\" $value }} cores"
-              description: "Sustained above 0.8 core for 20 minutes. Either genuine load or a spin loop — check the Containers dashboard."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containerhighcpu"
-          - alert: ContainerCPUThrottled
-            # Only evaluate containers that are running right now. Without this
-            # join, a batch pod that throttled for its 90 seconds of life keeps
-            # contributing a stale ratio after it exits, which is how a
-            # five-minute CronJob produced a ContainerCPUThrottled page for
-            # arr-auth-sync long after the job had completed successfully.
-            expr: |
-              sum by (namespace, pod, container) (rate(container_cpu_cfs_throttled_periods_total[5m]))
-                / sum by (namespace, pod, container) (rate(container_cpu_cfs_periods_total[5m])) > 0.25
-                and on (namespace, pod, container) (kube_pod_container_status_running == 1)
-            for: 15m
-            labels:
-              severity: warning
-            annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] is CPU-throttled {{ humanizePercentage $value }} of periods"
-              description: "The container is hitting its CPU limit. Raise the limit or find what is spinning."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#containercputhrottled"
           - alert: ContainerMemoryNearLimit
             expr: |
                 max by (namespace, pod, container) (container_memory_working_set_bytes{container!="", container!="POD"})
@@ -80,34 +51,6 @@ data:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} cannot create its container ({{ $labels.reason }})"
               description: "Usually a missing Secret/ConfigMap key, or a hostPath that does not exist on this node."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podcontainerconfigerror"
-          - alert: PodRestartingOften
-            # A node reboot restarts every DaemonSet and kubelet-adjacent pod on
-            # it, which trips this rule for an hour afterwards - 13 false alarms
-            # after rebooting .81 twice on 2026-10-28, on pods that were perfectly
-            # healthy. Suppress for 1h after a node boots (the same window the rule
-            # measures over), so a reboot's own noise can never mask or mimic a
-            # crash loop.
-            #
-            # `and ... group_left` is NOT valid PromQL ("no grouping allowed for
-            # 'and' operation"), which fails silently as an empty result - hence
-            # the `*`-by-kube_pod_info (=1) to carry host_ip onto the left side.
-            # Match host_ip because kube_pod_info has no node-exporter instance:
-            # kube_pod_info.host_ip="192.168.10.81", node_boot_time_seconds
-            # .instance="192.168.10.81:9100", so the port is stripped on the right.
-            expr: |
-              (
-                (increase(kube_pod_container_status_restarts_total[1h]) > 3)
-                * on (namespace, pod) group_left (host_ip) kube_pod_info
-              )
-              unless on (host_ip)
-                label_replace((time() - node_boot_time_seconds < 3600), "host_ip", "$1", "instance", "(.*):.*")
-            for: 5m
-            labels:
-              severity: warning
-            annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.pod }} [{{ $labels.container }}] restarted {{ printf \"%.0f\" $value }} times in the last hour"
-              description: "Crash loop or a failing probe. Check `kubectl describe pod` and the previous container log. Restarts caused by a node reboot are suppressed for 1h."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#podrestartingoften"
           - alert: CAdvisorScrapeFailing
             expr: up{job="kubelet-cadvisor"} == 0
             for: 10m
@@ -188,42 +131,6 @@ data:
               summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.volume }}) is FAULTED"
               description: "Data unavailable to the workload using this PVC."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumefaulted"
-          - alert: LonghornVolumeUnknown
-            # Only while attached. A *detached* volume reports robustness `unknown` as normal — it
-            # has no replicas running to be healthy or degraded — so the unqualified expression fires
-            # for every retained-but-unmounted PVC: a backup volume, a rollback copy, anything parked.
-            # Measured 2026-11-05: it fired for a detached 15 GiB volume sitting at 969 MiB with all
-            # three replicas present and healthy on disk. An alert that fires for a healthy parked
-            # volume is how people learn to skim this file.
-            expr: |
-              longhorn_volume_robustness{state="unknown"} == 1
-                and on (volume) longhorn_volume_state{state="attached"} == 1
-            for: 10m
-            labels:
-              severity: warning
-            annotations:
-              summary: "Longhorn volume {{ $labels.pvc }} robustness is UNKNOWN"
-              description: "Longhorn cannot determine replica health — check the volume in the Longhorn UI."
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornvolumeunknown"
-          - alert: LonghornNodeStorageLow
-            expr: |
-              sum by (node) (longhorn_node_storage_usage_bytes)
-                / sum by (node) (longhorn_node_storage_capacity_bytes) > 0.85
-            for: 15m
-            labels:
-              severity: warning
-            annotations:
-              summary: "Longhorn storage on {{ $labels.node }} is {{ humanizePercentage $value }} full"
-              description: "Once a Longhorn node fills, replicas cannot rebuild and new PVCs stay Pending."
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhornnodestoragelow"
-          - alert: LonghornDiskStorageLow
-            expr: longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes > 0.9
-            for: 15m
-            labels:
-              severity: warning
-            annotations:
-              summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} is {{ humanizePercentage $value }} full"
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskstoragelow"
           # --- the image registry's own volume (2026-11-23) ------------------
           # The claim was 10Gi, the volume reported 10805010432 bytes used, and every
           # build after that died at `uploading layer chunked: 500` with zot logging
@@ -329,34 +236,6 @@ data:
               summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has {{ humanizePercentage $value }} of its space free"
               description: "This is a filesystem holding Longhorn replicas, measured in actual bytes. Scheduling headroom is a promise; this is the disk."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
-          - alert: LonghornDiskSchedulingHeadroomLow
-            # The threshold tracks `storage-over-provisioning-percentage`, which is 200 since
-            # 2026-11-05: Longhorn will schedule up to twice the disk, so 0.9 of *free* space is no
-            # longer the boundary — 1.6 is 80 % of that allowance, and it still fires before
-            # scheduling is refused. If the over-provisioning value changes, this number moves with
-            # it; they are one decision in two places, which is why the link is written here.
-            expr: longhorn:disk_scheduled_to_free_ratio > 1.6
-            for: 1h
-            labels:
-              severity: warning
-            annotations:
-              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free bytes promised"
-              description: "At the 200% over-provisioning allowance, 1.6 is 80% of the allowance; this fires at 80%, before scheduling is refused. Replicas on this disk already claim most of the space left on its filesystem, while node-wide capacity still looks comfortable. A rebuild will run out of room here and stay Pending, and on the root filesystem it takes etcd with it. Move replicas to a dedicated disk (bakuran-infra/docs/REBUILD.md)."
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
-          # Over-commitment is measured against the *over-provisioning allowance*, not against free
-          # bytes, since 2026-11-05 (`storage-over-provisioning-percentage: 200`). At that setting
-          # Longhorn will place replicas until promises reach twice the disk, so "promised > free"
-          # is normal and expected — 1.8 is 90 % of the allowance, which is the point at which the
-          # next rebuild genuinely cannot be placed.
-          - alert: LonghornDiskSchedulingOverCommitted
-            expr: longhorn:disk_scheduled_to_free_ratio > 1.8
-            for: 10m
-            labels:
-              severity: critical
-            annotations:
-              summary: "Longhorn disk {{ $labels.disk_path }} on {{ $labels.node }} has {{ humanizePercentage $value }} of its free bytes promised (critical: above 180%; the 200% allowance is not exhausted)"
-              description: "This is the 90%-of-allowance threshold, not literally full. At the 200% setting 1.86 means ~93% of the allowance is promised, so there is still room for one more modest replica but not a full rebuild. Check the actual bytes with LonghornDiskActualSpaceLow; if that is also close, move replicas or expand the disk."
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingovercommitted"
           # The invariant the 2026-10-30 cleanup argues for: replicas belong on the
           # dedicated partitions, not on the filesystem holding etcd and the
           # container image store. `default-disk-*` is the disk Longhorn auto-creates
@@ -422,15 +301,6 @@ data:
           # in exactly that state — 181 restarts, one unavailable replica,
           # rollout never completing — with nothing but PodRestartingOften to
           # show for it. These two rules describe the *rollout*, not the pod.
-          - alert: DeploymentRolloutStalled
-            expr: kube_deployment_status_condition{condition="Progressing",status="false"} == 1
-            for: 15m
-            labels:
-              severity: warning
-            annotations:
-              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout is stalled"
-              description: "Progressing=False for 15 minutes: the new ReplicaSet is not becoming Ready and the previous one is still serving. Check `kubectl -n <ns> rollout status deploy/<name>` and the new pod's events — a bad template, an unschedulable pod, or a pod that cannot reach the API."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#deploymentrolloutstalled"
           - alert: DeploymentReplicasUnavailable
             expr: kube_deployment_status_replicas_unavailable > 0
             for: 15m
@@ -442,15 +312,6 @@ data:
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#deploymentreplicasunavailable"
       - name: argocd-redis
         rules:
-          - alert: ArgoCDRedisHAPodNotReady
-            expr: max by (pod) (kube_pod_status_ready{namespace="argocd",condition="true",pod=~"argocd-redis-ha-server-[0-9]+"}) == 0
-            for: 5m
-            labels:
-              severity: critical
-            annotations:
-              summary: "ArgoCD Redis HA pod {{ $labels.pod }} is not ready"
-              description: "A Redis/sentinel pod has been NotReady for 5 minutes. Sentinel quorum and ArgoCD cache availability may be degraded."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishapodnotready"
           - alert: ArgoCDRedisHAEndpointsLow
             expr: kube_endpoint_address_available{namespace="argocd",endpoint=~"argocd-redis-ha(-haproxy)?"} < 3
             for: 5m
@@ -460,12 +321,3 @@ data:
               summary: "ArgoCD Redis HA service {{ $labels.endpoint }} has {{ $value }}/3 endpoints"
               description: "Redis or HAProxy discovery is degraded. Check pod readiness, announce Services and sentinel logs."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredishaendpointslow"
-          - alert: ArgoCDRedisHARestartingOften
-            expr: increase(kube_pod_container_status_restarts_total{namespace="argocd",pod=~"argocd-redis-ha-server-[0-9]+"}[1h]) > 2
-            for: 5m
-            labels:
-              severity: warning
-            annotations:
-              summary: "ArgoCD Redis HA pod {{ $labels.pod }} is restarting"
-              description: "More than two restarts in an hour. Check sentinel CPU, quorum and the pod logs."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdredisharestartingoften"

@@ -57,6 +57,27 @@ data:
             regex: ([^:]+)(?::\d+)?;(\d+)
             replacement: $1:$2
             target_label: __address__
+      # CloudNativePG instance pods (2026-11-25). Their metrics were not scraped at all,
+      # which is how forgejo-pg and vaultwarden-pg archived WAL into the old cluster's
+      # folder for a day after the 2026-11-24 rebuild without a single alert. Only the
+      # instance pods carry the postgres exporter (port `metrics`, 9187); the operator and
+      # pooler do not. The NetworkPolicies already admit the monitoring namespace on 9187.
+      - job_name: 'cnpg'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_cnpg_io_podRole]
+            action: keep
+            regex: instance
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_label_cnpg_io_cluster]
+            target_label: cluster
       - job_name: 'kubernetes-services'
         kubernetes_sd_configs:
           - role: service

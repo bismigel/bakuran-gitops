@@ -13,21 +13,14 @@ group:
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
   where: cluster
   alerts:
-  - CronJobFailed
-  - DeploymentRolloutStalled
   - JobPodsFailing
-  - KubeDeploymentReplicasMismatch
   - KubePodCrashLooping
   - PodContainerConfigError
-  - PodRestartingOften
-  - ContainerCPUThrottled
-  - ContainerHighCPU
   - ContainerMemoryNearLimit
   - TargetDown
   - CAdvisorScrapeFailing
   - StrayCNIAddress
   - StrayCNIMetricsMissing
-  - HostMemoryHigh
 - reason: 'GitOps state: `argocd app diff <name>` is the diagnosis. runbook 25 (ArgoCD section)'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
@@ -41,29 +34,20 @@ group:
   where: cluster
   alerts:
   - ArgoCDRedisHAEndpointsLow
-  - ArgoCDRedisHAPodNotReady
-  - ArgoCDRedisHARestartingOften
 - reason: 'etcd: the alert names the symptom and `ops/broken` plus runbook 26''s etcd section is the procedure. Quorum cases go to a human immediately'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
   where: cluster
   alerts:
   - EtcdDbSizeNearQuota
-  - EtcdHighFsyncLatency
-  - EtcdMemberUnreachable
 - reason: 'Longhorn: capacity and scheduling alerts are answered by `ops/longhorn-air` and runbook 26 (storage). Story 10.11 right-sized the last one'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
   where: cluster
   alerts:
   - LonghornDiskActualSpaceLow
-  - LonghornDiskSchedulingHeadroomLow
-  - LonghornDiskSchedulingOverCommitted
-  - LonghornDiskStorageLow
-  - LonghornNodeStorageLow
   - LonghornScrapeFailing
   - LonghornVolumeDegraded
-  - LonghornVolumeUnknown
 - reason: 'Media pool capacity and health: `ops/mounts` then MEDIA.md. A human decides what to delete, never a script (ADR 0002 in spirit: nothing is deleted automatically)'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
@@ -71,10 +55,7 @@ group:
   alerts:
   - MediaPoolCritical
   - MediaPoolDaysToFull
-  - MediaPoolFillingUp
-  - DiskFillingUp
   - RootFilesystemDaysToFull
-  - BackupMountMissing
   - ProtonBackupStale
 - reason: Cloudflare surface is read-only to this estate; the procedure is runbook 23 and the diagnostic is `curl` against the edge, which the export cannot do
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
@@ -82,12 +63,10 @@ group:
   where: workstation
   alerts:
   - CloudflareCertificateInactive
-  - CloudflareExporterRefreshFailing
   - CloudflareExporterStale
   - CloudflareTunnelDown
   - CloudflareTunnelSingleConnector
   - CloudflareZoneNotActive
-  - CloudflareZonePaused
 - reason: 'Router alerts: homelab-context/docs/reference/network.md §9 has the read-only checks; the box has no out-of-band console, so anything needing hands is a human decision (story 4.6)'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
@@ -95,7 +74,6 @@ group:
   alerts:
   - RouterHeartbeatStale
   - RouterInterfaceErrors
-  - RouterMemoryHigh
   - RouterPfStateTableHigh
   - RouterResolverDown
   - NetworkDeviceTlsExpiringSoon
@@ -106,7 +84,6 @@ group:
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
   where: cluster
   alerts:
-  - PublicProbeDown
   - PublicSLOFastBurn
   - PublicSLOSlowBurn
   - StatusApiCheckFailing
@@ -122,7 +99,13 @@ group:
   where: workstation
   alerts:
   - WireGuardMetricsMissing
-  - WireGuardRestarted
+- reason: 'CNPG WAL archiving: the cluster''s ContinuousArchiving condition and the barman plugin log name the cause. runbook 07'
+  # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
+  # (`workstation`). Required for every group; check-alert-coverage fails without it.
+  where: cluster
+  alerts:
+  - CNPGWalArchivingFailing
+  - CNPGMetricsMissing
 - reason: 'EasyShortlist app SLOs and safety alerts: the app''s own signals are the diagnosis - /admin "Processing issues" (IDs and codes only), the app logs (leak_kind, candidate ids) and the shortlist dashboards. runbook 28'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.

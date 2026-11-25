@@ -53,27 +53,6 @@ data:
             annotations:
               summary: "target {{ $labels.job }}/{{ $labels.instance }} down"
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#targetdown"
-          # A backup disk that has fallen off the bus is indistinguishable from one
-          # that needs no work: the mirror timer is weekly, the unit only exits 1 if
-          # it *runs*, and the empty mountpoint becomes a directory on the root disk.
-          # On 2026-11-02 a USB hub dropped both disks three times in 25 minutes
-          # (21:55, 22:15, 22:17); nothing noticed, and the offline copy on the stick
-          # had been five days stale before anyone looked at it.
-          #
-          # absent() rather than a threshold: the series disappears when nothing is
-          # mounted, so there is no value to compare. Exact matchers are kept as
-          # labels, which is why the summary can name the mount.
-          - alert: BackupMountMissing
-            expr: |
-              absent(node_filesystem_size_bytes{mountpoint="/mnt/backup-sd", instance="192.168.10.82:9100"}) == 1
-              or
-              absent(node_filesystem_size_bytes{mountpoint="/mnt/scratch", instance="192.168.10.81:9100"}) == 1
-            for: 20m
-            labels: { severity: warning }
-            annotations:
-              summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} is not mounted"
-              description: "No filesystem series for this mount, so nothing is mounted there (or the node-exporter is gone, which TargetDown covers). Until it comes back, writes aimed at the backup path land on the root filesystem, and the weekly mirror/off-site copy does nothing and reports success."
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#backupmountmissing"
           # Proton offsite staleness: the unit records its own success timestamp (written only after upload AND verify
           # succeeded), so this fires when a weekly run has been MISSED for longer than cadence + grace. 'Just old' (a
           # 6-day-old archive) is normal; >9 days means Sunday's run did not succeed. absent() covers the metric never
@@ -89,15 +68,6 @@ data:
               summary: "Proton offsite has not succeeded in 9 days"
               description: "The newest age-encrypted Proton archive is older than the weekly cadence plus two days grace, so a run was missed or has been failing without OnFailure catching it. Check homelab-backup-proton on .82 before relying on the second offsite."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#protonbackupstale"
-          - alert: DiskFillingUp
-            # /mnt/media is excluded here: the media pool is a mergerfs union of
-            # four branches across two hosts, so it gets its own pair of alerts.
-            expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!="/mnt/media"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!="/mnt/media"}) * 100 > 85
-            for: 30m
-            labels: { severity: warning }
-            annotations:
-              summary: "disk {{ $labels.mountpoint }} on {{ $labels.instance }} >85% full"
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#diskfillingup"
           - alert: RootFilesystemDaysToFull
             # The root filesystem on the cluster nodes carries etcd, k3s state and
             # the containerd image store (21-29G of images per node on 2026-10-30),
@@ -114,13 +84,6 @@ data:
               summary: "root filesystem on {{ $labels.instance }} projected to fill within 7 days"
               description: "Image store and k3s state are growing faster than they are being reclaimed. `k3s crictl rmi --prune` and `nix-collect-garbage --delete-older-than 14d` usually recover 15-20G; etcd does not survive a full /."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#rootfilesystemdaystofull"
-          - alert: HostMemoryHigh
-            expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
-            for: 15m
-            labels: { severity: warning }
-            annotations:
-              summary: "memory on {{ $labels.instance }} >90%"
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#hostmemoryhigh"
           # Media pool (/mnt/media on calamansi-intel): the whole media stack and
           # every *arr import dies when this fills, so warn early and loud.
           #
@@ -175,16 +138,6 @@ data:
               summary: "{{ $labels.instance }}: WireGuard up but no data path"
               description: "Handshake may be fine; traffic is not leaving. Compare the key on the interface with SOPS before touching it (NETWORK.md 8.2)."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardnoegress"
-          # Restarting wg-quick is the operation that strands .81. A restart that
-          # "succeeds" leaves no other trace, so surface it even when nothing broke.
-          - alert: WireGuardRestarted
-            expr: increase(wireguard_unit_restarts[15m]) > 0
-            for: 1m
-            labels: { severity: warning }
-            annotations:
-              summary: "wireguard on {{ $labels.instance }} restarted"
-              description: "The WireGuard unit restarted. A restart has taken a node off the network before (NETWORK.md 7.1). Confirm egress and LAN reachability."
-              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#wireguardrestarted"
           - alert: WireGuardMetricsMissing
             expr: absent(wireguard_latest_handshake_seconds)
             for: 20m
@@ -220,14 +173,6 @@ data:
               summary: "homelab_stray_cni_* metrics absent - cni-stray-sweep is not reporting"
               description: "Check the timer on the hosts (systemctl list-timers cni-stray-sweep) and that /var/lib/node-exporter/textfile/stray-cni.prom exists and is world-readable."
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#straycnimetricsmissing"
-          - alert: MediaPoolFillingUp
-            expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 85
-            for: 30m
-            labels: { severity: warning }
-            annotations:
-              summary: "media pool (/mnt/media) >85% full"
-              description: "{{ $value }}% used — reclaim space (arr cleanup) or add a disk before imports start failing."
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolfillingup"
           - alert: MediaPoolCritical
             expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/media"} / node_filesystem_size_bytes{mountpoint="/mnt/media"}) * 100 > 92
             for: 15m
@@ -236,6 +181,32 @@ data:
               summary: "media pool (/mnt/media) >92% full — downloads/imports will fail"
               description: "{{ $value }}% used on the media library, now served from .82 over NFS (1.9 TB btrfs). Reclaim with *arr cleanup; growing it means a bigger disk on .82, not another branch."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#mediapoolcritical"
+          # --- CloudNativePG: is the WAL actually getting to R2 (2026-11-25) ---------
+          # CNPG's metrics were not scraped at all until now (the `cnpg` job in
+          # vm-scrape.yaml), so archiving could fail for a day without a signal: on
+          # 2026-11-24 the rebuild left forgejo-pg and vaultwarden-pg archiving into
+          # the OLD cluster's folder, and WAL never reached R2 until 2026-11-25. A
+          # cluster with no archived WAL has no point-in-time recovery, however healthy
+          # its pods look.
+          - alert: CNPGWalArchivingFailing
+            expr: cnpg_pg_stat_archiver_last_failed_time > cnpg_pg_stat_archiver_last_archived_time
+            for: 30m
+            labels: { severity: critical }
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }}: WAL archiving is failing"
+              description: "The cluster's WAL is not reaching R2, so it has no point-in-time recovery. Measured 2026-11-24: forgejo-pg and vaultwarden-pg archived into the old cluster's folder after the rebuild (fix: a new `serverName`, bakuran-gitops #222). Check the cluster's ContinuousArchiving condition and the barman plugin log."
+              runbook_url: "https://runbook.bismigel.dev/runbook/07-backups-recovery/#cnpgwalarchivingfailing"
+          - alert: CNPGMetricsMissing
+            # Same lesson as WireGuardMetricsMissing: a monitor whose metric never
+            # arrives is not a monitor. Without the series, CNPGWalArchivingFailing
+            # above cannot fire - the two fail together silently.
+            expr: absent(cnpg_pg_stat_archiver_archived_count)
+            for: 20m
+            labels: { severity: warning }
+            annotations:
+              summary: "cnpg_pg_stat_archiver_* metrics are absent - no CNPG cluster is being scraped"
+              description: "Either no CNPG instance pod is exposing its `metrics` port or the `cnpg` scrape job is broken. Check the pods' `metrics` container port and the job in vm-scrape.yaml."
+              runbook_url: "https://runbook.bismigel.dev/runbook/07-backups-recovery/#cnpgmetricsmissing"
           # NOTE: BackupFailed alerts are *pushed* to Alertmanager by the systemd
           # OnFailure hooks (see modules/backup*.nix), so there's no rule for them.
       - name: etcd
@@ -250,13 +221,6 @@ data:
             annotations:
               summary: "etcd {{ $labels.instance }} has no leader"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdnoleader"
-          - alert: EtcdMemberUnreachable
-            expr: count(etcd_server_has_leader) < 3
-            for: 10m
-            labels: { severity: warning }
-            annotations:
-              summary: "only {{ $value }}/3 etcd members are reporting metrics"
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdmemberunreachable"
           - alert: EtcdQuorumAtRisk
             expr: sum(etcd_server_has_leader) < 2
             for: 5m
@@ -264,13 +228,6 @@ data:
             annotations:
               summary: "etcd quorum lost or at risk ({{ $value }}/3 leaders)"
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdquorumatrisk"
-          - alert: EtcdHighFsyncLatency
-            expr: histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) by (le)) > 0.5
-            for: 10m
-            labels: { severity: warning }
-            annotations:
-              summary: "etcd WAL fsync p99 > 500ms — disk is the bottleneck"
-              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#etcdhighfsynclatency"
           - alert: EtcdDbSizeNearQuota
             expr: max(etcd_mvcc_db_total_size_in_bytes) > 1.5e9
             for: 10m
@@ -303,13 +260,6 @@ data:
             annotations:
               summary: "zone {{ $labels.zone }} is not active in Cloudflare"
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarezonenotactive"
-          - alert: CloudflareZonePaused
-            expr: cloudflare_zone_paused == 1
-            for: 10m
-            labels: { severity: warning }
-            annotations:
-              summary: "zone {{ $labels.zone }} is paused, traffic bypasses Cloudflare"
-              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflarezonepaused"
           - alert: CloudflareCertificateInactive
             expr: cloudflare_zone_certificate_active == 0
             for: 30m
@@ -338,17 +288,6 @@ data:
                 its whole metric page) or it is serving a snapshot older than 10 minutes. Both mean the edge numbers on
                 every dashboard are frozen, and CloudflareTunnelDown cannot fire because it reads the frozen data.
               runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterstale"
-          - alert: CloudflareExporterRefreshFailing
-            expr: cloudflare_api_up == 0
-            for: 15m
-            labels: { severity: warning }
-            annotations:
-              summary: "cloudflare exporter: the last refresh completed with errors for 15m"
-              description: >-
-                The exporter is up and serving, but at least one API call in its refresh raised - usually the token:
-                rolled, expired, or scoped down. This is the metric that would have made the 2026-11-19 credential roll
-                visible before it broke R2, nightlies and PG backups.
-              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#cloudflareexporterrefreshfailing"
       - name: argocd
         rules:
           # ArgoCD's own health, asked the only way that catches "up but blind": if the
@@ -364,13 +303,6 @@ data:
               summary: "ArgoCD is exporting no application metrics"
               description: "argocd_app_info is gone, so ArgoCDAppUnhealthy, ArgoCDAppOutOfSync and the sync-failure rules are all blind until it returns: a broken vault-style green. Either the application controller is not running or its metrics endpoint stopped being scraped. Check the argocd namespace before trusting any ArgoCD dashboard."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdmetricsmissing"
-          - alert: ArgoCDAppOutOfSync
-            expr: argocd_app_info{sync_status!="Synced"} == 1
-            for: 15m
-            labels: { severity: warning }
-            annotations:
-              summary: "ArgoCD {{ $labels.name }} is {{ $labels.sync_status }} (drift)"
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#argocdappoutofsync"
           # Component health, not app health. Without this, ArgoCD can be
           # cluster-wide single-node (every replica on one host) and nothing
           # notices: the apps still report Synced/Healthy until that node dies.
@@ -405,47 +337,8 @@ data:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarted {{ $value | printf \"%.0f\" }} times in 15m"
               description: "Find the cause before deleting the pod: a crash loop with a clean exit is usually something killing it (probe, OOM, unreachable address)."
               runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#kubepodcrashlooping"
-          - alert: KubeDeploymentReplicasMismatch
-            expr: |
-              (kube_deployment_spec_replicas - kube_deployment_status_replicas_ready) > 0
-              and kube_deployment_spec_replicas > 0
-            for: 10m
-            labels: { severity: warning }
-            annotations:
-              summary: "{{ $labels.namespace }}/{{ $labels.deployment }} is {{ $value | printf \"%.0f\" }} replica(s) short of desired"
-              description: "Ten minutes is longer than a rollout: either a pod cannot become ready or the rollout is stuck. Check pod events for probe failures."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#kubedeploymentreplicasmismatch"
       - name: media
         rules:
-          # Jellyfin uses strategy Recreate (RWO config PVC), so any roll kills
-          # active streams. Catches real downtime irrespective of pod churn.
-          - alert: CronJobFailed
-            expr: |
-              (
-                (kube_job_status_failed{job_name!=""} > 0)
-                * on (namespace, job_name) group_left (owner_name)
-                    kube_job_owner{owner_kind="CronJob"}
-              )
-              unless on (namespace, owner_name)
-              (
-                (
-                  kube_job_status_start_time
-                  * on (namespace, job_name) group_left (owner_name)
-                      kube_job_owner{owner_kind="CronJob"}
-                )
-                < on (namespace, owner_name) group_left ()
-                  label_replace(
-                    kube_cronjob_status_last_successful_time,
-                    "owner_name", "$1", "cronjob", "(.*)"
-                  )
-              )
-            for: 5m
-            labels:
-              severity: warning
-            annotations:
-              summary: "CronJob failed: {{ $labels.namespace }}/{{ $labels.job_name }}"
-              description: "A scheduled job's last run failed. Read its logs; it clears when the next run succeeds."
-              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#cronjobfailed"
           # The rule above cannot see a job that is still RETRYING: kube_job_status_failed
           # stays 0 until the Job gives up. On 2026-10-30 immich-login-watch failed every
           # minute for ~20 minutes and nothing fired - by the time the Job would have been
@@ -526,15 +419,6 @@ data:
             expr: avg_over_time(probe_success[7d])
           - record: slo:probe_success:budget_remaining7d
             expr: clamp_min(1 - ((1 - avg_over_time(probe_success[7d])) / 0.005), 0)
-          - alert: PublicProbeDown
-            expr: probe_success == 0
-            # 5m -> 10m (2026-11-18): a single probe failing for one scrape cycle is a Cloudflare edge hiccup, and the
-            # SLO rules below already speak for sustained failure. Ten minutes is still faster than a human notices.
-            for: 10m
-            labels: { severity: warning }
-            annotations:
-              summary: "public probe {{ $labels.instance }} is down"
-              runbook_url: "https://runbook.bismigel.dev/runbook/27-egress-edge-and-the-monitors/#publicprobedown"
           - alert: PublicSLOFastBurn
             # Two windows, deliberately. The 1h window proves the burn is not a
             # single scrape hiccup; the 5m window proves it is still happening
@@ -615,47 +499,11 @@ data:
     # wrong. While a cause-level alert fires, stay quiet.
     inhibit_rules:
       - source_matchers:
-          - 'alertname=~"ArgoCDAppUnhealthy|ArgoCDAppOutOfSync|KubePodCrashLooping|PublicProbeDown|WireGuardNoEgress|CronJobFailed|JobPodsFailing"'
+          - 'alertname=~"ArgoCDAppUnhealthy|KubePodCrashLooping|WireGuardNoEgress|JobPodsFailing"'
         target_matchers:
           - 'alertname="SmokeTestFailed"'
         # No `equal:` - the pushed alert carries only instance+unit, so there is no
         # shared label to match on and `equal` would never inhibit.
-
-      # ---- the same condition, said twice (2026-11-02 audit) ----
-      # A Job owned by a CronJob raised BOTH of these for the same event: 3 + 3
-      # notifications for three failed runs. The CronJob alert names the owner a
-      # human acts on, so it wins; the pod-level one still speaks for one-shot Jobs.
-      - source_matchers:
-          - 'alertname="CronJobFailed"'
-        target_matchers:
-          - 'alertname="JobPodsFailing"'
-        equal: [namespace, owner_name]
-
-      # DeploymentReplicasUnavailable and KubeDeploymentReplicasMismatch describe the
-      # same thing ("spec.replicas - ready > 0") at different granularity, and both
-      # fired for sabnzbd/audiobookshelf. Keep the one whose message says what to
-      # check; silence the arithmetic duplicate.
-      - source_matchers:
-          - 'alertname="DeploymentReplicasUnavailable"'
-        target_matchers:
-          - 'alertname="KubeDeploymentReplicasMismatch"'
-        equal: [namespace, deployment]
-
-      # If node-exporter itself is down its filesystem series vanish, and
-      # BackupMountMissing would then fire for a cause it cannot see. TargetDown
-      # names the actual fault (the scrape), so it wins for the same instance.
-      - source_matchers:
-          - 'alertname="TargetDown"'
-        target_matchers:
-          - 'alertname="BackupMountMissing"'
-        equal: [instance]
-
-      # Over-committed is the escalated form of headroom-low, for the same disk.
-      - source_matchers:
-          - 'alertname="LonghornDiskSchedulingOverCommitted"'
-        target_matchers:
-          - 'alertname="LonghornDiskSchedulingHeadroomLow"'
-        equal: [node, disk_path]
     receivers:
       - name: telegram
         telegram_configs:

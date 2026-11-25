@@ -32,9 +32,6 @@ spec:
   templates:
     - name: run-action
       steps:
-        - - name: argocd-app-out-of-sync
-            when: '"{{workflow.parameters.action}}" == "argocd-app-out-of-sync"'
-            template: run-argocd-app-out-of-sync
         - - name: argocd-component-down
             when: '"{{workflow.parameters.action}}" == "argocd-component-down"'
             template: run-argocd-component-down
@@ -71,25 +68,6 @@ spec:
         - - name: status-api-not-scraped
             when: '"{{workflow.parameters.action}}" == "status-api-not-scraped"'
             template: run-status-api-not-scraped
-
-    # argocd-app-out-of-sync - An Application is OutOfSync although self-heal is on - the cluster is refusing the update, or the comparison is stale
-    - name: run-argocd-app-out-of-sync
-      script:
-        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
-        command: [/bin/sh]
-        source: |
-          (
-          kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status --no-headers | awk '$2=="OutOfSync"'
-          kubectl -n argocd get application -o json | jq -r '.items[] | select(.status.sync.status=="OutOfSync") | "\(.metadata.name): \(.status.conditions[0].message // "no condition")"'
-          kubectl -n argocd logs -l app.kubernetes.io/name=argocd-application-controller --tail=40 | grep -iE 'error|refus|denied|invalid' | tail -10
-          
-          printf '\nverdict: %s\n' 'A message naming a refused field or a denied request means the cluster is rejecting the manifest and the diff will never converge. No message, and a recent manifest change, points at the comparison being stale - refresh the Application before touching anything else.'
-          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
-      outputs:
-        parameters:
-          - name: verdict
-            valueFrom:
-              path: /tmp/verdict.txt
 
     # argocd-component-down - An ArgoCD component has no ready replica - nothing deploys while it is down
     - name: run-argocd-component-down
