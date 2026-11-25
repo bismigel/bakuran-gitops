@@ -5,6 +5,16 @@
 #
 # sshPrivateKey is the deploy key for the GitHub-side repos; the Forgejo one uses an HTTP read token, because Forgejo's
 # own git server is inside the cluster and a token is simpler than a key there.
+# `repo-forgejo-bakuran-gitops` was deleted on 2026-11-25. It paired GitHub's HTTPS URL with the Forgejo
+# *read token*: when the estate switched ArgoCD's read path to GitHub, the `url:` was rewritten but the
+# credential was not, so ArgoCD authenticated to a public repository with a password GitHub no longer
+# accepts ("Password authentication is not supported for Git operations"). Every sync of the `root`
+# Application failed, and because deleting the resulting Secret did not help - this ExternalSecret
+# recreated it within the hour - it looked like a stale ArgoCD cache. It was not; it was a declaration.
+#
+# A public repository needs no credential: anonymous HTTPS is what `git ls-remote` does inside the
+# repo-server pod, and it works. The `repo-bakuran-gitops` deploy key above stays for the repos that
+# are still private.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -51,29 +61,6 @@ spec:
   data:
     - secretKey: sshPrivateKey
       remoteRef: { key: argocd-repo-private-api }
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: repo-forgejo-bakuran-gitops
-  namespace: argocd
-spec:
-  refreshInterval: 1h
-  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
-  target:
-    name: repo-forgejo-bakuran-gitops
-    template:
-      metadata:
-        labels:
-          argocd.argoproj.io/secret-type: repository
-      data:
-        type: git
-        url: https://github.com/bismigel/bakuran-gitops.git
-        username: bismigel
-        password: "{{ .password }}"
-  data:
-    - secretKey: password
-      remoteRef: { key: forgejo-read-token }
 ---
 # EasyShortlist is private from its first commit, so ArgoCD needs a credential before the Application exists -
 # otherwise Phase B's first sync fails with "authentication required" and looks like a manifest problem.
