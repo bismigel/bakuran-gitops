@@ -57,6 +57,9 @@ metadata:
     # volume, and a manifest that stops declaring it is how a PVC disappears (ADR 0002). Release it by name,
     # deliberately, once someone is sure nothing wants the old work directory back.
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    # Step 1 of 2 (2026-11-25): once this is on the live objects, the next change stops declaring them and they
+    # stay as ignored extraneous objects rather than an app that is OutOfSync forever.
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path
@@ -266,6 +269,9 @@ metadata:
     # Kept declared, never pruned: a manifest that stops declaring a bound PVC is how it disappears
     # (ADR 0002). Release by name once nothing wants it.
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    # Step 1 of 2 (2026-11-25): once this is on the live objects, the next change stops declaring them and they
+    # stay as ignored extraneous objects rather than an app that is OutOfSync forever.
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path
