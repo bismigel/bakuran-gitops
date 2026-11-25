@@ -211,3 +211,12 @@ spec:
           resources:
             requests: { cpu: 10m, memory: 16Mi }
             limits: { memory: 64Mi }
+          # curl writes the registration response to /tmp/reg. The container's root filesystem is
+          # read-only, so without this the run died at exactly the step that creates the admin
+          # account: `curl: (23) client returned ERROR on write of 2393 bytes`. An emptyDir keeps
+          # the read-only root while giving curl somewhere to write.
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
