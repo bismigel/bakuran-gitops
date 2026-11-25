@@ -64,6 +64,20 @@ spec:
       evictionRequested: false
       tags: []
       diskType: filesystem
+    toshiba:
+      # 1.8 TB TOSHIBA MG04ACA200NY, added 2026-11-25. SMART before use: PASSED, 0 reallocated
+      # sectors, 0 pending, 5 216 power-on hours - the healthiest disk in the estate, and until now
+      # the media library. The library now lives on the 465 GB WDC (175 GB of it survived a
+      # device-letter accident); this disk's best use is the thing the estate is short of.
+      #
+      # 100 GiB reserved rather than 0: a replica store that fills completely stops scheduling *and*
+      # stops rebuilding, so the margin is the difference between "full" and "wedged".
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 107374182400
+      evictionRequested: false
+      tags: []
+      diskType: filesystem
     backup-sd:
       # `/mnt/backup-sd` is a USB card reader that also carries the weekly media mirror, so it is
       # capacity and not speed: a replica rebuilt onto it measured 2.5-8 MiB/s (2026-11-24), the
