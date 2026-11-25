@@ -49,24 +49,30 @@ spec:
     storageClass: longhorn
     size: 10Gi
 
+  # RESTORE, not initdb. The cluster that held this database was wiped on 2026-11-24 (Longhorn's storage
+  # died with it), and R2 holds daily base backups from 2026-11-10 plus continuous WAL, so the honest path
+  # is to replay them rather than to start an empty database and hand-load a dump. Immich's asset rows and
+  # its files must agree; a fresh initdb would have given a working app with zero photos and no way to tell.
+  #
+  # `serverName` is the name the backups were written under - the cluster's own name at backup time - and
+  # it must match or barman finds an empty prefix and CNPG waits forever on a bootstrap that looks like a
+  # slow restore.
+  #
+  # The initdb branch this replaced (kept here because it is still the right shape for a *first* install):
+  #   bootstrap: { initdb: { database: immich, owner: immich, secret: { name: immich-db },
+  #     postInitApplicationSQL: [CREATE EXTENSION IF NOT EXISTS vchord CASCADE, ... ] } }
+  # Those extensions are already in the restored database, so replaying them here would be noise.
   bootstrap:
-    initdb:
-      database: immich
-      owner: immich
-      secret:
-        name: immich-db
-      # The app role is a superuser today (`rolsuper = t`) because Immich creates its extensions at startup, and
-      # a CNPG bootstrap owner is not one. Creating them here keeps Immich's first migration from dying on
-      # `CREATE EXTENSION`.
-      postInitApplicationSQL:
-        - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS vector CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS cube CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS pg_trgm CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS unaccent CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS "uuid-ossp" CASCADE;
+    recovery:
+      source: immich-r2
 
+  externalClusters:
+    - name: immich-r2
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: immich-r2
+          serverName: immich-pg
   resources:
     requests: { cpu: 100m, memory: 384Mi }
     limits: { memory: 1Gi }
