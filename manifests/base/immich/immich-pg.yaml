@@ -65,6 +65,11 @@ spec:
   bootstrap:
     recovery:
       source: immich-r2
+      # Named explicitly. Left out, the operator defaults both to `app`, and the restored cluster would
+      # then be checked against a database that does not exist in Immich's backup - a failure that looks
+      # like a broken restore rather than a wrong name.
+      database: immich
+      owner: immich
 
   externalClusters:
     - name: immich-r2
