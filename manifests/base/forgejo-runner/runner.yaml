@@ -46,26 +46,10 @@ data:
       dir: /data/cache
     host:
       workdir_parent: /data/work
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: forgejo-runner-data
-  namespace: forgejo
-  annotations:
-    # Unmounted since /data became an emptyDir (2026-11-21). Kept DECLARED and never pruned: it is a bound
-    # volume, and a manifest that stops declaring it is how a PVC disappears (ADR 0002). Release it by name,
-    # deliberately, once someone is sure nothing wants the old work directory back.
-    argocd.argoproj.io/sync-options: Prune=false,Delete=false
-    # Step 1 of 2 (2026-11-25): once this is on the live objects, the next change stops declaring them and they
-    # stay as ignored extraneous objects rather than an app that is OutOfSync forever.
-    argocd.argoproj.io/compare-options: IgnoreExtraneous
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
-  resources:
-    requests:
-      storage: 2Gi
+# The forgejo-runner-data and forgejo-build-scratch PVCs are no longer declared (2026-11-25): nothing has mounted
+# them since 2026-11-21, and after the rebuild they were empty and Pending. They carried Prune=false,Delete=false,
+# so ArgoCD leaves the live objects alone, and IgnoreExtraneous (on them since #578) keeps them out of the sync
+# status. Releasing them is runbook 17, by name, by a human (ADR 0002).
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -254,35 +238,3 @@ spec:
         # cannot schedule.
         - name: build-scratch
           emptyDir: {}
----
-# Scratch for container builds. local-path on patola, not Longhorn: transient, node-local work, and a replicated volume
-# would be three copies of a build cache - and three runners now share this one, so buildah stays on one node even
-# though the runners themselves spread out. That is deliberate: it keeps image builds serialised behind whichever
-# runner holds the scratch volume, which is safer than three buildah caches fighting for disk.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: forgejo-build-scratch
-  namespace: forgejo
-  annotations:
-    # Unmounted since buildah's scratch became an emptyDir (2026-11-21) - see the comment on the volume.
-    # Kept declared, never pruned: a manifest that stops declaring a bound PVC is how it disappears
-    # (ADR 0002). Release by name once nothing wants it.
-    argocd.argoproj.io/sync-options: Prune=false,Delete=false
-    # Step 1 of 2 (2026-11-25): once this is on the live objects, the next change stops declaring them and they
-    # stay as ignored extraneous objects rather than an app that is OutOfSync forever.
-    argocd.argoproj.io/compare-options: IgnoreExtraneous
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
-  resources:
-    requests:
-      # The number is documentation, not a limit: local-path provisions a directory and enforces nothing, and it
-      # cannot be resized afterwards ("only dynamically provisioned pvc can be resized and the storageclass that
-      # provisions the pvc must support resize" - `kubectl apply --dry-run=server` refuses a larger value).
-      #
-      # On 2026-11-20 the buildah store inside this "5 GiB" volume reached 20 GiB, filled patola's root
-      # filesystem and got the runner evicted for ephemeral-storage pressure. The real guard is the prune at the
-      # start and end of each app build workflow (immich-pg, media-mcp); this stays 5 GiB because a manifest that
-      # cannot be applied is worse than one that understates.
-      storage: 5Gi
