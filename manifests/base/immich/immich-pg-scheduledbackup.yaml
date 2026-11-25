@@ -5,7 +5,9 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
-  name: immich-pg-daily
+  # spec.cluster is immutable after creation, so the name changed with the cluster rename
+  # (2026-11-25; the old object pointed at immich-pg and failed every sync).
+  name: immich-postgres-daily
   namespace: immich
 spec:
   # Six fields, not five: CNPG uses a second-precision cron. The API warned rather than failed, which is why the
@@ -26,4 +28,5 @@ spec:
     name: barman-cloud.cloudnative-pg.io
     parameters:
       barmanObjectName: immich-r2
-  immediate: false
+  # The cluster has no base backup yet, so the first one is taken at creation instead of waiting for 03:17.
+  immediate: true
