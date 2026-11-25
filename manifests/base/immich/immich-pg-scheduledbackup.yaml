@@ -13,7 +13,7 @@ spec:
   schedule: "0 17 3 * * *"
   backupOwnerReference: self
   cluster:
-    name: immich-pg
+    name: immich-postgres
   # `plugin`, not the default `barmanObjectStore`: the native method needs a binary Immich's image does not have.
   method: plugin
   # And `method: plugin` **requires** this — the API rejects a plugin backup without it:

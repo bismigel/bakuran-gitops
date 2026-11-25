@@ -82,10 +82,10 @@ spec:
                 image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
                 command: ["/bin/sh", "-c", "sleep 5; exec /bin/sh /scripts/watch.sh"]
                 env:
-                  # `immich-pg-rw`, not `immich-postgres`: story 8.2 moved the database to a CloudNativePG cluster
-                  # and removed the old Service. The `-rw` name also means this probe follows a failover, instead of
-                  # pinning itself to whichever instance happened to be primary at deploy time.
-                  - { name: PGHOST, value: immich-pg-rw.immich.svc.cluster.local }
+                  # `immich-postgres-rw`: story 8.2 moved the database to a CloudNativePG cluster and removed the old
+                  # StatefulSet Service of the same name. The `-rw` name also means this probe follows a failover,
+                  # instead of pinning itself to whichever instance happened to be primary at deploy time.
+                  - { name: PGHOST, value: immich-postgres-rw.immich.svc.cluster.local }
                   - { name: PGPORT, value: "5432" }
                   - { name: PGUSER, value: immich }
                   - { name: PGDATABASE, value: immich }
