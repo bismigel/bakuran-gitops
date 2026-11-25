@@ -7,7 +7,6 @@
 #   victoriametrics.yaml    the store: scrape, 14d retention, 20Gi
 #   vmalert.yaml            the evaluator: 2 replicas, the same rule ConfigMaps, Alertmanager
 #   grafana.yaml            the read side; datasource uid `prometheus` aliased onto the store
-#   prometheus-archive.yaml the two old Prometheus volumes, kept as an archive, runs nothing
 #   rules/  exporters/  checks/                unchanged
 #   dashboards/                              the TSDB comparison dashboard is deleted with the comparison it
 #                                            showed: both of its datasources now resolve to the same store, and the
@@ -35,7 +34,11 @@ resources:
   - rules/alerting-workloads.yaml
   - rules/alerting.yaml
   - checks/evaluation-watchdog.yaml
-  - exporters/prometheus-archive.yaml
+  # exporters/prometheus-archive.yaml removed 2026-11-25: it declared two local-path PVCs to keep the
+  # pre-2026-11-21 Prometheus history. That history did not survive the 2026-11-24 rebuild (no PV and no
+  # local-path directory for either claim on any node); ArgoCD recreated the claims empty, they could
+  # never bind (nothing mounts them), and the Pending PVCs kept this app Progressing. They carried
+  # Prune=false, so the two empty objects remain until someone deletes them on purpose (ADR 0002).
   - exporters/blackbox-exporter.yaml
   - exporters/cloudflare-edge-exporter.yaml
   - exporters/etcd-metrics-proxy.yaml
