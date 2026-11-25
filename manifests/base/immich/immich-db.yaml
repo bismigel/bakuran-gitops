@@ -7,73 +7,18 @@ metadata:
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
 ---
-# ---- Storage: Longhorn, so losing a node is a restart, not a restore ----
-# These were hostPath PVs pinned to one node (previously the MacBook, then
-# patola-thinkcentre). The data is ~1.8G, so the requests are right-sized: a
-# 90Gi volume with 2 replicas needs 180G and Longhorn has 168G free in total.
-# Growing a Longhorn volume is one `kubectl patch` when the library needs it.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: immich-library
-  namespace: immich
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false,Delete=false
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
-  resources:
-    requests:
-      storage: 30Gi
----
-# The library, three times larger and **ReadWriteMany** (2026-11-10).
-#
-# Two requests in one object, because both need a new volume: Longhorn can grow a volume but cannot change its access
-# mode, and `ReadWriteOnce` is what keeps `immich-server` at one replica — a second pod would fail to attach, so the
-# database being HA (story 8.2) never made the *application* HA.
-#
-# 100 GiB is not arbitrary: the smallest Longhorn disk is `patola-thinkcentre`'s dedicated one at 120 G free, and a
-# three-replica volume must fit on every node it lands on. Larger than this and the third replica has nowhere to go.
-#
-# `immich-library` (30 GiB, RWO) stays in place as the rollback copy — ADR 0002 makes deleting it a separate, human
-# decision with its own evidence, not a side effect of a migration.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: immich-library-rwx
-  namespace: immich
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false,Delete=false
-spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: longhorn
-  resources:
-    requests:
-      storage: 100Gi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: immich-postgres
-  namespace: immich
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false,Delete=false
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
-  resources:
-    requests:
-      storage: 10Gi
----
+# ---- Storage ----
+# The library lives on `immich-library-rwx-v2` (immich-library-v2.yaml); the database is the CloudNativePG cluster
+# in immich-postgres.yaml. Three older PVCs declared here - `immich-library` (30Gi RWO), `immich-library-rwx` (100Gi)
+# and `immich-postgres` (the pre-CNPG database) - were kept as rollback copies under ADR 0002. The 2026-11-24 rebuild
+# recreated them empty (Longhorn actualSize 0 on 2026-11-25), so they held no rollback anymore; they were removed
+# from git and deleted by name with the annotation (runbook 17), at the owner's request on 2026-11-25.
 # ---- Postgres (with the vector extension Immich needs) ----
 apiVersion: external-secrets.io/v1
 # The StatefulSet `immich-postgres` and its Service lived here until 2026-11-05 (story 8.2). The database is now
 # the CloudNativePG cluster in `immich-postgres.yaml`, reachable at `immich-postgres-rw`. Removed deliberately and *after* the
 # app had served from the new cluster for a round trip — not before.
-#
-# **The PVC `immich-postgres` below stays.** ADR 0002 is not a preference: it is the only complete copy of the
-# pre-migration database, and it is what a rollback would read. Deleting it is a separate decision with its own
-# evidence, made by a human, with the annotation.
+
 kind: ExternalSecret
 metadata:
   name: immich-db
