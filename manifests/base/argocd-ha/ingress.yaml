@@ -1,0 +1,35 @@
+# ArgoCD's own UI was unreachable at argocd.bismigel.dev, and had been since the rebuild.
+#
+# The hostname was in the Cloudflare tunnel's route list and in `install/argocd/values.yaml` - but that
+# values file is a *bootstrap-time* Helm input, applied by hand when the cluster is built, not by any
+# Application. The `argocd-ha` app manages only a PDB. So the tunnel routed the host to an ingress
+# controller that had no Ingress for it, which answers 404; Cloudflare Access answered 302 first, so the
+# breakage looked like "Access is having a moment" rather than a missing object.
+#
+# Declared here, in the path the `argocd-ha` Application owns, so it survives a rebuild.
+#
+# argocd-server speaks TLS on its container port (verified: https://<pod>:8080 answers 200, http answers
+# 307), so nginx must talk HTTPS to the backend. `ssl-redirect: false` because Cloudflare terminates TLS
+# at the edge: letting nginx redirect to https again sends the browser to a port the tunnel does not serve.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  ingressClassName: nginx-admin
+  rules:
+    - host: argocd.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 443
