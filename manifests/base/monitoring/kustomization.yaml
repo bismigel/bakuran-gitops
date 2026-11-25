@@ -31,8 +31,6 @@ resources:
   - rules/alerting-easyshortlist.yaml
   - rules/alerting-network-devices.yaml
   - dashboards/grafana-dashboard-network-devices.yaml
-  - dashboards/grafana-dashboard-opnsense.yaml
-  - dashboards/grafana-dashboard-switch.yaml
   - rules/alerting-workloads.yaml
   - rules/alerting.yaml
   - checks/evaluation-watchdog.yaml

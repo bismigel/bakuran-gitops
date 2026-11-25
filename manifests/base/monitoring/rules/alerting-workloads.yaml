@@ -150,81 +150,6 @@ data:
               summary: "the image registry has {{ humanizePercentage $value }} of its volume free"
               description: "At zero a layer push fails with HTTP 500 and builds stop producing images - from the app repository that looks like CI being idle, not like a full disk. Check the tag count and retention before growing the claim again."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#registrydiskspacelow"
-          # --- per-disk scheduling headroom (2026-10-30) ---------------------
-          # LonghornDiskStorageLow above compares *usage*, which was blind to the
-          # failure that actually happened: sitaw-amd's /var/lib/longhorn held 45G
-          # of replicas with 120MiB left for another one, at 43% "usage" of its
-          # capacity, and nothing fired. The scheduler admits a replica when
-          # (filesystem available - scheduled) > 0, and Longhorn exports scheduled
-          # bytes per *node* only, so that per-disk number was invisible.
-          #
-          # It is reconstructed here: longhorn_replica_info carries the disk *path*
-          # (not the disk name) plus the volume, so joining it with the volume size
-          # sums scheduled bytes per path; node-exporter supplies the free space of
-          # the filesystem that path lives on. node-exporter has no `node` label,
-          # hence the node_uname_info join, and /var/lib/longhorn is a directory on
-          # the root filesystem rather than a mountpoint, hence the second branch.
-          #
-          # Ratio = "how much of the space this disk still has free is already
-          # promised to replicas". It rises when anything else fills the filesystem
-          # too (containerd images on /), which is the same trap from the other
-          # side. A disk at 1.0 can take one more replica of a size it does not
-          # have room for, and it does so by first displacing whatever lives there.
-          # The two numbers Longhorn does not export, and the ratio the alerts use.
-          # Split into three rules rather than one expression because the dashboard
-          # needs the bytes: a ratio of 0.84 says "pressured", but 13 G free against
-          # 45 G promised is what tells you the rebuild will not fit.
-          #
-          # Order matters: rules in a group evaluate in sequence, so the ratio rule
-          # can read the two above it.
-          - record: longhorn:disk_scheduled_bytes
-            expr: |
-              label_replace(
-                sum by (node, disk_path) (
-                  longhorn_replica_info * on (volume) group_left() max by (volume) (longhorn_volume_capacity_bytes)
-                ),
-                "disk_path", "$1", "disk_path", "^(.*)/$"
-              )
-          - record: longhorn:disk_free_bytes
-            expr: |
-              max by (node, disk_path) (
-                label_replace(
-                  label_replace(
-                    node_filesystem_avail_bytes{fstype="ext4", mountpoint=~"/mnt/.+"}
-                      * on (instance) group_left (nodename) node_uname_info,
-                    "node", "$1", "nodename", "(.+)"
-                  ),
-                  "disk_path", "$1", "mountpoint", "(.+)"
-                )
-                or
-                label_replace(
-                  label_replace(
-                    node_filesystem_avail_bytes{fstype="ext4", mountpoint="/"}
-                      * on (instance) group_left (nodename) node_uname_info,
-                    "node", "$1", "nodename", "(.+)"
-                  ),
-                  "disk_path", "/var/lib/longhorn", "__name__", ".*"
-                )
-              )
-          - record: longhorn:disk_scheduled_to_free_ratio
-            expr: |
-              longhorn:disk_scheduled_bytes
-                / on (node, disk_path) group_left () longhorn:disk_free_bytes
-          # Thresholds are set for how sparse replicas behave, not for tidy-looking
-          # numbers. Longhorn reserves *provisioned* size: sitaw-amd promises 48G on
-          # its root disk with 7.3G actually written, so ~0.85 means "more provisioned
-          # than filled", which is normal here. Measured 2026-10-30 before choosing
-          # these: disks over 0.75 = 2, over 0.9 = 0, highest = 0.849. The incident
-          # this replaces had 120MiB of room against 45G promised (~0.997), so 0.9
-          # still catches it.
-          #
-          # What makes a high ratio dangerous is that a *rebuild* has to fit: the
-          # largest volume is 32.2G. While a dedicated disk can take the replica this
-          # costs nothing; it costs redundancy only when the pressured disk is the last
-          # candidate.
-          # The scheduling ratio above measures *promises*. This measures bytes, and it is what
-          # makes raising `storage-over-provisioning-percentage` safe: if the filesystems holding
-          # Longhorn disks really start filling, this fires long before a rebuild runs out of room.
           - alert: LonghornDiskActualSpaceLow
             expr: |
               (node_filesystem_avail_bytes{mountpoint=~"/mnt/(data|longhorn|media-nvme)"}
@@ -247,8 +172,9 @@ data:
           # structural fact that no amount of alerting changes, and one that would have
           # paged forever until someone drained the disks. An invariant that is
           # permanently true is a gauge, not an alert: what needs to reach a human is
-          # the point at which the situation costs redundancy, which is what the two
-          # ratio rules above measure. The migration decision is tracked in
+          # the point at which the situation costs redundancy; the ratio recording rules
+          # that measured it were removed with the 2026-11-25 dashboard cleanup.
+          # The migration decision is tracked in
           # homelab-context/NEXT-STEPS.md. (The orphaned `description:` that used to
           # follow this comment was part of the deleted alert - promtool rejected the
           # file with "mapping key description already defined".)

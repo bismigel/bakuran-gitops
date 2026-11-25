@@ -21,8 +21,9 @@ data:
         "memory"
       ],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 3,
+      "version": 4,
       "refresh": "30s",
       "time": {
         "from": "now-6h",
@@ -45,13 +46,13 @@ data:
           "gridPos": {
             "x": 0,
             "y": 0,
-            "w": 6,
-            "h": 5
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
               "refId": "A",
-              "expr": "count((sum by (namespace, pod, container) (container_memory_working_set_bytes{container!=\"\",container!=\"POD\"})) / (sum by (namespace, pod, container) (kube_pod_container_resource_limits{resource=\"memory\",container!=\"\"}) > 0) > 0.9)",
+              "expr": "count((sum by (namespace, pod, container) (container_memory_working_set_bytes{container!=\"\",container!=\"POD\"})) / (sum by (namespace, pod, container) (kube_pod_container_resource_limits{resource=\"memory\",container!=\"\"}) > 0) > 0.9) or vector(0)",
               "instant": true
             }
           ],
@@ -97,10 +98,10 @@ data:
             "uid": "prometheus"
           },
           "gridPos": {
-            "x": 6,
+            "x": 8,
             "y": 0,
-            "w": 6,
-            "h": 5
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -154,15 +155,15 @@ data:
             "uid": "prometheus"
           },
           "gridPos": {
-            "x": 12,
+            "x": 16,
             "y": 0,
-            "w": 6,
-            "h": 5
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
               "refId": "A",
-              "expr": "count(sum by (namespace, pod, container) (rate(container_cpu_cfs_throttled_periods_total[5m])) / sum by (namespace, pod, container) (rate(container_cpu_cfs_periods_total[5m])) > 0.25)",
+              "expr": "count(sum by (namespace, pod, container) (rate(container_cpu_cfs_throttled_periods_total[5m])) / sum by (namespace, pod, container) (rate(container_cpu_cfs_periods_total[5m])) > 0.25) or vector(0)",
               "instant": true
             }
           ],
@@ -208,9 +209,9 @@ data:
           },
           "gridPos": {
             "x": 0,
-            "y": 5,
+            "y": 4,
             "w": 12,
-            "h": 9
+            "h": 8
           },
           "targets": [
             {
@@ -266,9 +267,9 @@ data:
           },
           "gridPos": {
             "x": 12,
-            "y": 5,
+            "y": 4,
             "w": 12,
-            "h": 9
+            "h": 8
           },
           "targets": [
             {
@@ -306,8 +307,8 @@ data:
           },
           "gridPos": {
             "x": 0,
-            "y": 14,
-            "w": 12,
+            "y": 12,
+            "w": 24,
             "h": 8
           },
           "targets": [

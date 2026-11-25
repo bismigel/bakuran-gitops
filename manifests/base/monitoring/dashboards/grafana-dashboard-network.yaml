@@ -22,8 +22,9 @@ data:
         "argocd"
       ],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "30s",
       "time": {
         "from": "now-24h",
@@ -61,7 +62,7 @@ data:
             "x": 0,
             "y": 0,
             "w": 8,
-            "h": 7
+            "h": 4
           },
           "targets": [
             {
@@ -135,7 +136,7 @@ data:
             "x": 8,
             "y": 0,
             "w": 8,
-            "h": 7
+            "h": 4
           },
           "targets": [
             {
@@ -192,7 +193,7 @@ data:
             "x": 16,
             "y": 0,
             "w": 8,
-            "h": 7
+            "h": 4
           },
           "targets": [
             {
@@ -259,7 +260,7 @@ data:
           },
           "gridPos": {
             "x": 0,
-            "y": 7,
+            "y": 4,
             "w": 12,
             "h": 8
           },
@@ -318,7 +319,7 @@ data:
           },
           "gridPos": {
             "x": 12,
-            "y": 7,
+            "y": 4,
             "w": 12,
             "h": 8
           },
@@ -365,134 +366,6 @@ data:
               "mode": "multi",
               "sort": "none"
             }
-          }
-        },
-        {
-          "id": 6,
-          "type": "bargauge",
-          "title": "ArgoCD replicas per node (HA spread)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 15,
-            "w": 12,
-            "h": 8
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "count by (node) (kube_pod_info{namespace=\"argocd\",pod=~\"argocd-(server|repo-server|applicationset-controller|application-controller).*\"})",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "editorMode": "code",
-              "legendFormat": "{{node}}"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none",
-              "min": 0,
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "green",
-                    "value": 1
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "orientation": "horizontal",
-            "displayMode": "basic",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showUnfilled": true
-          }
-        },
-        {
-          "id": 7,
-          "type": "stat",
-          "title": "Jellyfin containers running",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 15,
-            "w": 8,
-            "h": 7
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "sum(kube_pod_container_status_running{namespace=\"default\",pod=~\"jellyfin-.*\"})",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "editorMode": "code",
-              "legendFormat": "jellyfin"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              },
-              "mappings": [
-                {
-                  "type": "value",
-                  "options": {
-                    "0": {
-                      "text": "DOWN",
-                      "color": "red",
-                      "index": 0
-                    }
-                  }
-                }
-              ]
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "background",
-            "graphMode": "area",
-            "textMode": "value_and_name"
           }
         }
       ]

@@ -14,8 +14,9 @@ data:
         "power"
       ],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 4,
+      "version": 5,
       "refresh": "30s",
       "time": {
         "from": "now-24h",
@@ -49,8 +50,8 @@ data:
           "gridPos": {
             "x": 0,
             "y": 0,
-            "w": 4,
-            "h": 5
+            "w": 6,
+            "h": 4
           },
           "targets": [
             {
@@ -94,10 +95,10 @@ data:
           "type": "stat",
           "title": "Energy 24h: package+DRAM (kWh)",
           "gridPos": {
-            "x": 4,
+            "x": 6,
             "y": 0,
-            "w": 4,
-            "h": 5
+            "w": 6,
+            "h": 4
           },
           "targets": [
             {
@@ -135,10 +136,10 @@ data:
           "type": "stat",
           "title": "Average 24h: measured (W)",
           "gridPos": {
-            "x": 8,
+            "x": 12,
             "y": 0,
-            "w": 4,
-            "h": 5
+            "w": 6,
+            "h": 4
           },
           "targets": [
             {
@@ -172,111 +173,14 @@ data:
           }
         },
         {
-          "id": 4,
-          "type": "stat",
-          "title": "Nodes reporting",
-          "gridPos": {
-            "x": 12,
-            "y": 0,
-            "w": 4,
-            "h": 5
-          },
-          "targets": [
-            {
-              "expr": "count(kepler_node_info) or vector(0)",
-              "refId": "A"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "green",
-                    "value": 3
-                  }
-                ]
-              },
-              "color": {
-                "mode": "thresholds"
-              }
-            }
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "orientation": "auto"
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
-          "id": 5,
-          "type": "stat",
-          "title": "Pods tracked",
-          "gridPos": {
-            "x": 16,
-            "y": 0,
-            "w": 4,
-            "h": 5
-          },
-          "targets": [
-            {
-              "expr": "count(count by (pod_name) (kepler_container_joules_total{mode=\"dynamic\"})) or vector(0)",
-              "refId": "A"
-            }
-          ],
-          "description": "Containers with energy attribution.",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short"
-            }
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "orientation": "auto"
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
           "id": 6,
           "type": "stat",
           "title": "Busiest node share",
           "gridPos": {
-            "x": 20,
+            "x": 18,
             "y": 0,
-            "w": 4,
-            "h": 5
+            "w": 6,
+            "h": 4
           },
           "targets": [
             {
@@ -315,7 +219,7 @@ data:
           "title": "CPU package power by node",
           "gridPos": {
             "x": 0,
-            "y": 5,
+            "y": 4,
             "w": 12,
             "h": 8
           },
@@ -361,7 +265,7 @@ data:
           "title": "Per-node measured total (W)",
           "gridPos": {
             "x": 12,
-            "y": 5,
+            "y": 4,
             "w": 12,
             "h": 8
           },
@@ -408,7 +312,7 @@ data:
           "description": "An attribution, not a measurement: Kepler divides a power budget by cgroup CPU share, so read it as a ranking. The budget is the platform MODEL (`platform_power_source: none` on these hosts), which is why these values sum to ~296 W while RAPL measures 23 W of CPU package. Useful for \"who is burning it\", useless as watts.",
           "gridPos": {
             "x": 0,
-            "y": 13,
+            "y": 12,
             "w": 12,
             "h": 8
           },
@@ -455,8 +359,8 @@ data:
           "title": "CPU temperature by node",
           "description": "Package (Intel coretemp) or Tctl (AMD k10temp) per node, via node_hwmon. The label join is what picks the package sensor out of the per-core ones.",
           "gridPos": {
-            "x": 0,
-            "y": 21,
+            "x": 12,
+            "y": 12,
             "w": 12,
             "h": 8
           },
@@ -525,9 +429,9 @@ data:
           "title": "Drive temperature by node (NVMe)",
           "description": "NVMe Composite sensor per node. Sustained >70 C is where these drives start throttling.",
           "gridPos": {
-            "x": 12,
-            "y": 21,
-            "w": 12,
+            "x": 0,
+            "y": 20,
+            "w": 24,
             "h": 8
           },
           "datasource": {
@@ -596,9 +500,9 @@ data:
           "description": "Maximum across every hwmon sensor on each node \u2014 CPU, drive, board, wifi. A single number to answer 'is anything hot right now'.",
           "gridPos": {
             "x": 0,
-            "y": 29,
-            "w": 12,
-            "h": 5
+            "y": 28,
+            "w": 24,
+            "h": 4
           },
           "datasource": {
             "type": "prometheus",
@@ -650,71 +554,6 @@ data:
               "expr": "max by (instance) (node_hwmon_temp_celsius)",
               "refId": "A",
               "legendFormat": "{{instance}}",
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              }
-            }
-          ]
-        },
-        {
-          "id": 14,
-          "type": "table",
-          "title": "All temperature sensors",
-          "description": "Every hwmon sensor with its chip and label, so an unexpected reading can be identified without ssh: chip_name comes from node_hwmon_chip_names, label from node_hwmon_sensor_label (e.g. 'Package id 0', 'Core 3', 'Composite').",
-          "gridPos": {
-            "x": 12,
-            "y": 29,
-            "w": 12,
-            "h": 8
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "celsius",
-              "decimals": 1,
-              "custom": {
-                "align": "auto"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "showHeader": true,
-            "sortBy": [
-              {
-                "displayName": "Value",
-                "desc": true
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true,
-                  "__name__": true,
-                  "job": true
-                },
-                "renameByName": {
-                  "instance": "node",
-                  "chip_name": "chip",
-                  "label": "sensor",
-                  "Value": "\u00b0C"
-                }
-              }
-            }
-          ],
-          "targets": [
-            {
-              "expr": "node_hwmon_temp_celsius * on (instance, chip) group_left (chip_name) node_hwmon_chip_names * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label",
-              "refId": "A",
-              "format": "table",
-              "instant": true,
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"

@@ -172,12 +172,10 @@ spec:
               # here, so it never reached Grafana. Found by the 2026-11-01 gap audit.
               - configMap: { name: grafana-dashboard-network }
               - configMap: { name: grafana-dashboard-network-devices }
-              - configMap: { name: grafana-dashboard-opnsense }
               # Every dashboard must be listed TWICE: once as a ConfigMap in the kustomization, and once here.
               # Adding only the first is silent - the file renders, CI passes, and Grafana never sees it. The
               # comment eight lines up is about this exact failure on 2026-10-25, and it happened again on
               # 2026-11-13 with the switch dashboard.
-              - configMap: { name: grafana-dashboard-switch }
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider

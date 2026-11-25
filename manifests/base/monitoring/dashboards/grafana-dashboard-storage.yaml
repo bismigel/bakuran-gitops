@@ -15,8 +15,9 @@ data:
         "media"
       ],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 3,
+      "version": 4,
       "refresh": "30s",
       "time": {
         "from": "now-30d",
@@ -44,75 +45,14 @@ data:
       "editable": true,
       "panels": [
         {
-          "id": 1,
-          "type": "stat",
-          "title": "Media pool used %",
-          "gridPos": {
-            "x": 0,
-            "y": 0,
-            "w": 6,
-            "h": 5
-          },
-          "targets": [
-            {
-              "expr": "(1 - node_filesystem_avail_bytes{mountpoint=\"/mnt/media\"} / node_filesystem_size_bytes{mountpoint=\"/mnt/media\"}) * 100",
-              "refId": "A"
-            }
-          ],
-          "description": "Alerts fire at 85% (warning) and 92% (critical).",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percent",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 85
-                  },
-                  {
-                    "color": "red",
-                    "value": 92
-                  }
-                ]
-              },
-              "color": {
-                "mode": "thresholds"
-              }
-            }
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "orientation": "auto"
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
           "id": 2,
           "type": "stat",
           "title": "Media pool free",
           "gridPos": {
-            "x": 6,
+            "x": 0,
             "y": 0,
-            "w": 6,
-            "h": 5
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -170,10 +110,10 @@ data:
           "type": "stat",
           "title": "Media pool size",
           "gridPos": {
-            "x": 12,
+            "x": 8,
             "y": 0,
-            "w": 6,
-            "h": 5
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -211,10 +151,10 @@ data:
           "type": "stat",
           "title": "Projected full in",
           "gridPos": {
-            "x": 18,
+            "x": 16,
             "y": 0,
-            "w": 6,
-            "h": 5
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -273,8 +213,8 @@ data:
           "title": "Media pool used % (30d)",
           "gridPos": {
             "x": 0,
-            "y": 5,
-            "w": 12,
+            "y": 4,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -339,9 +279,9 @@ data:
           "type": "table",
           "title": "Filesystems on the media box",
           "gridPos": {
-            "x": 12,
-            "y": 5,
-            "w": 12,
+            "x": 0,
+            "y": 12,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -376,8 +316,8 @@ data:
           "title": "PVC usage",
           "gridPos": {
             "x": 0,
-            "y": 13,
-            "w": 12,
+            "y": 20,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -412,9 +352,9 @@ data:
           "type": "table",
           "title": "Largest container logs",
           "gridPos": {
-            "x": 12,
-            "y": 13,
-            "w": 12,
+            "x": 0,
+            "y": 28,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -449,8 +389,8 @@ data:
           "title": "Volume used bytes",
           "gridPos": {
             "x": 0,
-            "y": 21,
-            "w": 12,
+            "y": 36,
+            "w": 24,
             "h": 8
           },
           "targets": [

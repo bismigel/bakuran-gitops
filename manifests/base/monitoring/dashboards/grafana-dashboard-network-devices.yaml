@@ -18,6 +18,7 @@ data:
         "infrastructure"
       ],
       "timezone": "browser",
+      "graphTooltip": 1,
       "editable": false,
       "schemaVersion": 39,
       "refresh": "30s",
@@ -202,7 +203,7 @@ data:
             "x": 0,
             "y": 12,
             "w": 12,
-            "h": 7
+            "h": 8
           },
           "datasource": {
             "type": "prometheus",
@@ -242,7 +243,7 @@ data:
             "x": 12,
             "y": 12,
             "w": 12,
-            "h": 7
+            "h": 8
           },
           "datasource": {
             "type": "prometheus",
@@ -271,9 +272,9 @@ data:
           "title": "pf state table",
           "gridPos": {
             "x": 0,
-            "y": 19,
+            "y": 20,
             "w": 8,
-            "h": 7
+            "h": 4
           },
           "datasource": {
             "type": "prometheus",
@@ -320,9 +321,9 @@ data:
           "title": "Router memory",
           "gridPos": {
             "x": 8,
-            "y": 19,
+            "y": 20,
             "w": 8,
-            "h": 7
+            "h": 4
           },
           "datasource": {
             "type": "prometheus",
@@ -369,9 +370,9 @@ data:
           "title": "DHCP leases",
           "gridPos": {
             "x": 16,
-            "y": 19,
+            "y": 20,
             "w": 8,
-            "h": 7
+            "h": 4
           },
           "datasource": {
             "type": "prometheus",
@@ -409,9 +410,9 @@ data:
           "title": "Gateway loss / delay (present only when dpinger is enabled)",
           "gridPos": {
             "x": 0,
-            "y": 26,
+            "y": 24,
             "w": 24,
-            "h": 7
+            "h": 8
           },
           "datasource": {
             "type": "prometheus",

@@ -15,8 +15,9 @@ data:
         "edge"
       ],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 2,
+      "version": 3,
       "refresh": "1m",
       "time": {
         "from": "now-24h",
@@ -51,7 +52,7 @@ data:
             "x": 0,
             "y": 0,
             "w": 4,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -108,7 +109,7 @@ data:
             "x": 4,
             "y": 0,
             "w": 4,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -169,7 +170,7 @@ data:
             "x": 8,
             "y": 0,
             "w": 4,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -210,7 +211,7 @@ data:
             "x": 12,
             "y": 0,
             "w": 4,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -266,8 +267,8 @@ data:
           "gridPos": {
             "x": 16,
             "y": 0,
-            "w": 4,
-            "h": 5
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -301,74 +302,13 @@ data:
           }
         },
         {
-          "id": 6,
-          "type": "stat",
-          "title": "Snapshot age",
-          "gridPos": {
-            "x": 20,
-            "y": 0,
-            "w": 4,
-            "h": 5
-          },
-          "targets": [
-            {
-              "expr": "time() - cloudflare_export_timestamp_seconds",
-              "refId": "A"
-            }
-          ],
-          "description": "Staleness of the cached Cloudflare snapshot. Red means the exporter is stuck or the token died.",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 180
-                  },
-                  {
-                    "color": "red",
-                    "value": 600
-                  }
-                ]
-              },
-              "color": {
-                "mode": "thresholds"
-              }
-            }
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "orientation": "auto"
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
           "id": 8,
           "type": "timeseries",
           "title": "Edge connections by colo",
           "gridPos": {
             "x": 0,
-            "y": 5,
-            "w": 12,
+            "y": 4,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -412,9 +352,9 @@ data:
           "type": "table",
           "title": "Zones",
           "gridPos": {
-            "x": 12,
-            "y": 5,
-            "w": 12,
+            "x": 0,
+            "y": 12,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -449,8 +389,8 @@ data:
           "title": "DNS records per zone",
           "gridPos": {
             "x": 0,
-            "y": 13,
-            "w": 12,
+            "y": 20,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -484,9 +424,9 @@ data:
           "type": "table",
           "title": "Certificates",
           "gridPos": {
-            "x": 12,
-            "y": 13,
-            "w": 12,
+            "x": 0,
+            "y": 28,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -516,106 +456,14 @@ data:
           }
         },
         {
-          "id": 12,
-          "type": "timeseries",
-          "title": "Cloudflare API latency",
-          "gridPos": {
-            "x": 0,
-            "y": 21,
-            "w": 12,
-            "h": 8
-          },
-          "targets": [
-            {
-              "expr": "cloudflare_api_last_duration_seconds",
-              "refId": "A",
-              "legendFormat": "{{endpoint}}"
-            }
-          ],
-          "description": "Last refresh duration per API call. Creeping latency usually precedes rate limiting.",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "custom": {
-                "lineWidth": 1,
-                "fillOpacity": 8,
-                "showPoints": "never",
-                "spanNulls": true
-              },
-              "min": 0
-            }
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "calcs": []
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
-          "id": 13,
-          "type": "timeseries",
-          "title": "API reachable",
-          "gridPos": {
-            "x": 0,
-            "y": 29,
-            "w": 24,
-            "h": 6
-          },
-          "targets": [
-            {
-              "expr": "cloudflare_api_up",
-              "refId": "A",
-              "legendFormat": "api_up"
-            }
-          ],
-          "description": "0 = the last refresh failed (token expired, scope lost, outage).",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "custom": {
-                "lineWidth": 1,
-                "fillOpacity": 8,
-                "showPoints": "never",
-                "spanNulls": true
-              },
-              "min": 0
-            }
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "calcs": []
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
           "id": 14,
           "type": "stat",
           "title": "Pageviews (24h)",
           "gridPos": {
             "x": 0,
-            "y": 35,
-            "w": 6,
-            "h": 5
+            "y": 36,
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -653,10 +501,10 @@ data:
           "type": "stat",
           "title": "Visits (24h)",
           "gridPos": {
-            "x": 6,
-            "y": 35,
-            "w": 6,
-            "h": 5
+            "x": 8,
+            "y": 36,
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -694,10 +542,10 @@ data:
           "type": "stat",
           "title": "Sites reporting",
           "gridPos": {
-            "x": 12,
-            "y": 35,
-            "w": 6,
-            "h": 5
+            "x": 16,
+            "y": 36,
+            "w": 8,
+            "h": 4
           },
           "targets": [
             {
@@ -719,63 +567,6 @@ data:
                   {
                     "color": "green",
                     "value": 3
-                  }
-                ]
-              },
-              "color": {
-                "mode": "thresholds"
-              }
-            }
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "orientation": "auto"
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
-          "id": 17,
-          "type": "stat",
-          "title": "RUM query",
-          "gridPos": {
-            "x": 18,
-            "y": 35,
-            "w": 6,
-            "h": 5
-          },
-          "targets": [
-            {
-              "expr": "cloudflare_rum_up",
-              "refId": "A"
-            }
-          ],
-          "description": "1 = the GraphQL RUM query works for this token. 0 = scope missing, free-plan restriction, or schema change.",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "green",
-                    "value": 1
                   }
                 ]
               },

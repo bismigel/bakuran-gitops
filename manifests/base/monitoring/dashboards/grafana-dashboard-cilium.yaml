@@ -11,8 +11,9 @@ data:
       "title": "Cilium",
       "tags": ["homelab", "cilium", "network"],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "30s",
       "time": {"from": "now-6h", "to": "now"},
       "annotations": {"list": []},
@@ -23,7 +24,7 @@ data:
           "type": "stat",
           "title": "Cilium agents up",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(up{job=\"kubernetes-pods\",instance=~\".*:9962\"})", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 3}]}}, "overrides": []}
@@ -33,7 +34,7 @@ data:
           "type": "stat",
           "title": "Ready endpoints",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(cilium_endpoint_state{endpoint_state=\"ready\"})", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
@@ -43,7 +44,7 @@ data:
           "type": "stat",
           "title": "Drops per minute",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+          "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(rate(cilium_drop_count_total[5m])) * 60", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 10}]}}, "overrides": []}
@@ -53,7 +54,7 @@ data:
           "type": "stat",
           "title": "Failing controllers",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+          "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(cilium_controllers_failing)", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []}
@@ -63,7 +64,7 @@ data:
           "type": "timeseries",
           "title": "Forwarded packets per second",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+          "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
           "targets": [{"refId": "A", "expr": "sum(rate(cilium_forward_count_total[5m]))", "legendFormat": "forwarded"}],
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
           "fieldConfig": {"defaults": {"unit": "pps", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
@@ -73,7 +74,7 @@ data:
           "type": "timeseries",
           "title": "Drops by reason",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+          "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
           "targets": [{"refId": "A", "expr": "sum(rate(cilium_drop_count_total[5m])) by (reason)", "legendFormat": "{{reason}}"}],
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
           "fieldConfig": {"defaults": {"unit": "pps", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
@@ -83,7 +84,7 @@ data:
           "type": "timeseries",
           "title": "BPF map pressure",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+          "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8},
           "targets": [{"refId": "A", "expr": "max(cilium_bpf_map_pressure) by (map_name)", "legendFormat": "{{map_name}}"}],
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
@@ -93,7 +94,7 @@ data:
           "type": "stat",
           "title": "Errors and warnings, last hour",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+          "gridPos": {"x": 0, "y": 20, "w": 24, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(increase(cilium_errors_warnings_total[1h]))", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 10}]}}, "overrides": []}

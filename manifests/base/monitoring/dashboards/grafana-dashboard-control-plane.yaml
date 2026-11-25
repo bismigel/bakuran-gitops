@@ -15,8 +15,9 @@ data:
         "kubernetes"
       ],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 3,
+      "version": 4,
       "refresh": "30s",
       "time": {
         "from": "now-24h",
@@ -51,7 +52,7 @@ data:
             "x": 0,
             "y": 0,
             "w": 6,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -112,7 +113,7 @@ data:
             "x": 6,
             "y": 0,
             "w": 6,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -173,7 +174,7 @@ data:
             "x": 12,
             "y": 0,
             "w": 6,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -234,7 +235,7 @@ data:
             "x": 18,
             "y": 0,
             "w": 6,
-            "h": 5
+            "h": 4
           },
           "targets": [
             {
@@ -293,7 +294,7 @@ data:
           "title": "etcd DB size vs quota",
           "gridPos": {
             "x": 0,
-            "y": 5,
+            "y": 4,
             "w": 12,
             "h": 8
           },
@@ -350,7 +351,7 @@ data:
           "title": "WAL fsync p99",
           "gridPos": {
             "x": 12,
-            "y": 5,
+            "y": 4,
             "w": 12,
             "h": 8
           },
@@ -417,7 +418,7 @@ data:
           "title": "Backend commit p99",
           "gridPos": {
             "x": 0,
-            "y": 13,
+            "y": 12,
             "w": 12,
             "h": 8
           },
@@ -484,7 +485,7 @@ data:
           "title": "Peer round-trip p99",
           "gridPos": {
             "x": 12,
-            "y": 13,
+            "y": 12,
             "w": 12,
             "h": 8
           },
@@ -531,8 +532,8 @@ data:
           "title": "Proposals",
           "gridPos": {
             "x": 0,
-            "y": 21,
-            "w": 12,
+            "y": 20,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -582,9 +583,9 @@ data:
           "type": "table",
           "title": "Node conditions",
           "gridPos": {
-            "x": 12,
-            "y": 21,
-            "w": 12,
+            "x": 0,
+            "y": 28,
+            "w": 24,
             "h": 8
           },
           "targets": [
@@ -619,8 +620,8 @@ data:
           "title": "API server storage size",
           "gridPos": {
             "x": 0,
-            "y": 29,
-            "w": 12,
+            "y": 36,
+            "w": 24,
             "h": 8
           },
           "targets": [

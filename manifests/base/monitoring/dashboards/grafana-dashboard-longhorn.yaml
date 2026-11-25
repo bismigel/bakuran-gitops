@@ -23,8 +23,9 @@ data:
       "title": "Longhorn",
       "tags": ["homelab", "storage", "longhorn"],
       "timezone": "browser",
+      "graphTooltip": 1,
       "schemaVersion": 39,
-      "version": 2,
+      "version": 3,
       "refresh": "30s",
       "time": {"from": "now-6h", "to": "now"},
       "annotations": {"list": []},
@@ -35,7 +36,7 @@ data:
           "type": "stat",
           "title": "Volumes healthy",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(longhorn_volume_robustness{state=\"healthy\"} == 1)", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}
@@ -45,7 +46,7 @@ data:
           "type": "stat",
           "title": "Degraded or faulted",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(longhorn_volume_robustness{state=~\"degraded|faulted|unknown\"} == 1)", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "short", "noValue": "0", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []}
@@ -55,7 +56,7 @@ data:
           "type": "stat",
           "title": "Worst volume fill %",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+          "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "max(longhorn_volume_actual_size_bytes / on (volume) longhorn_volume_capacity_bytes)", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.9}]}}, "overrides": []}
@@ -65,7 +66,7 @@ data:
           "type": "stat",
           "title": "Worst node fill %",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+          "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
           "targets": [{"refId": "A", "expr": "max(sum by (node) (longhorn_node_storage_usage_bytes) / sum by (node) (longhorn_node_storage_capacity_bytes))", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "colorMode": "value", "graphMode": "area"},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.85}]}}, "overrides": []}
@@ -75,7 +76,7 @@ data:
           "type": "bargauge",
           "title": "Volume fill %",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 9, "w": 12, "x": 0, "y": 5},
+          "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
           "targets": [{"refId": "A", "expr": "longhorn_volume_actual_size_bytes / on (volume) longhorn_volume_capacity_bytes", "legendFormat": "{{pvc}}"}],
           "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.9}]}}, "overrides": []}
@@ -85,7 +86,7 @@ data:
           "type": "bargauge",
           "title": "Node storage fill %",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 9, "w": 12, "x": 12, "y": 5},
+          "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
           "targets": [{"refId": "A", "expr": "sum by (node) (longhorn_node_storage_usage_bytes) / sum by (node) (longhorn_node_storage_capacity_bytes)", "legendFormat": "{{node}}"}],
           "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "red", "value": 0.85}]}}, "overrides": []}
@@ -95,7 +96,7 @@ data:
           "type": "bargauge",
           "title": "Disk fill %",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+          "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
           "targets": [{"refId": "A", "expr": "longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes", "legendFormat": "{{node}}/{{disk}}"}],
           "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
           "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.85}, {"color": "red", "value": 0.9}]}}, "overrides": []}
@@ -105,21 +106,10 @@ data:
           "type": "timeseries",
           "title": "Volume actual size",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+          "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
           "targets": [{"refId": "A", "expr": "longhorn_volume_actual_size_bytes", "legendFormat": "{{pvc}}"}],
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
-        },
-        {
-          "id": 9,
-          "type": "stat",
-          "title": "Tightest disk headroom",
-          "description": "Smallest (free space - bytes promised to replicas) of any Longhorn disk: the room the next rebuild has. Not capacity — on 2026-10-30 this was 120 MiB while the disk read 43% full.",
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 8, "x": 0, "y": 22},
-          "targets": [{"refId": "A", "expr": "min(longhorn:disk_free_bytes - longhorn:disk_scheduled_bytes)", "instant": true}],
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value", "colorMode": "value", "graphMode": "none"},
-          "fieldConfig": {"defaults": {"unit": "bytes", "decimals": 1, "noValue": "no data", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 5368709120}, {"color": "green", "value": 21474836480}]}}, "overrides": []}
         },
         {
           "id": 10,
@@ -127,46 +117,10 @@ data:
           "title": "Longhorn on OS filesystems",
           "description": "Bytes Longhorn holds in default-disk-* disks, which are directories inside / on each node. Not zero today - all three nodes run replicas there, which is the standing decision in NEXT-STEPS.md - and this panel is what replaced the alert that could only ever be red: it rises here so the ratio rules above can stay quiet until the headroom is actually being spent. and the image store, so filling it loses the control plane instead of degrading a volume. LonghornDataOnRootFilesystem fires above 15%.",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 8, "x": 8, "y": 22},
+          "gridPos": {"x": 0, "y": 20, "w": 24, "h": 4},
           "targets": [{"refId": "A", "expr": "sum(longhorn_disk_usage_bytes{disk=~\"default-disk-.*\"})", "instant": true}],
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value", "colorMode": "value", "graphMode": "none"},
           "fieldConfig": {"defaults": {"unit": "bytes", "decimals": 1, "noValue": "0", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 107374182400}]}}, "overrides": []}
-        },
-        {
-          "id": 11,
-          "type": "stat",
-          "title": "Disks over 90% pressured",
-          "description": "Disks where more than 75% of the remaining free space is already promised to replicas.",
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 5, "w": 8, "x": 16, "y": 22},
-          "targets": [{"refId": "A", "expr": "count(longhorn:disk_scheduled_to_free_ratio > 0.9) or vector(0)", "instant": true}],
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value", "colorMode": "value", "graphMode": "none"},
-          "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "noValue": "0", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []}
-        },
-        {
-          "id": 12,
-          "type": "bargauge",
-          "title": "Disk scheduling pressure (promised / free)",
-          "description": "longhorn:disk_scheduled_to_free_ratio. A disk at 1.0 has no room for another replica, whatever its fill percentage says. Also rises when something other than Longhorn fills that filesystem.",
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 27},
-          "targets": [{"refId": "A", "expr": "longhorn:disk_scheduled_to_free_ratio", "legendFormat": "{{node}} {{disk_path}}"}],
-          "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
-          "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "decimals": 2, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.75}, {"color": "red", "value": 0.95}]}}, "overrides": []}
-        },
-        {
-          "id": 13,
-          "type": "timeseries",
-          "title": "Scheduled vs free per disk",
-          "description": "Promised (longhorn:disk_scheduled_bytes) against free space of the filesystem that disk lives on (longhorn:disk_free_bytes). Where the lines meet, the next replica does not fit.",
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 27},
-          "targets": [
-            {"refId": "A", "expr": "longhorn:disk_scheduled_bytes", "legendFormat": "promised {{node}} {{disk_path}}"},
-            {"refId": "B", "expr": "longhorn:disk_free_bytes", "legendFormat": "free {{node}} {{disk_path}}"}
-          ],
-          "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []}
         }
       ]
     }

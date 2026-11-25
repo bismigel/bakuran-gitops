@@ -40,6 +40,12 @@ value: "200"
 # it - promised bytes went 166 GiB -> 191 GiB within ten minutes of re-enabling scheduling on that disk,
 # with no volume created. A reviewer can see it in one query; the balancer cannot.
 #
+# 2026-11-25: the promised-bytes ratio and both alarms on it are gone (alerts in bakuran-gitops #223, the
+# recording rules and dashboard panels with the dashboard cleanup) - it disagreed with Longhorn's own numbers
+# (calamansi: 0 bytes scheduled, ratio 187%). What guards the disks now is LonghornDiskActualSpaceLow (real
+# bytes), Longhorn's own over-provisioning limit, and LonghornVolumeDegraded when a replica cannot schedule.
+# `least-effort` stays for the measurement above.
+#
 # The 2026-11-05 note said a rebuild is cheap here (9 GiB of real data across all volumes). That is no
 # longer true: rebuilding one 25 GiB replica onto the backup disk ran at ~8 MiB/s, so the "it rebalances
 # itself, cheaply" premise now costs 20-40 minutes per move and competes with backups for that disk.
