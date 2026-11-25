@@ -56,7 +56,7 @@ spec:
           args:
             - |
               python - <<'PY'
-              import json, os, sys, urllib.request
+              import json, os, sys, time, urllib.request
 
               base = os.environ["JELLYFIN_URL"].rstrip("/")
               url = base + "/System/Configuration"
@@ -72,11 +72,20 @@ spec:
                       raw = r.read()
                       return r.status, (json.loads(raw) if raw.strip() else None)
 
-              try:
-                  _, cfg = call()
-              except Exception as e:
-                  print("GET failed:", e)
-                  sys.exit(1)
+              # Wait for Jellyfin rather than fail: after the 2026-11-24 rebuild this Job ran before
+              # Jellyfin was up, failed its 3 attempts in seconds, and left the monitoring app Degraded
+              # for a day while the setting itself was already 0 on the restored PVC.
+              deadline = time.time() + 900
+              while True:
+                  try:
+                      _, cfg = call()
+                      break
+                  except Exception as e:
+                      if time.time() > deadline:
+                          print("GET failed for 15 min, giving up:", e)
+                          sys.exit(1)
+                      print("Jellyfin not answering yet (%s); retrying in 15 s" % e)
+                      time.sleep(15)
 
               before = cfg.get("RemoteClientBitrateLimit")
               print("before: RemoteClientBitrateLimit=%r" % before)
