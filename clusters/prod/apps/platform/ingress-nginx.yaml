@@ -9,6 +9,12 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: prod
+  # cert-manager (cainjector) owns the webhook caBundle now; git must not fight it back to a stale value.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jsonPointers:
+        - /webhooks/0/clientConfig/caBundle
   source:
     repoURL: https://kubernetes.github.io/ingress-nginx
     chart: ingress-nginx
@@ -16,6 +22,27 @@ spec:
     helm:
       values: |
         controller:
+          # The admission webhook's CA, from cert-manager instead of a one-shot patch Job.
+          #
+          # The chart's default (`admissionWebhooks.patch`) generates a self-signed cert in a
+          # Job and writes the caBundle into the ValidatingWebhookConfiguration once. Under
+          # ArgoCD that value is then owned by git, so it does not follow the certificate: after
+          # the 2026-11-24 rebuild the CA was regenerated and every Ingress apply was rejected
+          # with
+          #
+          #   failed calling webhook "validate.nginx.ingress.kubernetes.io":
+          #   tls: failed to verify certificate: x509: certificate signed by unknown authority
+          #
+          # which failed whole Application syncs - `books` and `immich` among them - with an
+          # error that names the webhook, not the app that was being deployed.
+          #
+          # With cert-manager the chart creates a Certificate and annotates the webhook with
+          # `cert-manager.io/inject-ca-from`; cainjector keeps the caBundle matched to the live
+          # cert for as long as the cluster exists, so a rebuild heals itself. The caBundle field
+          # is then managed by cert-manager, not by git - see the ignoreDifferences below.
+          admissionWebhooks:
+            certManager:
+              enabled: true
           # Two replicas, spread across nodes, so the edge survives losing a node
           # (matches the two cloudflared connectors).
           # REQUIRED, not preferred. With a soft rule both replicas landed on
