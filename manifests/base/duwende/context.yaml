@@ -267,6 +267,7 @@ data:
     
     | I want to… | go to |
     |---|---|
+    | **something is broken / behaving oddly — start here** | [`docs/guides/first-response.md`](docs/guides/first-response.md) — restart, then delete the pod, then question the design |
     | deploy or change something in the cluster | [`docs/guides/cluster.md`](docs/guides/cluster.md) |
     | change a host, its secrets, or the router | [`docs/guides/hosts.md`](docs/guides/hosts.md) |
     | add a hostname to the Cloudflare tunnel, or touch Access | [`docs/guides/cloudflare.md`](docs/guides/cloudflare.md) |
@@ -290,8 +291,8 @@ data:
     | Host | IP | k3s node | declared `/mnt` mounts |
     |---|---|---|---|
     | `patola-thinkcentre` | 192.168.10.80 | yes | data |
-    | `calamansi-intel` | 192.168.10.81 | yes | longhorn, media, media-snapshots, media/audiobooks, media/books, scratch |
-    | `sitaw-amd` | 192.168.10.82 | yes | backup-sd, media, media-nvme, media-sda, media-snapshots, media/audiobooks, media/books |
+    | `calamansi-intel` | 192.168.10.81 | yes | longhorn, media, media/audiobooks, media/books, scratch |
+    | `sitaw-amd` | 192.168.10.82 | yes | backup-sd, longhorn, longhorn-wdc, media, media-nvme |
     | `kamatis-mbp` | 192.168.10.83 | **no** | data |
     <!-- END facts:hosts -->
     
