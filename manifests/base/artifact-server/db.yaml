@@ -1,0 +1,68 @@
+# Artifact Server's database, in the same shape as Vaultwarden's: two instances, `-rw` is a DNS name that
+# follows a promotion, and the full URL is composed in the ExternalSecret template because Kubernetes
+# cannot build one env var out of three.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: artifact-server-db
+  namespace: artifact-server
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden
+  target:
+    name: artifact-server-db
+    creationPolicy: Owner
+    template:
+      data:
+        password: "{{ .password }}"
+        # CNPG's bootstrap reads `username`; the application's DATABASE_URL carries the same value.
+        username: "artifact_server"
+        DATABASE_URL: "postgresql://artifact_server:{{ .password }}@artifact-server-pg-rw.artifact-server.svc.cluster.local:5432/artifact_server"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: artifact-server-db-password
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: artifact-server-pg
+  namespace: artifact-server
+spec:
+  instances: 2
+  # `tag@digest`: CNPG parses the tag to judge major-version upgrades and refuses a bare digest.
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.10@sha256:6287f6497c8c7495305900b79b7aa8d0c9515fa9d3614eff81650068f4d9bacf
+  primaryUpdateStrategy: unsupervised
+  storage:
+    storageClass: longhorn
+    size: 2Gi
+  bootstrap:
+    initdb:
+      database: artifact_server
+      owner: artifact_server
+      secret:
+        name: artifact-server-db
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 512Mi }
+  postgresql:
+    parameters:
+      max_connections: "50"
+      shared_buffers: "64MB"
+
+  # WAL continuously + a base backup daily, the same mechanism every other app database uses. `isWALArchiver`
+  # is what makes point-in-time recovery possible; a base backup alone is not.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: artifact-server-r2
+        # Its own folder, named for the cluster that writes it: the plugin refuses to archive next to another
+        # system's WAL. Change it only together with a rebuild.
+        serverName: artifact-server-pg-2026-11-25
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required

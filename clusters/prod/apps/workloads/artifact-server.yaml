@@ -1,0 +1,81 @@
+# Artifact Server — an artefact registry served on artifact.bismigel.dev, with published content on the
+# isolated content domain miguelarbis.dev. The manifests live in this repo (manifests/base/artifact-server),
+# so `path` points into bakuran-gitops rather than the app repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: artifact-server
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: prod
+  source:
+    repoURL: https://github.com/bismigel/bakuran-gitops.git
+    targetRevision: main
+    path: manifests/base/artifact-server
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: artifact-server
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  # CNPG mutating webhook defaults ~40 fields into Cluster.spec (same list measured on easyshortlist.yaml).
+  ignoreDifferences:
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /affinity
+        - /bootstrap/initdb
+        - /enablePDB
+        - /failoverDelay
+        - /logLevel
+        - /maxSyncReplicas
+        - /minSyncReplicas
+        - /monitoring/disableDefaultQueries
+        - /postgresGID
+        - /postgresUID
+        - /postgresql/parameters/archive_mode
+        - /postgresql/parameters/archive_timeout
+        - /postgresql/parameters/dynamic_shared_memory_type
+        - /postgresql/parameters/full_page_writes
+        - /postgresql/parameters/log_destination
+        - /postgresql/parameters/log_directory
+        - /postgresql/parameters/log_filename
+        - /postgresql/parameters/log_rotation_age
+        - /postgresql/parameters/log_rotation_size
+        - /postgresql/parameters/log_truncate_on_rotation
+        - /postgresql/parameters/logging_collector
+        - /postgresql/parameters/max_parallel_workers
+        - /postgresql/parameters/max_replication_slots
+        - /postgresql/parameters/max_worker_processes
+        - /postgresql/parameters/shared_memory_type
+        - /postgresql/parameters/shared_preload_libraries
+        - /postgresql/parameters/ssl_max_protocol_version
+        - /postgresql/parameters/ssl_min_protocol_version
+        - /postgresql/parameters/wal_keep_size
+        - /postgresql/parameters/wal_level
+        - /postgresql/parameters/wal_log_hints
+        - /postgresql/parameters/wal_receiver_timeout
+        - /postgresql/parameters/wal_sender_timeout
+        - /postgresql/syncReplicaElectionConstraint
+        - /primaryUpdateMethod
+        - /probes
+        - /replicationSlots
+        - /smartShutdownTimeout
+        - /startDelay
+        - /stopDelay
+        - /storage/resizeInUseVolumes
+        - /switchoverDelay
+      jqPathExpressions:
+        - .spec.managed.roles[].connectionLimit
+        - .spec.managed.roles[].inherit
+        - .spec.monitoring.customQueriesConfigMap[].key
+        - .spec.monitoring.customQueriesConfigMap[].name

@@ -102,6 +102,8 @@ spec:
     - {server: https://kubernetes.default.svc, namespace: cilium-secrets}
     - {server: https://kubernetes.default.svc, namespace: downloads}
     - {server: https://kubernetes.default.svc, namespace: easyshortlist}
+    # Artifact Server (2026-11-25): self-hosted immutable artifacts + agent review loop.
+    - {server: https://kubernetes.default.svc, namespace: artifact-server}
     # kube-public / kube-node-lease are never targeted by an app; deliberately absent.
   # Derived from ArgoCD's own resource trees (every Application's
   # status.resources entry with an empty namespace), not from memory:

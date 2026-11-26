@@ -1,0 +1,392 @@
+# Artifact Server — an "artifact server" for publishing build artefacts, served on artifact.bismigel.dev,
+# with the content it publishes living on an isolated content domain (miguelarbis.dev).
+#
+# The shape matches Vaultwarden's: the database is a CloudNativePG cluster, so `-rw` follows a promotion;
+# two replicas with a PDB and spread constraints, so a node drain never takes both; and everything the
+# process reads is a file under /run/secrets rather than an env var, which is why the Secret is mounted
+# as a volume and the *_FILE variables point at it.
+#
+# The container runs with a read-only root and a memory-backed /tmp, which is what the `restricted`
+# Pod Security level in the namespace demands.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: artifact-server
+  namespace: artifact-server
+# Nothing in this namespace talks to the API server; a mounted token would only be a credential to steal.
+automountServiceAccountToken: false
+---
+# Schema migrations, as a Sync wave-1 hook (matching easyshortlist's app-migrate): Namespace, ExternalSecret and
+# CNPG Cluster reconcile in wave 0, migrations run in wave 1 (retrying while CNPG finishes bootstrap on first sync),
+# and the Deployment rolls out in wave 2. A PreSync hook would fail on first sync because neither the Namespace nor
+# the runtime Secret exists yet.
+#
+# A hook rather than a tracked resource: a completed Job's status and pod are immutable, so it can never
+# match its own manifest again and the Application would report OutOfSync forever.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: artifact-server-migrate
+  namespace: artifact-server
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  activeDeadlineSeconds: 600
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: artifact-server
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: artifact-server
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: migrate
+          image: ghcr.io/plannotator/artifact-server:v0.1.2@sha256:e832267831dddd905d158aeeb6b331ef314c7d4737c8769d7bd335b91bd43055
+          args: ["migrate", "apply"]
+          env:
+            - name: ARTIFACT_SERVER_DATABASE_URL_FILE
+              value: /run/secrets/artifact-server/database-url
+            - name: ARTIFACT_SERVER_INSTALLATION_ID
+              value: bakuran-prod
+          volumeMounts:
+            - name: secrets
+              mountPath: /run/secrets/artifact-server
+              readOnly: true
+            # The image writes its scratch files here; the root filesystem is read-only.
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: secrets
+          secret:
+            secretName: artifact-server-runtime
+            defaultMode: 288
+            items:
+              - { key: database-url, path: database-url }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: artifact-server
+  namespace: artifact-server
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: artifact-server
+    app.kubernetes.io/component: server
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: artifact-server
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: artifact-server
+        app.kubernetes.io/component: server
+    spec:
+      serviceAccountName: artifact-server
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # `ScheduleAnyway`, unlike the database's required anti-affinity: two replicas on three nodes is a
+      # preference, and a Pending replica during a drain is worse than two on one node.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: artifact-server
+      containers:
+        - name: artifact-server
+          image: ghcr.io/plannotator/artifact-server:v0.1.2@sha256:e832267831dddd905d158aeeb6b331ef314c7d4737c8769d7bd335b91bd43055
+          args: ["start-external-storage", "--host", "0.0.0.0", "--port", "8787"]
+          ports:
+            - { name: http, containerPort: 8787, protocol: TCP }
+          env:
+            - name: ARTIFACT_SERVER_API_TOKEN_FILE
+              value: /run/secrets/artifact-server/api-token
+            - name: ARTIFACT_SERVER_BOOTSTRAP_ADMIN_EMAIL
+              value: bismigel@pm.me
+            - name: ARTIFACT_SERVER_CONTENT_DOMAIN
+              value: miguelarbis.dev
+            - name: ARTIFACT_SERVER_DATABASE_URL_FILE
+              value: /run/secrets/artifact-server/database-url
+            - name: ARTIFACT_SERVER_INSTALLATION_ID
+              value: bakuran-prod
+            - name: ARTIFACT_SERVER_ORIGIN
+              value: https://artifact.bismigel.dev
+            - name: ARTIFACT_SERVER_OBJECT_STORAGE_PROVIDER
+              value: s3
+            - name: ARTIFACT_SERVER_POSTGRES_MAX_CONNECTIONS
+              value: "10"
+            - name: ARTIFACT_SERVER_READINESS_WITHDRAWAL_MS
+              value: "1000"
+            - name: ARTIFACT_SERVER_REQUEST_LOG_SAMPLE_RATE
+              value: "0.01"
+            - name: ARTIFACT_SERVER_S3_BUCKET
+              value: artifact-server
+            - name: ARTIFACT_SERVER_S3_ENDPOINT
+              value: https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com
+            - name: ARTIFACT_SERVER_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: ARTIFACT_SERVER_S3_REGION
+              value: auto
+            - name: ARTIFACT_SERVER_S3_ACCESS_KEY_ID_FILE
+              value: /run/secrets/artifact-server/s3-access-key-id
+            - name: ARTIFACT_SERVER_S3_SECRET_ACCESS_KEY_FILE
+              value: /run/secrets/artifact-server/s3-secret-access-key
+            - name: ARTIFACT_SERVER_SHUTDOWN_DEADLINE_MS
+              value: "10000"
+            - name: ARTIFACT_SERVER_STAGING_CLEANUP_BATCH_SIZE
+              value: "100"
+            - name: ARTIFACT_SERVER_STAGING_CLEANUP_CONCURRENCY
+              value: "4"
+            - name: ARTIFACT_SERVER_STAGING_CLEANUP_SCHEDULE
+              value: external
+            - name: ARTIFACT_SERVER_STAGING_CLEANUP_SETTLE_DELAY_MS
+              value: "5000"
+            - name: ARTIFACT_SERVER_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: artifact-server-runtime, key: oidc-client-id }
+            - name: ARTIFACT_SERVER_OIDC_ISSUER
+              valueFrom:
+                secretKeyRef: { name: artifact-server-runtime, key: oidc-issuer }
+            - name: ARTIFACT_SERVER_OIDC_SCOPES
+              value: openid email profile
+            - name: ARTIFACT_SERVER_OIDC_CLIENT_SECRET_FILE
+              value: /run/secrets/artifact-server/oidc-client-secret
+          volumeMounts:
+            - name: secrets
+              mountPath: /run/secrets/artifact-server
+              readOnly: true
+            # The image writes its scratch files here; the root filesystem is read-only.
+            - name: tmp
+              mountPath: /tmp
+          # /health answers as soon as the process can serve; /ready additionally proves the database and
+          # the object store are reachable. Startup gets a minute before liveness is allowed to act.
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: secrets
+          secret:
+            secretName: artifact-server-runtime
+            defaultMode: 288
+            items:
+              - { key: api-token, path: api-token }
+              - { key: database-url, path: database-url }
+              - { key: s3-access-key-id, path: s3-access-key-id }
+              - { key: s3-secret-access-key, path: s3-secret-access-key }
+              - { key: oidc-client-secret, path: oidc-client-secret }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
+---
+# Staging cleanup is scheduled by Kubernetes rather than by the process
+# (ARTIFACT_SERVER_STAGING_CLEANUP_SCHEDULE=external above), so it runs to completion as its own pod and
+# cannot stall a request-serving replica.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: artifact-server-cleanup-staging
+  namespace: artifact-server
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: artifact-server
+            app.kubernetes.io/component: cleanup
+        spec:
+          restartPolicy: Never
+          serviceAccountName: artifact-server
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: cleanup-staging
+              image: ghcr.io/plannotator/artifact-server:v0.1.2@sha256:e832267831dddd905d158aeeb6b331ef314c7d4737c8769d7bd335b91bd43055
+              args: ["maintenance", "cleanup-staging", "--once", "--mode", "external-storage", "--limit", "100"]
+              env:
+                - name: ARTIFACT_SERVER_API_TOKEN_FILE
+                  value: /run/secrets/artifact-server/api-token
+                - name: ARTIFACT_SERVER_BOOTSTRAP_ADMIN_EMAIL
+                  value: bismigel@pm.me
+                - name: ARTIFACT_SERVER_CONTENT_DOMAIN
+                  value: miguelarbis.dev
+                - name: ARTIFACT_SERVER_DATABASE_URL_FILE
+                  value: /run/secrets/artifact-server/database-url
+                - name: ARTIFACT_SERVER_INSTALLATION_ID
+                  value: bakuran-prod
+                - name: ARTIFACT_SERVER_ORIGIN
+                  value: https://artifact.bismigel.dev
+                - name: ARTIFACT_SERVER_OBJECT_STORAGE_PROVIDER
+                  value: s3
+                - name: ARTIFACT_SERVER_POSTGRES_MAX_CONNECTIONS
+                  value: "10"
+                - name: ARTIFACT_SERVER_READINESS_WITHDRAWAL_MS
+                  value: "1000"
+                - name: ARTIFACT_SERVER_REQUEST_LOG_SAMPLE_RATE
+                  value: "0.01"
+                - name: ARTIFACT_SERVER_S3_BUCKET
+                  value: artifact-server
+                - name: ARTIFACT_SERVER_S3_ENDPOINT
+                  value: https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com
+                - name: ARTIFACT_SERVER_S3_FORCE_PATH_STYLE
+                  value: "true"
+                - name: ARTIFACT_SERVER_S3_REGION
+                  value: auto
+                - name: ARTIFACT_SERVER_S3_ACCESS_KEY_ID_FILE
+                  value: /run/secrets/artifact-server/s3-access-key-id
+                - name: ARTIFACT_SERVER_S3_SECRET_ACCESS_KEY_FILE
+                  value: /run/secrets/artifact-server/s3-secret-access-key
+                - name: ARTIFACT_SERVER_SHUTDOWN_DEADLINE_MS
+                  value: "10000"
+                - name: ARTIFACT_SERVER_STAGING_CLEANUP_BATCH_SIZE
+                  value: "100"
+                - name: ARTIFACT_SERVER_STAGING_CLEANUP_CONCURRENCY
+                  value: "4"
+                - name: ARTIFACT_SERVER_STAGING_CLEANUP_SCHEDULE
+                  value: external
+                - name: ARTIFACT_SERVER_STAGING_CLEANUP_SETTLE_DELAY_MS
+                  value: "5000"
+                - name: ARTIFACT_SERVER_OIDC_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef: { name: artifact-server-runtime, key: oidc-client-id }
+                - name: ARTIFACT_SERVER_OIDC_ISSUER
+                  valueFrom:
+                    secretKeyRef: { name: artifact-server-runtime, key: oidc-issuer }
+                - name: ARTIFACT_SERVER_OIDC_SCOPES
+                  value: openid email profile
+                - name: ARTIFACT_SERVER_OIDC_CLIENT_SECRET_FILE
+                  value: /run/secrets/artifact-server/oidc-client-secret
+              volumeMounts:
+                - name: secrets
+                  mountPath: /run/secrets/artifact-server
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { memory: 512Mi }
+          volumes:
+            - name: secrets
+              secret:
+                secretName: artifact-server-runtime
+                defaultMode: 288
+                items:
+                  - { key: api-token, path: api-token }
+                  - { key: database-url, path: database-url }
+                  - { key: s3-access-key-id, path: s3-access-key-id }
+                  - { key: s3-secret-access-key, path: s3-secret-access-key }
+                  - { key: oidc-client-secret, path: oidc-client-secret }
+            - name: tmp
+              emptyDir: { medium: Memory, sizeLimit: 64Mi }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: artifact-server
+  namespace: artifact-server
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: artifact-server
+      app.kubernetes.io/component: server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: artifact-server
+  namespace: artifact-server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: artifact-server
+    app.kubernetes.io/component: server
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: artifact-server
+  namespace: artifact-server
+spec:
+  ingressClassName: nginx
+  # TLS terminates at the Cloudflare Tunnel edge, so there is no `tls:` block here (same as vaultwarden).
+  rules:
+    # The application itself.
+    - host: artifact.bismigel.dev
+      http:
+        paths:
+          - { path: /, pathType: Prefix, backend: { service: { name: artifact-server, port: { name: http } } } }
+    # The content it publishes lives on a domain of its own, isolated from the application's cookies.
+    - host: "*.miguelarbis.dev"
+      http:
+        paths:
+          - { path: /, pathType: Prefix, backend: { service: { name: artifact-server, port: { name: http } } } }

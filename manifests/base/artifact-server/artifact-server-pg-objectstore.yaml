@@ -1,0 +1,25 @@
+# The object store Artifact Server's database backs up into, via the Barman Cloud Plugin (the native barman
+# path is removed in CNPG 1.31.0).
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: artifact-server-r2
+  namespace: artifact-server
+spec:
+  retentionPolicy: "14d"
+  configuration:
+    destinationPath: "s3://homelab-backups/cnpg/artifact-server"
+    endpointURL: "https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com"
+    s3Credentials:
+      accessKeyId:
+        name: artifact-server-pg-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: artifact-server-pg-backup
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 2

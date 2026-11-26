@@ -1,0 +1,20 @@
+# Daily base backup of Artifact Server's database, on top of continuous WAL archiving.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: artifact-server-pg-daily
+  namespace: artifact-server
+spec:
+  # 03:53 UTC, staggered after Immich (03:17), Forgejo (03:33) and Vaultwarden (03:47).
+  schedule: "0 53 3 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: artifact-server-pg
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: artifact-server-r2
+      # Must match the Cluster's plugin parameters: same folder, same system ID.
+      serverName: artifact-server-pg-2026-11-25
+  immediate: false

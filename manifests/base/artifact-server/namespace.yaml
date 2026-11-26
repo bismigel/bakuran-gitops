@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: artifact-server
+  annotations:
+    # The namespace is the unit that holds the database and the object-store credentials; a prune that
+    # removes it would take every child object with it, so ArgoCD is told not to (ADR 0002).
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    # Nothing here needs a privilege: the app runs as uid 1000 with a read-only root and its own /tmp.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
