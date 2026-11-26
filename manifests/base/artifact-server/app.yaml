@@ -44,6 +44,7 @@ spec:
       restartPolicy: OnFailure
       serviceAccountName: artifact-server
       automountServiceAccountToken: false
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -110,6 +111,9 @@ spec:
     spec:
       serviceAccountName: artifact-server
       automountServiceAccountToken: false
+      # The Service is named artifact-server, so Kubernetes would inject ARTIFACT_SERVER_PORT=tcp://...
+      # and the server reads that variable as its listen port. Service links are off for every pod of this app.
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -256,6 +260,7 @@ spec:
           restartPolicy: Never
           serviceAccountName: artifact-server
           automountServiceAccountToken: false
+          enableServiceLinks: false
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
