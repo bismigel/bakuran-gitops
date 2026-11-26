@@ -161,6 +161,19 @@ data:
               summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has {{ humanizePercentage $value }} of its space free"
               description: "This is a filesystem holding Longhorn replicas, measured in actual bytes. Scheduling headroom is a promise; this is the disk."
               runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
+          # A replica disk that Longhorn reports at zero capacity is a disk that is not there: a USB card that reset, a mount
+          # that did not come back. 2026-11-26: /mnt/backup-sd on sitaw-amd was unmounted and Longhorn silently lost 1 TB of
+          # replica capacity until someone read `backups`. `default-disk-*` is excluded: it is the auto-created disk at
+          # /var/lib/longhorn that these nodes have always reported as empty (sitaw-amd's is not ready, by history).
+          - alert: LonghornDiskUnavailable
+            expr: longhorn_disk_capacity_bytes{disk!~"default-disk-.*"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn disk {{ $labels.disk }} on {{ $labels.node }} reports zero capacity"
+              description: "The disk is not mounted or not ready, so its replicas are unavailable and the capacity it promised is gone. Check `lsblk` and `mount` on the node first; a removable card that reset needs its declared mount started, not a config change."
+              runbook_url: "https://runbook.bismigel.dev/runbook/26-storage-etcd-longhorn-disks/#longhorndiskschedulingheadroomlow"
           # The invariant the 2026-10-30 cleanup argues for: replicas belong on the
           # dedicated partitions, not on the filesystem holding etcd and the
           # container image store. `default-disk-*` is the disk Longhorn auto-creates
