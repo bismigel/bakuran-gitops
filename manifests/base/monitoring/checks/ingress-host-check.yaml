@@ -76,7 +76,7 @@ spec:
                            miguelarbis.dev www.miguelarbis.dev status.bismigel.dev \
                            jellyfin.bismigel.dev immich.bismigel.dev kavita.bismigel.dev \
                            audiobookshelf.bismigel.dev karakeep.bismigel.dev \
-                           tools.ciceley.cc git.bismigel.dev; do
+                           tools.ciceley.cc git.bismigel.dev artifact.bismigel.dev; do
                     check ingress-nginx-controller.ingress-nginx.svc.cluster.local "$h" public
                   done
 
