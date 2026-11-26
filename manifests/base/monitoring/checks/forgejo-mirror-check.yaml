@@ -6,6 +6,15 @@
 # only signal is `mirror_updated` going stale, so the check has to ask Forgejo
 # itself.
 #
+# Since ADR 0021 (Epic 17.6) GitHub is also on the ArgoCD deploy path: a Forgejo
+# push mirror that lags means ArgoCD is reading a stale tree, which is
+# outage-shaped. So this check runs every 5 minutes and raises two alerts:
+#
+#   ForgejoMirrorLag   - a push mirror errored, never synced, or is more than
+#                        10 minutes behind the newest default-branch commit.
+#   ForgejoMirrorStale - the original 72h check, for pull mirrors and for push
+#                        mirrors that have stopped syncing entirely.
+#
 # Same shape as ingress-host-check: one alert per failing repository, pushed
 # straight to Alertmanager, resolved by expiry — and an explicit resolve when a
 # repository is fresh again, so a fixed mirror does not stay "firing" for hours.
@@ -19,9 +28,9 @@ metadata:
   name: forgejo-mirror-check
   namespace: monitoring
 spec:
-  # Every 6h. Mirrors sync daily, so two missed syncs is the smallest interval
-  # that cannot fire on a single lost run.
-  schedule: "23 */6 * * *"
+  # Every 5 minutes. Since ADR 0021 a lagging push mirror puts ArgoCD on a stale
+  # tree, so the check has to notice within ~10 minutes rather than within a day.
+  schedule: "*/5 * * * *"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 300
   successfulJobsHistoryLimit: 1
@@ -40,7 +49,7 @@ spec:
               args:
                   - |
                     #!/bin/sh
-                    # Are the git mirrors still syncing?
+                    # Are the git mirrors still syncing? (ADR 0021 / Epic 17.6)
                     #
                     # Rewritten 2026-11-16. The first version only knew about *pull* mirrors: it read `mirror_updated` and treated a missing
                     # value as stale. That was correct while GitHub was the origin and Forgejo pulled from it. After the migration these
@@ -49,82 +58,139 @@ spec:
                     #
                     # A monitor that reports a nonsense age is worse than no monitor: it teaches people to ignore the alert.
                     #
-                    # Now: take the newest of the two timestamps a repository can have - `mirror_updated` (pull) and the push mirror's
-                    # `last_update` - and only alert when a repository has neither, or when the newest one is older than 72h.
+                    # Now (ADR 0021, Epic 17.6) GitHub is on the ArgoCD deploy path, so a push mirror that lags is outage-shaped: it means
+                    # ArgoCD is looking at the wrong tree. Two checks per repository:
+                    #
+                    #   ForgejoMirrorLag   - a push mirror with a non-empty `last_error`, that has never synced, or whose last sync is
+                    #                        behind the newest default-branch commit by more than 10m (MAX_LAG=600).
+                    #   ForgejoMirrorStale - the old 72h check: a pull mirror whose `mirror_updated` is stale, a push mirror whose
+                    #                        `last_update` is stale, or a repository with neither timestamp.
+                    #
+                    # Both are resolved explicitly when healthy, because they are posted by a CronJob run whose pod name changes: an alert
+                    # posted by one run can never be resolved by the next unless the identity is stable. HOST is that stable identity.
                     set -u
-                    AM="http://alertmanager.monitoring.svc:9093/api/v2/alerts"
-                    BASE="http://forgejo.forgejo.svc.cluster.local:3000/api/v1"
-                    TOKEN="$(cat /etc/forgejo/token)"
+                    AM="${AM:-http://alertmanager.monitoring.svc:9093/api/v2/alerts}"
+                    BASE="${BASE:-http://forgejo.forgejo.svc.cluster.local:3000/api/v1}"
+                    TOKEN_FILE="${TOKEN_FILE:-/etc/forgejo/token}"
+                    TOKEN="$(cat "$TOKEN_FILE")"
                     # A stable identity, NOT the pod name. The pod name changes every run, so an alert posted by one run can never be
                     # resolved by the next - they accumulate and expire after 24h. Six alerts were firing from a single old run for exactly
                     # this reason, and the first run after the rewrite could not clear them for the same reason.
                     HOST="forgejo-mirror-check"
-                    MAX_AGE=259200          # 72h = three missed daily syncs
+                    MAX_AGE=259200           # 72h = three missed daily syncs
+                    MAX_LAG=600              # 10m = ArgoCD must not be left reading a stale tree
                     now=$(date -u +%s)
                     stale=0
                     checked=0
-                    
+
                     fire() {
                       curl -s -m 10 -X POST -H 'Content-Type: application/json' -d "$1" "$AM" || true
                     }
-                    
-                    alert() {   # alert <repo> <summary>
+
+                    alert_stale() {   # alert_stale <repo> <summary>
                       fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorStale\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"annotations\":{\"summary\":\"$2\"}}]"
                     }
-                    
-                    resolve() {
+
+                    resolve_stale() {
                       fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorStale\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"endsAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]" >/dev/null 2>&1 || true
                     }
-                    
+
+                    alert_lag() {     # alert_lag <repo> <summary>
+                      fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorLag\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"annotations\":{\"summary\":\"$2\"}}]"
+                    }
+
+                    resolve_lag() {
+                      fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorLag\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"endsAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]" >/dev/null 2>&1 || true
+                    }
+
+                    # UTC ISO-8601 (YYYY-MM-DDTHH:MM:SS[.frac]Z) -> epoch seconds, 0 when absent/zero/unparseable.
+                    to_epoch() {
+                      case "$1" in ""|0001*|1970*) echo 0; return;; esac
+                      e=$(date -u -d "$(printf '%s' "$1" | sed -E 's/\.[0-9]+//; s/Z$//; s/T/ /')" +%s 2>/dev/null || echo 0)
+                      [ "$e" -gt 0 ] 2>/dev/null && echo "$e" || echo 0
+                    }
+
                     # Every repository this instance mirrors, in either direction.
-                    # EasyShortlist is private and deliberately has no GitHub mirror (its CLAUDE.md:
-                    # "Forgejo ... no GitHub mirror"). Counting it as stale made this check fail and kept
-                    # the whole monitoring Application Degraded. Check only repos that have a mirror.
+                    # EasyShortlist used to be excluded because it had no mirror and counting it as stale kept the whole monitoring
+                    # Application Degraded. It now has a GitHub push mirror read by ArgoCD (ADR 0021), so a silent one is a real outage and
+                    # it is checked like every other repository.
                     repos=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/search?limit=100" \
-                      | tr ',' '\n' | grep -o '"full_name":"[^"]*/[^"]*"' | cut -d'"' -f4 | cut -d/ -f2 | sort -u \
-                      | grep -vx easyshortlist)
-                    
+                      | tr ',' '\n' | grep -o '"full_name":"[^"]*/[^"]*"' | cut -d'"' -f4 | cut -d/ -f2 | sort -u)
+
                     if [ -z "$repos" ]; then
                       echo "FAIL: no repositories returned by the API"
                       fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorCheckBroken\",\"severity\":\"warning\",\"instance\":\"$HOST\"},\"annotations\":{\"summary\":\"the Forgejo mirror check cannot list repositories\"}}]"
                       exit 1
                     fi
-                    
+
                     for r in $repos; do
-                      ts=""
-                      # Pull mirror (the mirror-of-GitHub case): mirror_updated on the repository.
-                      pull=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r" \
-                             | tr ',' '\n' | grep -o '"mirror_updated":"[^"]*"' | cut -d'"' -f4)
-                      # Push mirror (the origin-with-a-mirror case): last_update on the mirror entry.
-                      push=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r/push_mirrors" \
-                             | tr ',' '\n' | grep -o '"last_update":"[^"]*"' | head -1 | cut -d'"' -f4)
-                    
-                      for cand in "$pull" "$push"; do
-                        case "$cand" in ""|1970*) continue;; esac
-                        e=$(date -u -d "$(echo "$cand" | tr 'T' ' ' | tr -d 'Z')" +%s 2>/dev/null || echo 0)
-                        [ "$e" -gt 0 ] || continue
-                        if [ -z "$ts" ] || [ "$e" -gt "$ts" ]; then ts=$e; fi
-                      done
-                    
+                      repo_json=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r")
+                      push_json=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r/push_mirrors")
                       checked=$((checked+1))
-                      if [ -z "$ts" ]; then
-                        echo "NO-TIMESTAMP $r: neither mirror_updated nor a push mirror last_update"
-                        alert "$r" "$r has no mirror timestamp: it is neither a pull mirror nor pushing to one"
-                        stale=$((stale+1))
-                        continue
-                      fi
-                      age=$((now - ts))
-                      if [ "$age" -gt "$MAX_AGE" ]; then
-                        hours=$((age / 3600))
-                        echo "STALE $r: last sync ${hours}h ago"
-                        alert "$r" "$r last synced ${hours}h ago (threshold 72h)"
-                        stale=$((stale+1))
-                      else
-                        echo "ok $r: $((age / 3600))h ago"
-                        resolve "$r"
-                      fi
+
+                      case "$push_json" in
+                        *'"remote_name"'*)
+                          # Push mirror (the origin-with-a-mirror case): the repository is the origin, GitHub is behind.
+                          push_raw=$(printf '%s' "$push_json" | tr ',' '\n' | grep -o '"last_update":"[^"]*"' | head -1 | cut -d'"' -f4)
+                          push_err=$(printf '%s' "$push_json" | tr ',' '\n' | grep -o '"last_error":"[^"]*"' | head -1 | cut -d'"' -f4)
+                          branch=$(printf '%s' "$repo_json" | tr ',' '\n' | grep -o '"default_branch":"[^"]*"' | head -1 | cut -d'"' -f4)
+                          [ -n "$branch" ] || branch=main
+                          commit_raw=$(curl -sf -m 20 -H "Authorization: token $TOKEN" "$BASE/repos/bismigel/$r/commits?sha=$branch&limit=1" \
+                                       | tr ',' '\n' | grep -o '"created":"[^"]*"' | head -1 | cut -d'"' -f4)
+                          push_ts=$(to_epoch "$push_raw")
+                          commit_ts=$(to_epoch "$commit_raw")
+
+                          # Lag: has the mirror picked up the newest default-branch commit, and recently?
+                          if [ -n "$push_err" ]; then
+                            # Backslashes too: the regex extraction can end on one, and a trailing backslash would
+                            # escape the closing quote and make the alert body invalid JSON.
+                            err=$(printf '%s' "$push_err" | sed 's/\\/\\\\/g; s/"/\\"/g')
+                            echo "LAG-ERROR $r: $push_err"
+                            alert_lag "$r" "$r push mirror error: $err"
+                            stale=$((stale+1))
+                          elif [ "$push_ts" -eq 0 ]; then
+                            echo "LAG-NEVER $r: push mirror has no last_update"
+                            alert_lag "$r" "$r push mirror has never synced"
+                            stale=$((stale+1))
+                          elif [ "$commit_ts" -gt "$push_ts" ] && [ $((now - commit_ts)) -gt "$MAX_LAG" ]; then
+                            echo "LAG $r: mirror is $(( (now - commit_ts) / 60 ))m behind"
+                            alert_lag "$r" "$r GitHub mirror is behind Forgejo by $(( (now - commit_ts) / 60 ))m (threshold 10m)"
+                            stale=$((stale+1))
+                          else
+                            echo "ok-lag $r: mirror is current"
+                            resolve_lag "$r"
+                          fi
+
+                          # Stale: the old 72h check still applies to push mirrors.
+                          if [ "$push_ts" -gt 0 ] && [ $((now - push_ts)) -gt "$MAX_AGE" ]; then
+                            echo "STALE $r: last sync $(( (now - push_ts) / 3600 ))h ago"
+                            alert_stale "$r" "$r last synced $(( (now - push_ts) / 3600 ))h ago (threshold 72h)"
+                            stale=$((stale+1))
+                          elif [ "$push_ts" -gt 0 ]; then
+                            resolve_stale "$r"
+                          fi
+                          ;;
+                        *)
+                          # Pull mirror or unmirrored repository: not a push mirror, so no lag alert can apply.
+                          resolve_lag "$r"
+                          pull_raw=$(printf '%s' "$repo_json" | tr ',' '\n' | grep -o '"mirror_updated":"[^"]*"' | cut -d'"' -f4)
+                          pull_ts=$(to_epoch "$pull_raw")
+                          if [ "$pull_ts" -eq 0 ]; then
+                            echo "NO-TIMESTAMP $r: neither mirror_updated nor a push mirror last_update"
+                            alert_stale "$r" "$r has no mirror timestamp: it is neither a pull mirror nor pushing to one"
+                            stale=$((stale+1))
+                          elif [ $((now - pull_ts)) -gt "$MAX_AGE" ]; then
+                            echo "STALE $r: last sync $(( (now - pull_ts) / 3600 ))h ago"
+                            alert_stale "$r" "$r last synced $(( (now - pull_ts) / 3600 ))h ago (threshold 72h)"
+                            stale=$((stale+1))
+                          else
+                            echo "ok $r: $(( (now - pull_ts) / 3600 ))h ago"
+                            resolve_stale "$r"
+                          fi
+                          ;;
+                      esac
                     done
-                    
+
                     echo "checked ${checked} repo(s), stale: ${stale}"
                     [ "$stale" -eq 0 ]
               volumeMounts:
