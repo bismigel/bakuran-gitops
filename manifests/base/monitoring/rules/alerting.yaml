@@ -239,7 +239,15 @@ data:
             # warning, because on its own it is the known stall - it says how bad today is, while the
             # rule above says whether it matters yet. clamp_min only guards the first minutes of a fresh
             # cluster, when the denominator has no calls in the window yet.
-            expr: rate(externalsecret_sync_calls_error[30m]) / clamp_min(rate(externalsecret_sync_calls_total[30m]), 1e-9) > 0.2
+            #
+            # Must be AGGREGATED (2026-11-27). Without `sum(...)` this was evaluated per
+            # `externalsecret_sync_calls_*` series, and those carry `namespace` (the operator's, always
+            # `external-secrets`) plus the ExternalSecret's `name` - so one provider problem became 55
+            # series and 8 simultaneously-pending alerts, each naming a different ExternalSecret and all
+            # claiming to be in `external-secrets`. It also amplified: an ExternalSecret with 2 attempts
+            # in the window shows 50% on a single failure, so the per-object view is mostly sampling noise.
+            # The question this rule answers is "is the provider sick", which has one answer, not 55.
+            expr: sum(rate(externalsecret_sync_calls_error[30m])) / clamp_min(sum(rate(externalsecret_sync_calls_total[30m])), 1e-9) > 0.2
             for: 1h
             labels: { severity: info }
             annotations:
