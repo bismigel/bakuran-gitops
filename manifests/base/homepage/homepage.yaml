@@ -54,8 +54,11 @@ data:
             icon: robot
     - Media:
         - Jellyfin:
-            href: https://jellyfin.bismigel.dev
-            description: Media server (QSV transcoding)
+            # The LAN name, not the public one: `jellyfin.lan` resolves on the router's Unbound to the kube-vip
+            # LoadBalancer address (192.168.10.84) and answers in ~27 ms, where the public name goes out through
+            # Cloudflare and back. The public URL is one click away in Bookmarks.
+            href: http://jellyfin.lan:8096
+            description: Media server (QSV transcoding) - LAN address
             icon: jellyfin
         - Sonarr:
             href: https://sonarr.bismigel.dev
@@ -164,6 +167,9 @@ data:
             - abbr: NK
               href: https://github.com/niki-on-github/nixos-k3s
     - Services:
+        - Jellyfin (from outside the LAN):
+            - abbr: JF
+              href: https://jellyfin.bismigel.dev
         - Cloudflare Zero Trust:
             - abbr: CF
               href: https://one.dash.cloudflare.com
