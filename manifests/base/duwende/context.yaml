@@ -548,8 +548,7 @@ data:
     
     # Inventory: hosts, ports, services, endpoints
     
-    > Local-only. Last updated: **2026-11-03** (router replaced; see "Router / network
-    > hardware" below).
+    > Local-only. Last updated: **2026-11-27** (the local LLM's address and firewall, below).
     
     ## Network
     - LAN `192.168.10.0/24`, gateway `192.168.10.1` (**`gw-opnsense`**, the OPNsense box —
@@ -563,10 +562,29 @@ data:
     - `kamatis-mbp` `.83` is **not** a cluster node: it left on 2026-10-28 and is the
       staging host (KVM + `br-staging`). See `docs/reference/system.md` § `.83`; Immich data moved to
       Longhorn, so nothing production runs there.
-    - Admin workstation `nix-station` `.245`; the local Ollama LLM runs on the **gaming PC**
-      at `.151:11434` (MAC `d8:5e:d3:8d:51:d2`, switch port `lan8`), not managed by this repo.
-      Its documented `.12` address has answered nothing since 2026-11-01, and `.151` is
-      **inside the Kea pool** — reserve or move it. Ollama has **no authentication**.
+    - Admin workstation `nix-station` `.245`.
+    - The local Ollama LLM runs on the **gaming PC**, which this repo does **not** manage — so it is not in
+      `facts.json` (that is derived from the deploy code) and this bullet is its only home.
+      - **Live address `192.168.20.153:11434`**, MAC `d8:80:83:c0:7c:d3`, ttl=64, reachable from the
+        VLAN-20 Wi-Fi island at one hop (TTL=1 ping still answers, so the router is not in the path).
+        Verified **2026-11-27** from `192.168.20.50`: `curl -s http://192.168.20.153:11434/api/version`
+        → `{"version":"0.40.17"}`, three models, ~62 tok/s on `qwen3:8b`.
+      - The previously documented `.151` and MAC `d8:5e:d3:8d:51:d2` (switch port `lan8`) answer
+        **nothing** and are not on the L2 — the address moved within the Kea pool and the wired `lan8`
+        NIC is not the path in use. **Reserve the address in Kea** or this happens again: the machine
+        is reachable at an address nobody wrote down.
+      - The host's own firewall (nftables `inet filter`) **rejects every TCP port** except 11434, and
+        only from `192.168.20.50` — verified 2026-11-27 by probed timing: 11434 connects in 8 ms;
+        22, 80, 443, 2283, 3000, 5432 and 8080 reject in 6–11 ms with `icmp-host-prohibited`, ICMP echo
+        still answered. **Port 22 is closed**, so a change here needs the console.
+      - Ollama has **no authentication**: keep the allow source-scoped to `.20.50`. Never widen it to
+        the subnet, and do not add a router rule for it.
+      - **No alert covers this, deliberately.** The cluster is on VLAN 10 and cannot route to VLAN 20,
+        VictoriaMetrics' API is ClusterIP-only, and the only host that can see this machine is the Wi-Fi
+        workstation — so a probe would be a cron on a machine that sleeps, which reports "down" every
+        time the lid closes. Check it by hand:
+        `curl -s --max-time 10 http://192.168.20.153:11434/api/version` from `.20.50`.
+        This becomes worth automating only if the PC is moved to a VLAN the cluster can reach.
     - Admin laptop `labanos` `.32` (MAC `fc:b0:de:18:16:5b`) — this was the long-standing
       "unknown device" in `bakuran-infra/network/lan.md`; identified 2026-11-01.
     
