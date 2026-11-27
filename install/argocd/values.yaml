@@ -10,6 +10,46 @@ configs:
   cm:
     create: true
     accounts.mcp-readonly: apiKey, login
+    # An ExternalSecret that failed to reconcile is NOT an outage and must not read as one.
+    # Bitwarden's API stalls roughly 5% of calls (measured 2026-11-27: 237 calls in 40 minutes,
+    # ~10s then an error, no burst). ESO retries with backoff and the target Secret keeps its
+    # previous values, so the workload keeps running - but ArgoCD's built-in health check reads
+    # the Ready condition alone and called the whole Application Degraded, which is how
+    # media-setup (18 refs) and easyshortlist-secrets (15 refs) reported false Degraded for days.
+    # A stall reads Progressing; only a Ready condition that is false for another reason is
+    # Degraded. What replaces the lost signal is ExternalSecretNotSyncing in
+    # manifests/base/monitoring/rules/alerting.yaml (2h of a false Ready condition), because
+    # "retrying" and "stuck" look identical from here.
+    #
+    # No standard library: `obj`, `ipairs` and `.status` are all this needs, and enabling
+    # resource.customizations.useOpenLibs.* is a separate security decision.
+    resource.customizations.health.external-secrets.io_ExternalSecret: |
+      hs = {}
+      if obj.status == nil or obj.status.conditions == nil then
+        hs.status = "Progressing"
+        hs.message = "waiting for the first sync"
+        return hs
+      end
+      for _, c in ipairs(obj.status.conditions) do
+        if c.type == "Ready" then
+          if c.status == "True" then
+            hs.status = "Healthy"
+            hs.message = c.message or "SecretSynced"
+            return hs
+          end
+          if c.reason == "SecretSyncedError" then
+            hs.status = "Progressing"
+            hs.message = "reconcile failed, retrying; the Secret still holds the last synced values: " .. (c.message or "")
+            return hs
+          end
+          hs.status = "Degraded"
+          hs.message = c.message or c.reason
+          return hs
+        end
+      end
+      hs.status = "Progressing"
+      hs.message = "no Ready condition yet"
+      return hs
     resource.customizations.ignoreResourceUpdates.all: |
       jsonPointers:
         - /status

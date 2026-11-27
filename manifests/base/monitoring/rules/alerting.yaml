@@ -207,6 +207,44 @@ data:
               summary: "cnpg_pg_stat_archiver_* metrics are absent - no CNPG cluster is being scraped"
               description: "Either no CNPG instance pod is exposing its `metrics` port or the `cnpg` scrape job is broken. Check the pods' `metrics` container port and the job in vm-scrape.yaml."
               runbook_url: "https://runbook.bismigel.dev/runbook/07-backups-recovery/#cnpgmetricsmissing"
+          # --- ESO: is the reconcile retrying, or is it stuck (2026-11-27) --------------
+          # The same shape as the CNPG pair above: metrics that were not scraped at all (the
+          # `external-secrets` job in vm-scrape.yaml is new) and a failure that had no signal.
+          #
+          # ArgoCD used to report Bitwarden's ~5% API stall as `Degraded`, and that was noise - the
+          # target Secret keeps its last synced values and ESO retries with backoff. But the fix for
+          # the noise (a health check in install/argocd/values.yaml that calls `SecretSyncedError`
+          # Progressing) also removes the only signal, and "retrying" and "stuck" look identical
+          # from ArgoCD. This rule is what tells them apart: two hours of a false Ready condition.
+          #
+          # 2h, not minutes, on purpose. A reconcile that fails once and succeeds on the next
+          # refreshInterval is the normal state of this provider, and an alert that fires on it
+          # would be the same false Degraded with a different channel.
+          - alert: ExternalSecretNotSyncing
+            # `max by`, not the bare selector: ESO clears every stale Ready series under the same
+            # name/namespace scope on each transition, so in steady state this collapses one series
+            # and changes nothing. It is here for the two windows that exporter cannot cover - an
+            # operator restart (counters/gauge vectors restart empty, a stale series survives in the
+            # store for the scrape interval) and the second after a secret is deleted - where a leftover
+            # Ready=False at 1 would otherwise keep this firing for two hours after the secret was gone.
+            expr: max by (namespace, name) (externalsecret_status_condition{condition="Ready", status="False"}) == 1
+            for: 2h
+            labels: { severity: warning }
+            annotations:
+              summary: "ExternalSecret {{ $labels.namespace }}/{{ $labels.name }} has not synced for 2h"
+              description: "ArgoCD now reports a transient provider failure as Progressing, so this alert is the only signal that a reconcile is stuck rather than retrying. The target Secret keeps the last synced values; a rotated credential would not arrive."
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#externalsecretnotsyncing"
+          - alert: BitwardenProviderFailing
+            # The provider, not one object: a rate over every ExternalSecret's sync calls. Info, not
+            # warning, because on its own it is the known stall - it says how bad today is, while the
+            # rule above says whether it matters yet. clamp_min only guards the first minutes of a fresh
+            # cluster, when the denominator has no calls in the window yet.
+            expr: rate(externalsecret_sync_calls_error[30m]) / clamp_min(rate(externalsecret_sync_calls_total[30m]), 1e-9) > 0.2
+            for: 1h
+            labels: { severity: info }
+            annotations:
+              summary: "Bitwarden provider is failing {{ $value | humanizePercentage }} of ExternalSecret calls"
+              runbook_url: "https://runbook.bismigel.dev/runbook/25-kubernetes-workloads-and-argocd/#bitwardenproviderfailing"
           # NOTE: BackupFailed alerts are *pushed* to Alertmanager by the systemd
           # OnFailure hooks (see modules/backup*.nix), so there's no rule for them.
       - name: etcd
