@@ -78,6 +78,33 @@ data:
             target_label: pod
           - source_labels: [__meta_kubernetes_pod_label_cnpg_io_cluster]
             target_label: cluster
+      # External Secrets Operator (2026-11-27). Same reason as the `cnpg` job above: a whole
+      # class of failure was invisible. ESO's own counters - sync calls, sync errors, the Ready
+      # condition per ExternalSecret - were not scraped at all, so "is Bitwarden failing 5% of
+      # calls, or is one ExternalSecret stuck?" could only be answered by running kubectl by hand.
+      #
+      # Pod SD, like `cnpg`, so no annotation and no Helm value is needed on a Deployment this
+      # repository does not own. The operator listens on :8080, port name `metrics` (the chart's
+      # render: `metrics.listen.port` -> containerPort name `metrics`). The keep is on the chart's
+      # standard pod label `app.kubernetes.io/name`, which is the chart name unless `nameOverride`
+      # is set - `application.yaml` sets none, and the webhook/cert-controller pods carry their own
+      # suffixed names, so they are not matched. If that label is ever overridden this job goes
+      # silent - no targets, no error - which is why an `up{job="external-secrets"}` check belongs
+      # on the dashboard when one is built for it.
+      - job_name: 'external-secrets'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: external-secrets
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
       - job_name: 'kubernetes-services'
         kubernetes_sd_configs:
           - role: service
