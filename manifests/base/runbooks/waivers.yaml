@@ -47,6 +47,7 @@ group:
   alerts:
   - LonghornDiskActualSpaceLow
   - LonghornScrapeFailing
+  - LonghornDiskUnavailable
   - LonghornVolumeDegraded
 - reason: 'Media pool capacity and health: `ops/mounts` then MEDIA.md. A human decides what to delete, never a script (ADR 0002 in spirit: nothing is deleted automatically)'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
@@ -99,6 +100,11 @@ group:
   where: workstation
   alerts:
   - WireGuardMetricsMissing
+- reason: 'External Secrets: one provider (Bitwarden), two questions - is one object stuck (runbook 25 §ExternalSecretNotSyncing) and is the provider itself failing (runbook 25 §BitwardenProviderFailing). A failed reconcile does not lose data: the target Secret keeps its last synced values, so the diagnosis is the provider call log, not the object'
+  where: cluster
+  alerts:
+  - ExternalSecretNotSyncing
+  - BitwardenProviderFailing
 - reason: 'CNPG WAL archiving: the cluster''s ContinuousArchiving condition and the barman plugin log name the cause. runbook 07'
   # Story 7.4: where the answer runs - a pod/kubectl (`cluster`) or the host/router/token proxy
   # (`workstation`). Required for every group; check-alert-coverage fails without it.
