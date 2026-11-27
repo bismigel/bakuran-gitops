@@ -1,9 +1,30 @@
 # The media stack's shared credential Secret, from Bitwarden.
 #
-# These values were mirrored into this Secret by bakuran-infra/scripts/media-setup-secret.sh, which prefers Bitwarden and
-# falls back to scraping each app's /config. That fallback is why the copy could drift from the vault: after a PVC
-# restore an app regenerates its own API key and the vault's copy is stale. ESO makes the vault the only writer, and
-# makes staleness visible (the ExternalSecret stops syncing) instead of silent.
+# Two reads produce this Secret, on purpose:
+#
+#   dataFrom.extract  the 14 application values come from ONE Bitwarden item,
+#                     `media-setup-config`: a JSON object whose member names are
+#                     already this Secret's key names. That is one ListSecrets plus
+#                     one GetSecret - 2 calls per reconcile - where a name ref per
+#                     key cost 2 calls each and made the reconcile fail whenever the
+#                     API stalled on any one of them. Rotate these 14 values in
+#                     `media-setup-config`; editing the individual vault items no
+#                     longer reaches the media stack.
+#
+#   data              the four keys below stay individual vault items because a
+#                     second ExternalSecret reads those same items directly
+#                     (overlays/prod/books/lazylibrarian-secrets.yaml and
+#                     base/media/arr-auth.yaml). Copying them into the blob would
+#                     give the vault two places to edit and a rotation of the shared
+#                     item would leave this copy silently stale - the exact drift
+#                     ESO exists to make visible.
+#
+# Why ESO at all: these values were mirrored into this Secret by
+# bakuran-infra/scripts/media-setup-secret.sh, which preferred Bitwarden and fell
+# back to scraping each app's /config. That fallback is why the copy could drift
+# from the vault: after a PVC restore an app regenerates its own API key and the
+# vault's copy is stale. ESO makes the vault the only writer, and makes staleness
+# visible (the ExternalSecret stops syncing) instead of silent.
 #
 # qbt-password maps to the vault's qbittorrent-password: the Secret's key name predates the vault's naming and is kept so
 # nothing that reads it has to change.
@@ -16,22 +37,10 @@ spec:
   refreshInterval: 1h
   secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }
   target: { name: media-setup }
+  dataFrom:
+    - extract: { key: media-setup-config }
   data:
-    - { secretKey: althub_api,            remoteRef: { key: althub_api } }
-    - { secretKey: drunkslug_api,         remoteRef: { key: drunkslug_api } }
-    - { secretKey: jellyfin-admin-pass,   remoteRef: { key: jellyfin-admin-pass } }
-    - { secretKey: jellyfin-admin-user,   remoteRef: { key: jellyfin-admin-user } }
-    - { secretKey: jellyfin-anton,        remoteRef: { key: jellyfin-anton } }
-    - { secretKey: jellyfin-ciceley,      remoteRef: { key: jellyfin-ciceley } }
-    - { secretKey: jellyfin-delfin,       remoteRef: { key: jellyfin-delfin } }
-    - { secretKey: jellyfin-guest,        remoteRef: { key: jellyfin-guest } }
-    - { secretKey: jellyfin-trish,        remoteRef: { key: jellyfin-trish } }
     - { secretKey: lazylibrarian-api-key, remoteRef: { key: lazylibrarian-api-key } }
-    - { secretKey: nzbgeek_api,           remoteRef: { key: nzbgeek_api } }
-    - { secretKey: opensubtitles-pass,    remoteRef: { key: opensubtitles-pass } }
-    - { secretKey: opensubtitles-user,    remoteRef: { key: opensubtitles-user } }
     - { secretKey: prowlarr-api-key,      remoteRef: { key: prowlarr-api-key } }
     - { secretKey: qbt-password,          remoteRef: { key: qbittorrent-password } }
-    - { secretKey: radarr-api-key,        remoteRef: { key: radarr-api-key } }
     - { secretKey: sabnzbd-api-key,       remoteRef: { key: sabnzbd-api-key } }
-    - { secretKey: sonarr-api-key,        remoteRef: { key: sonarr-api-key } }
