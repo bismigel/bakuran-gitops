@@ -42,6 +42,7 @@ resources:
   - exporters/blackbox-exporter.yaml
   - exporters/cloudflare-edge-exporter.yaml
   - exporters/etcd-metrics-proxy.yaml
+  - dashboards/grafana-dashboard-alerts.yaml
   - dashboards/grafana-dashboard-cilium.yaml
   - dashboards/grafana-dashboard-containers.yaml
   - dashboards/grafana-dashboard-control-plane.yaml

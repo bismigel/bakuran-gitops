@@ -1,0 +1,575 @@
+# Managed by GitOps. Edit panels here; Grafana reloads them within 30s.
+#
+# Alert summary: what is firing now and what recovered recently, from `ALERTS` in VictoriaMetrics. The estate's alert
+# text (summary/description) lives in vmalert and Alertmanager, not in the metric, so the panels name the alert and its
+# labels and the text panel says where the prose is. Queries measured against VictoriaMetrics on 2026-11-28: 1 firing,
+# 3 pending, 23 series that had fired within 24h and were quiet for >=5m.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-alerts
+  namespace: monitoring
+data:
+  alerts.json: |
+    {
+      "uid": "homelab-alerts",
+      "title": "Homelab Alerts",
+      "tags": [
+        "homelab",
+        "alerts"
+      ],
+      "timezone": "browser",
+      "graphTooltip": 1,
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "templating": {
+        "list": []
+      },
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Firing now",
+          "description": "Alerts vmalert reports as firing right now.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+              "refId": "A",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "center",
+            "wideLayout": true
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Pending",
+          "description": "Past their expression, still inside `for:` - they have not fired yet.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "expr": "count(ALERTS{alertstate=\"pending\"}) or vector(0)",
+              "refId": "A",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "center",
+            "wideLayout": true
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Recovered, 24h",
+          "description": "Alerts that fired at some point in the last 24h and have not fired in the last 5 minutes.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "expr": "count((count_over_time(ALERTS{alertstate=\"firing\"}[24h]) > 0) unless (count_over_time(ALERTS{alertstate=\"firing\"}[5m]) > 0)) or vector(0)",
+              "refId": "A",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "center",
+            "wideLayout": true
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Series ever firing, 24h",
+          "description": "Every alert series that fired at least once in the window, still firing or not.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 18,
+            "y": 0,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "expr": "count(count_over_time(ALERTS{alertstate=\"firing\"}[24h]) > 0) or vector(0)",
+              "refId": "A",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "center",
+            "wideLayout": true
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "purple",
+                    "value": null
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 5,
+          "type": "table",
+          "title": "Firing now",
+          "description": "Active alerts, labels as vmalert reports them (VictoriaMetrics stores ALERTS, not the annotations).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 4,
+            "w": 12,
+            "h": 10
+          },
+          "targets": [
+            {
+              "expr": "ALERTS{alertstate=\"firing\"}",
+              "refId": "A",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": ""
+            }
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "__name__": true,
+                  "alertstate": true
+                },
+                "indexByName": {
+                  "alertname": 0,
+                  "severity": 1,
+                  "alertgroup": 2,
+                  "namespace": 3,
+                  "name": 4,
+                  "instance": 5,
+                  "job": 6,
+                  "stage": 7,
+                  "device": 8,
+                  "mountpoint": 9
+                },
+                "renameByName": {
+                  "alertgroup": "group",
+                  "name": "object"
+                }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "filterable": true
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "severity"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "critical": {
+                            "color": "red",
+                            "index": 0
+                          },
+                          "warning": {
+                            "color": "orange",
+                            "index": 1
+                          },
+                          "info": {
+                            "color": "blue",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "type": "table",
+          "title": "Recently recovered",
+          "description": "Fired in the last 24h, quiet for at least 5 minutes. The label set identifies the alert; the row value is the number of firing samples in the window.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 4,
+            "w": 12,
+            "h": 10
+          },
+          "targets": [
+            {
+              "expr": "(count_over_time(ALERTS{alertstate=\"firing\"}[24h]) > 0) unless (count_over_time(ALERTS{alertstate=\"firing\"}[5m]) > 0)",
+              "refId": "A",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": ""
+            }
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "__name__": true,
+                  "alertstate": true
+                },
+                "indexByName": {
+                  "alertname": 0,
+                  "severity": 1,
+                  "alertgroup": 2,
+                  "namespace": 3,
+                  "name": 4,
+                  "instance": 5,
+                  "job": 6,
+                  "stage": 7,
+                  "device": 8,
+                  "mountpoint": 9
+                },
+                "renameByName": {
+                  "alertgroup": "group",
+                  "name": "object"
+                }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "filterable": true
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "severity"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "critical": {
+                            "color": "red",
+                            "index": 0
+                          },
+                          "warning": {
+                            "color": "orange",
+                            "index": 1
+                          },
+                          "info": {
+                            "color": "blue",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Alerts over 24h: firing and pending",
+          "description": "Count of alert series per state, sampled every 30s. A drop to zero after a plateau is a recovery.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 14,
+            "w": 24,
+            "h": 8
+          },
+          "targets": [
+            {
+              "expr": "count(ALERTS{alertstate=\"firing\"})",
+              "refId": "A",
+              "legendFormat": "firing"
+            },
+            {
+              "expr": "count(ALERTS{alertstate=\"pending\"})",
+              "refId": "B",
+              "legendFormat": "pending"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 8,
+          "type": "text",
+          "title": "How to read this page",
+          "gridPos": {
+            "x": 0,
+            "y": 22,
+            "w": 24,
+            "h": 4
+          },
+          "options": {
+            "mode": "markdown",
+            "code": {
+              "language": "plaintext",
+              "showLineNumbers": false,
+              "showMiniMap": false
+            },
+            "content": "**Data.** VictoriaMetrics stores `ALERTS` (one series per alert, `alertstate=firing|pending`); it does not store the alert annotations - the `summary`/`description` text lives in vmalert and Alertmanager, so this page names the alert and its labels rather than quoting prose.\n\n**Recovered** means *fired within 24h and no firing sample in the last 5 minutes*, which is the smallest window that is not fooled by an evaluation gap. It is a definition, not a log: an alert that fired and cleared twice in ten minutes appears once.\n\n**Where the prose is.** `vmalert /api/v1/alerts` and Alertmanager (`alertmanager:9093`) carry the annotations; the `broken` command on the workstation prints the firing set in plain text."
+          }
+        }
+      ]
+    }
