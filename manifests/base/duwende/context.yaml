@@ -495,8 +495,9 @@ data:
       by email. **Admin-only apps use a 24h session**; media keeps 730h.
     - **Jellyfin and Immich are intentionally NOT in Access** (native phone/TV clients
       can't complete an interactive challenge), served publicly by the reverse proxy
-      and they do their own auth. Jellyfin remote clients are capped at **12 Mbps**
-      (per-user `RemoteClientBitrateLimit`; Jellyfin `KnownProxies=127.0.0.1,10.42.0.0/16`).
+      and they do their own auth. Jellyfin has **no remote bitrate cap** (per-user
+      `RemoteClientBitrateLimit = 0` since 2026-11-28; Jellyfin `KnownProxies=127.0.0.1,10.42.0.0/16`
+      unchanged) — see [media.md gotcha 7](media.md#known-gotchas).
     - **\*arrs** have no app-level auth (behind Access); `homepage`/`prometheus` are in
       the "Homelab Media" Access app. `status.bismigel.dev` is public.
     
@@ -727,8 +728,9 @@ data:
     > **Jellyfin + Immich are intentionally NOT Access-gated** (native TV/phone clients
     > can't complete the email-OTP challenge), they rely on their own login. Same for
     > **Kavita and Audiobookshelf** (their mobile apps can't do the challenge). Jellyfin
-    > remote clients are capped at **12 Mbps** (per-user `RemoteClientBitrateLimit`;
-    > `KnownProxies=127.0.0.1,10.42.0.0/16`). **Jellyfin also has hostPort 8096** on
+    > has **no remote bitrate cap** (per-user `RemoteClientBitrateLimit = 0` since
+    > 2026-11-28; `KnownProxies=127.0.0.1,10.42.0.0/16` unchanged) — see
+    > [media.md gotcha 7](media.md#known-gotchas). **Jellyfin also has hostPort 8096** on
     > `.81` for LAN clients (`http://192.168.10.81:8096`).
     > The edge is declared in **`bakuran-infra/opentofu/cloudflare/`** (OpenTofu) and
     > applied with `tofu`; `cloudflare/sync.sh` is a retired, manual rollback path only.
@@ -800,7 +802,7 @@ data:
     | Bazarr | media | `http://192.168.10.81:6767` | Subtitles (OpenSubtitles) |
     | SABnzbd | downloads | `http://192.168.10.81:8082` | Usenet; `host_whitelist` includes `sabnzbd.bismigel.dev` |
     | qBittorrent | downloads | `http://192.168.10.81:8081` | Torrents (admin + homelab password) |
-    | Jellyfin | default | `http://192.168.10.81:8096` | libraries: `/media/tv`, `/media/movies`; **12.2.0**; transcode cache on local NVMe; remote capped 12 Mbps; SyncPlay enabled |
+    | Jellyfin | default | `http://192.168.10.81:8096` | libraries: `/media/tv`, `/media/movies`; **12.2.0**; transcode cache on local NVMe; **no remote bitrate cap** (all users `0`); 4K is direct-play only; SyncPlay enabled |
     | media-mcp | media | (loopback NodePort 30097) | MCP server (below) |
     
     > **Why hostPorts:** the LAN NodePorts are loopback-only (edge lock). Sonarr/Radarr
@@ -955,6 +957,10 @@ data:
     deliberate per-item choice: `Movies-2160p` exists so 4K is possible without the
     remux class.
     
+    `Movies-2160p` is **unused since 2026-11-28**: all 18 Radarr movies are on `Movies-1080p`, whose 2160p quality groups
+    are `allowed: false`. A file grabbed for `Movies-2160p` plays only if the client **direct-plays** it — this node cannot
+    transcode 2160p (gotcha 7).
+    
     **What `bakuran-infra/opentofu/media/` owns** (declarative, state in R2
     `opentofu/media/terraform.tfstate`):
     
@@ -1062,12 +1068,27 @@ data:
        comes from Nyaa; live-action falls back to Usenet automatically.
     6. **4K slipping in**, a 2160p movie was once grabbed despite the profile; check
        the profile's allowed qualities if big files appear.
-    7. **4K HDR on remote clients**, a 4K HDR HEVC file transcodes to **4K / ~31 Mbps**
-       by default, which chokes remote clients (they stop at 0ms). Fixed server-side:
-       per-user `RemoteClientBitrateLimit = 12 Mbps` (longer form: `12000000`) plus
-       Jellyfin `KnownProxies = 127.0.0.1,10.42.0.0/16` and ingress
-       `use-forwarded-headers=true`, so Jellyfin sees the real client IP and caps only
-       remote clients. LAN clients (hostPort `:8096`) stay uncapped.
+    7. **4K HDR on remote clients: a bitrate cap is the cause, not the fix.** Jellyfin
+       runs on `patola-thinkcentre` (`.80`): Intel **i5-6500T, 4 threads**, iGPU `8086:1912`
+       (HD 530, Skylake). Skylake cannot hardware-decode **HEVC Main10** — `-hwaccel vaapi`
+       gives `Failed setup for format vaapi: hwaccel initialisation returned error` and
+       `-hwaccel qsv` gives `Decoding error: Internal bug, should not have happened`
+       (`-1145393733`) — and `HardwareDecodingCodecs` in `encoding.xml` excludes `hevc` on
+       purpose (iHD P010 `scale_vaapi` bug), so 2160p HEVC decodes in **software**. Measured
+       on a 25.6 Mbps 2160p HEVC Main10 source: **0.109x** at 3840 wide (2026-11-27 21:14),
+       **0.197x** at 2560 (2026-11-28 03:58), **0.21x** at 1920 (2026-11-28 04:20). The bound
+       is the **2160p decode, not the output size**, so no quality setting rescues it: the
+       transcode cannot keep up and the client drops and reconnects. A per-user
+       `RemoteClientBitrateLimit` forces exactly that
+       transcode — do not set `12000000` (or any cap) on a user. **Since 2026-11-28 every
+       user is uncapped (`RemoteClientBitrateLimit = 0`) and the server-level value is `0`**
+       (`bakuran-gitops/manifests/base/monitoring/exporters/jellyfin-bitrate.yaml`): if a
+       client's link cannot carry the file, the fix is a smaller file, not a smaller bitrate.
+       4K is direct-play only; the iPad client (Jellyfin iPadOS 1.8.0) reports
+       `ContainerNotSupported, VideoCodecTagNotSupported` and gets `-codec:v:0 copy`, a remux
+       with the video untouched. `KnownProxies = 127.0.0.1,10.42.0.0/16` plus ingress
+       `use-forwarded-headers=true` stay, so Jellyfin sees the real client IP. Evidence and
+       rollback: [2026-11-28 record](../records/2026-11-28-jellyfin-cannot-transcode-2160p.md).
     8. **SyncPlay + a remote transcoding client**, the group waits for the slow member
        to buffer and re-syncs ("lost in time, correcting"), so it stutters. Smooth only
        when every member has a good link / can direct-play. Leaving the group fixes it.
@@ -1177,7 +1198,7 @@ data:
     - **Bitrate setting**: `RemoteClientBitrateLimit` is a field of
       **`ServerConfiguration`**, so the endpoint is `GET/POST /System/Configuration`.
       There is **no** `/System/Configuration/Playback` (it 404s). The one-shot Job
-      `bakuran-gitops/manifests/base/monitoring/jellyfin-bitrate.yaml` sets it to `0`
+      `bakuran-gitops/manifests/base/monitoring/exporters/jellyfin-bitrate.yaml` sets it to `0`
       (unlimited; the server stops forcing transcodes).
     - **Auth header**: Jellyfin 12.2.0 requires
       `Authorization: MediaBrowser Client="...", Device="...", DeviceId="...", Version="1.0.0"`.
