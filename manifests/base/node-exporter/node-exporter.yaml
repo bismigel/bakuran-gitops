@@ -50,6 +50,12 @@ spec:
               mountPath: /host/sys
             - name: rootfs
               mountPath: /rootfs
+              # HostToContainer, not rprivate: a mount that appears or is remounted after the pod started (and a
+              # separate submount under /mnt/* on .82) was invisible or shadowed inside this container's mount
+              # namespace — so node_exporter reported `/` (77.8%) for /mnt/media, /mnt/longhorn and /mnt/backup-sd
+              # when they were really 4-23% used. It only stats the host root: read it, do not write it.
+              mountPropagation: HostToContainer
+              readOnly: true
             - name: textfile
               mountPath: /host/textfile
               readOnly: true

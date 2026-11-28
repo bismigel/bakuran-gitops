@@ -202,6 +202,12 @@ spec:
                 curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
                   | tar -xz -C /usr/local/bin trivy
               fi
+              # Stale scratch, swept at start. A job that is cancelled or killed leaves its work directories behind
+              # (`checks-*` from the checks image extraction, `ci-*` from the other workflows, `guards-go-*` from
+              # the guards build, `es-*` from every buildah invocation), and nothing else ever removes them - the
+              # pod they lived in is the only thing that would have. `-mmin +120` keeps the scratch of a job that
+              # is running right now; `|| true` because a cleanup that fails is not a reason to refuse to run CI.
+              find /tmp /var/lib/containers -maxdepth 1 \( -name 'checks-*' -o -name 'ci-*' -o -name 'guards-go-*' -o -name 'es-*' \) -mmin +120 -exec rm -rf {} + 2>/dev/null || true
               exec forgejo-runner daemon --config /etc/runner/config.yml
           env:
             - name: TRIVY_VERSION
@@ -226,8 +232,14 @@ spec:
         # and the only state in it was `.runner` (recreated by the init container on every start) plus the
         # work directory. Losing the cache on restart is the cost and it is smaller than the cost of a
         # node-bound CI runner.
+        #
+        # Bounded at 10 Gi, because an unbounded emptyDir is a disk the kubelet will happily fill: the orphaned
+        # `/data/.cache/go-build` reached 11 GiB and orphaned `/var/lib/containers/es-*` directories another
+        # 11 GiB, which pushed .82's 98 GiB root filesystem to 78% - a node-level pressure that has nothing to
+        # do with what the jobs were building. The limit isolates that to this pod's own volume.
         - name: data
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 10Gi
         # Buildah's storage on a real filesystem rather than the pod's overlay, because it must mount overlays inside
         # it. 5 Gi is ~8x the largest build measured here (610 MB with the vfs driver, which copies layers).
         # emptyDir, not the local-path PVC. This is the trap I walked into one commit ago: a single RWO
@@ -236,5 +248,10 @@ spec:
         # Buildah's scratch is transient by nature (`--storage-driver vfs` copies layers per build); losing
         # it on restart means re-pulling base images on the next build, which is cheaper than a CI that
         # cannot schedule.
+        #
+        # Bounded at 10 Gi for the same reason as `data`: buildah copies layers into this directory per build
+        # with the vfs driver, and the leftovers (es-*) are the other half of the 11 GiB that filled .82's root
+        # filesystem. 10 Gi is still ~16x the largest build measured here (610 MB).
         - name: build-scratch
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 10Gi

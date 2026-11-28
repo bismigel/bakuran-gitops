@@ -172,11 +172,13 @@ spec:
           ports:
             # hostPort: LAN access for TV clients (they can't do Cloudflare
             # Access). Jellyfin is pinned to .81, so this binds there.
+            # 8096 only. TLS terminates at Cloudflare on the public path, and LAN clients speak plain
+            # HTTP here: `EnableHttps` is `false` in Jellyfin's `network.xml`. The old 8920 (`https`)
+            # entry was a port nothing listened on — the Service accepted TCP on the VIP and then hung
+            # for 12s without ever answering, which reads as "Jellyfin is down" to anything that probes it.
             - containerPort: 8096
               hostPort: 8096
               name: http
-            - containerPort: 8920
-              name: https
           env:
             # LAN URL clients should use. NOT the NodePort (30906/30096 is
             # loopback-only under the edge lock, so it's unreachable from the LAN).
@@ -215,6 +217,9 @@ spec:
               value: "https://jellyfin.bismigel.dev"
           resources:
             requests:
+              # A CPU request, not just a memory one: without it the scheduler treats Jellyfin as a 0-CPU
+              # pod, so nothing reserves capacity for transcodes and it loses every CPU contention fight.
+              cpu: 500m
               memory: 512Mi
               gpu.intel.com/i915: 1
             limits:
@@ -284,9 +289,6 @@ spec:
     - port: 8096
       targetPort: 8096
       name: http
-    - port: 8920
-      targetPort: 8920
-      name: https
 ---
 # Serve Jellyfin via the media cluster's own ingress-nginx (NodePort 32080) so
 # the Cloudflare tunnel can reach it at http://127.0.0.1:32080 instead of the

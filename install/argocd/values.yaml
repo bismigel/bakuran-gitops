@@ -218,7 +218,12 @@ server:
       cpu: 500m
       memory: 512Mi
   ingress:
-    enabled: true
+    # OFF on purpose: the Ingress for argocd.bismigel.dev is owned by manifests/base/argocd-ha/ingress.yaml
+    # (the `argocd-ha` Application, selfHeal: true). One owner per object (ADR 0011) - and here the two
+    # owners would disagree: a Helm-rendered Ingress would be overwritten by the one in git, and if the Helm
+    # one won it could carry `backend-protocol: HTTPS`, which 502s against `server.insecure: true` above.
+    # The `argocd-ha` copy is the one that survives a rebuild, so it is the one that stays.
+    enabled: false
     ingressClassName: nginx-admin
     hostname: argocd.bismigel.dev
     path: /

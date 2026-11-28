@@ -1,14 +1,15 @@
-# Forgejo — a local mirror of the GitHub repositories.
+# Forgejo — the estate's origin, mirrored to GitHub (ADR 0015).
 #
-# PULL MIRRORS ONLY. GitHub stays the system of record (issues, PRs, Actions);
-# Forgejo holds a browsable, offline copy of the git refs + LFS objects.
-# Mirrors are created through the API after the first sync — see
-# homelab-context NETWORK.md / ROUTER.md notes and the runbook entry.
+# Since ADR 0015 this instance is the system of record: pushes land here and are push-mirrored out to
+# GitHub, while the older pull mirrors from GitHub are kept for the repositories that still live there.
+# Either direction needs a GitHub credential, and it is held here rather than in Forgejo's own database
+# (it used to be configured only in the UI, so a volume rebuild silently broke every mirror).
 #
-# Secrets are NOT in git. `forgejo-secrets` is rendered by External Secrets from
-# Bitwarden Secrets Manager (keys `forgejo-secret-key`, `forgejo-admin`,
-# `forgejo-api-token`). The GitHub mirror credential is NOT here either — it lives
-# in Forgejo's own database, encrypted with the secret key below.
+# Secrets are NOT in git. `forgejo-secrets` is rendered by External Secrets from Bitwarden Secrets
+# Manager (keys `forgejo-secret-key`, `forgejo-admin`, `forgejo-board-token`, `github-pat`).
+# `GITHUB_MIRROR_TOKEN` (Bitwarden `github-pat`) is projected into that Secret and wired into git's
+# `url.*.insteadOf` by the `git-mirror-auth` initContainer below, so no repository's git config is
+# hand-edited and a rebuild reproduces the working mirror authentication.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -39,10 +40,15 @@ spec:
         # for something else (no `read:issue`), and rotating a credential to suit a new consumer
         # is how two things break at once.
         FORGEJO_API_TOKEN: "{{ .api_token }}"
+        # The GitHub mirror credential. Declared here because it has to exist in Forgejo's environment
+        # for the initContainer to write it into git's config: a credential that lives only in the web
+        # UI is a credential a rebuild loses, and mirroring then fails quietly once a day.
+        GITHUB_MIRROR_TOKEN: "{{ .github_pat }}"
   data:
     - { secretKey: secret_key, remoteRef: { key: forgejo-secret-key } }
     - { secretKey: admin_password, remoteRef: { key: forgejo-admin } }
     - { secretKey: api_token, remoteRef: { key: forgejo-board-token } }
+    - { secretKey: github_pat, remoteRef: { key: github-pat } }
 ---
 # `forgejo-data` (ReadWriteOnce, the sqlite era's volume) is no longer declared: `/data` moved to
 # `forgejo-data-rwx` when the second replica landed on 2026-11-05, and the sqlite database it held was
@@ -91,6 +97,50 @@ spec:
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: forgejo
+      initContainers:
+        # Mirror authentication, declared instead of hand-configured.
+        #
+        # WHY `url.*.insteadOf` + `include.path` and NOT `credential.helper`: Forgejo invokes
+        # `git -c credential.helper= fetch` on every pull mirror (HOME=/data/gitea/home), and that
+        # explicit empty `-c` clears any helper configured behind the scenes. `url.*.insteadOf` is
+        # applied when git rewrites the remote URL - before HTTP authentication, and without touching
+        # any repository's `config` file - so the credentialed form of the URL is what git asks the
+        # server for. The rewrite rules live in a separate 0600 file (`.git-mirror-auth`) so the token
+        # is not copied into every repository config, and both git config locations Forgejo may read
+        # (`/data/gitea/home/.gitconfig` for the server, `/data/git/.gitconfig` for maintenance git)
+        # include it by path.
+        #
+        # The token is never echoed: `set -x` is not used anywhere here, and the script is `-e` only so
+        # a failure stops the pod rather than leaving half a credential behind.
+        - name: git-mirror-auth
+          image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          env:
+            - name: GITHUB_MIRROR_TOKEN
+              valueFrom:
+                secretKeyRef: { name: forgejo-secrets, key: GITHUB_MIRROR_TOKEN }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /data/gitea/home /data/git
+              umask 077
+              cat > /data/gitea/home/.git-mirror-auth <<EOF
+              [url "https://bismigel:${GITHUB_MIRROR_TOKEN}@github.com/"]
+              	insteadOf = https://bismigel@github.com/
+              [url "https://oauth2:${GITHUB_MIRROR_TOKEN}@github.com/"]
+              	insteadOf = https://oauth2@github.com/
+              EOF
+              printf 'https://bismigel:%s@github.com\n' "$GITHUB_MIRROR_TOKEN" > /data/gitea/home/.git-credentials
+              chmod 600 /data/gitea/home/.git-mirror-auth /data/gitea/home/.git-credentials
+              umask 022
+              for cfg in /data/gitea/home/.gitconfig /data/git/.gitconfig; do
+                touch "$cfg"
+                grep -qF 'path = /data/gitea/home/.git-mirror-auth' "$cfg" || printf '\n[include]\n\tpath = /data/gitea/home/.git-mirror-auth\n' >> "$cfg"
+              done
       containers:
         - name: forgejo
           # Pinned by digest: CI fails on a floating tag.
@@ -246,3 +296,52 @@ spec:
                 name: forgejo
                 port:
                   number: 3000
+---
+# Two Forgejo replicas share `forgejo-data-rwx`, and git maintenance is not safe to interrupt: a
+# maintenance run that is killed (pod eviction, node drain, a second replica racing the same repository)
+# can leave a 0-byte `commit-graph-chain.lock` behind, and git refuses to run maintenance on that
+# repository again until the lock is gone — permanently, because nothing else ever removes it. The
+# symptom is not an error, it is a repository whose mirrors simply stop being updated.
+#
+# So this sweeps locks nobody can still be holding: 0 bytes (the lock file is created empty and written
+# to only by the process that holds it) and older than 60 minutes (well past any maintenance run on
+# repositories this size). A lock with content, or a fresh one, is left alone.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: forgejo-lock-gc
+  namespace: forgejo
+spec:
+  schedule: "17 * * * *"
+  # One sweep at a time: two pods racing the same `find -delete` is another way to lose a lock.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: gc
+              image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+              resources:
+                requests: { cpu: 10m, memory: 16Mi }
+                limits: { memory: 64Mi }
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+              command:
+                - /bin/sh
+                - -ec
+                - find /data/git/repositories -name 'commit-graph-chain.lock' -size 0 -mmin +60 -print -delete
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: forgejo-data-rwx

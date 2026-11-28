@@ -3,15 +3,15 @@
 ArgoCD is a Helm release:
 
 - release: `argocd`
-- chart: `argo-cd` `10.10.5`
-- application version: `v3.5.5`
+- chart: `argo-cd` `10.19.1`
+- application version: `v3.6.3`
 - namespace: `argocd`
 
 The release was adopted in place with:
 
 ```bash
 helm -n argocd upgrade --install argocd argo/argo-cd \
-  --version 10.10.5 -f manifests/argocd/values.yaml \
+  --version 10.19.1 -f install/argocd/values.yaml \
   --take-ownership --force-conflicts
 ```
 
@@ -26,11 +26,15 @@ adopted with `--take-ownership`.
 - control-plane tolerations for the tainted third node;
 - requests and memory limits on every container, CPU limits only where the
   workload is request-serving rather than quorum-participating;
-- `configs.cm.create: false`;
+- `configs.cm.create: true` (changed in #194: `argocd-cm` is Helm-owned, so `resource.customizations`
+  and `resource.exclusions` survive a rebuild instead of living in a hand-patched ConfigMap);
 - `configs.secret.createSecret: false`;
 - `server.insecure: true`;
 - two server, repo-server, applicationset and controller replicas;
-- ingress on `nginx-admin` at `argocd.bismigel.dev`.
+- the UI is served over plain HTTP by `argocd-server` (`server.insecure: true`), behind an Ingress on
+  `nginx-admin` at `argocd.bismigel.dev` whose backend is port 80 (no `backend-protocol: HTTPS`).
+  `server.ingress.enabled` is `false`: the Ingress object is owned by
+  `manifests/base/argocd-ha/ingress.yaml` (one owner per object, ADR 0011).
 
 Chart `redis-ha` 4.38.0 hardcodes announce Services as ClusterIP. That makes
 sentinel monitor the Service VIP instead of its pod. The fix is a Helm
@@ -119,7 +123,7 @@ kubectl -n argocd rollout status deploy/argocd-server --timeout=5m
 
 # 2. if the replacement fails the same way, the template is bad: roll back
 kubectl -n argocd rollout undo deploy/argocd-server
-#    then fix manifests/argocd/values.yaml and run the upgrade below
+#    then fix install/argocd/values.yaml and run the upgrade below
 ```
 
 A values change that alters the pod template supersedes the stuck ReplicaSet on
@@ -140,8 +144,8 @@ Helm 4 does not accept executable post-renderers. Use Helm 3.17.3.
 
 ```bash
 helm -n argocd upgrade --install argocd argo/argo-cd \
-  --version 10.10.5 -f manifests/argocd/values.yaml \
-  --post-renderer ./scripts/argocd-redis-ha-post-renderer.sh \
+  --version 10.19.1 -f install/argocd/values.yaml \
+  --post-renderer argocd-redis-ha-post-renderer \
   --take-ownership --wait --timeout 12m
 
 kubectl -n argocd rollout restart \

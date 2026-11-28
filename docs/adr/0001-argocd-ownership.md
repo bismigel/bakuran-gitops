@@ -16,13 +16,20 @@ selectors.
 
 Helm owns ArgoCD.
 
-- Release `argocd`, chart `argo-cd` 10.10.5.
+- Release `argocd`, chart `argo-cd` 10.19.1 (application version `v3.6.3`).
 - Values live in `install/argocd/values.yaml`.
-- `configs.cm` and `configs.secret` remain bootstrap-owned.
+- `configs.cm` is Helm-owned (`configs.cm.create: true`, changed in #194) so the
+  customizations and exclusions it carries are declared rather than hand-patched;
+  `configs.secret` remains bootstrap-owned.
   - Redis HA is enabled with three Redis/sentinel pods and three HAProxy pods.
-  - Per-pod announce Services are made headless by
-    `scripts/argocd-redis-ha-post-renderer.sh`. Chart 4.38.0 hardcodes ClusterIP,
+  - Per-pod announce Services are made headless by the
+    `argocd-redis-ha-post-renderer` command (Go, in `homelab-context`, ADR 0016;
+    invoked as `--post-renderer` under Helm 3). Chart 4.38.0 hardcodes ClusterIP,
     which makes sentinel monitor the Service VIP instead of the pod IP.
+  - `argocd-server` runs with `server.insecure: true` and serves plain HTTP, so the
+    Ingress backend is port 80. The Ingress object itself is owned by
+    `manifests/base/argocd-ha/ingress.yaml` (`server.ingress.enabled: false` in the
+    values file): one owner per object, ADR 0011.
   - The tainted control-plane node receives explicit tolerations for Redis and
     HAProxy.
   - No raw ArgoCD manifests and no hand patches of Helm-owned workloads.

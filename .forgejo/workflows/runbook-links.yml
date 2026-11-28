@@ -17,7 +17,7 @@ jobs:
       contents: read
     # The artefact this job runs (story 15.11). One line, bumped in a pull request.
     env:
-      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
+      CHECKS_REF: sha256:8a2990bc4c073b91c481075c9b69ee3180853df6ac6312620413ad44bbb04380
     runs-on: in-cluster
     timeout-minutes: 10
     steps:
@@ -69,3 +69,8 @@ jobs:
         run: |
           D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
           "$D/bin/check-runbook-links" --gitops "$GITHUB_WORKSPACE" --site "$GITHUB_WORKSPACE/site"
+
+      # /tmp on the runner outlives the job, and the extracted checks image is ~100 MB. Each step is its own shell,
+      # so the removal has to be the job's last step rather than a trap in the step that created the directory.
+      - name: Remove the extracted checks image
+        run: rm -rf "/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"

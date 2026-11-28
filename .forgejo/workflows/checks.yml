@@ -24,7 +24,7 @@ jobs:
     # re-point, and this is the exact bytes five jobs in three repositories execute. Bumped deliberately, in a pull
     # request, so the diff says which checks changed.
     env:
-      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
+      CHECKS_REF: sha256:8a2990bc4c073b91c481075c9b69ee3180853df6ac6312620413ad44bbb04380
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
@@ -77,9 +77,16 @@ jobs:
           D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
           "$D/bin/check-image-digests" --root "$GITHUB_WORKSPACE"
 
+      # The extraction directory is per-run, but the runner's /tmp outlives the run: without this every PR leaves a
+      # checks image on the node's disk, which is the same leak the emptyDir sizeLimits in
+      # manifests/base/forgejo-runner/runner.yaml exist to stop. Each step is its own shell, so the removal has to be
+      # a step of its own at the end of the job.
+      - name: Remove the extracted checks image
+        run: rm -rf "/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+
   layout:
     env:
-      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
+      CHECKS_REF: sha256:8a2990bc4c073b91c481075c9b69ee3180853df6ac6312620413ad44bbb04380
     # The run token may read the repository and nothing else. A check that needed to write would be a check whose
     # failure mode is a commit.
     permissions:
@@ -140,6 +147,35 @@ jobs:
         run: |
           D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
           "$D/bin/check-duplicate-objects" --root "$GITHUB_WORKSPACE"
+
+      # The other half of the runbook contract: the link job proves every `runbook_url` resolves, this proves every
+      # alert has *something* decided for it (an action file or a waiver with a reason) so a new alert cannot be added
+      # and quietly never answered.
+      #
+      # `check-alert-coverage` anchors its default sibling search on docs/README.md + plan/, and reads ALERTS_FROM and
+      # CONDITIONS_DIR when set - all of them inside this repository (manifests/base/monitoring/rules and
+      # manifests/base/runbooks/{actions,waivers.yaml}), so no cross-repo token is needed and the anchor is a scratch
+      # directory rather than a second checkout.
+      - name: Every alert has an action or a waiver
+        run: |
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          F="/tmp/ctx-anchor-${GITHUB_RUN_ID:-0}"
+          mkdir -p "$F/docs" "$F/plan" && : > "$F/docs/README.md"
+          ( cd "$F" && ALERTS_FROM="$GITHUB_WORKSPACE" CONDITIONS_DIR="$GITHUB_WORKSPACE/manifests/base/runbooks/actions" "$D/bin/check-alert-coverage" )
+          rm -rf "$F"
+
+      # The generated runbooks are committed objects, and nothing else notices when the alert rules move and the
+      # rendered files do not: `-check` compares instead of writing, so a stale generation is a failed job rather
+      # than a diff somebody has to remember to look at.
+      - name: Generated runbooks match the alert rules and actions
+        run: |
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          "$D/bin/gen-runbooks" -check -gitops "$GITHUB_WORKSPACE"
+
+      # Same cleanup as `validate`: /tmp on the runner outlives the job, and the extracted image is ~100 MB a run.
+      - name: Remove the extracted checks image
+        run: rm -rf "/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+
       # No server-side dry-run here, deliberately. The runner is a pod with the default service account and no RBAC -
       # that is a security property worth keeping, not a gap to close - so `kubectl apply --dry-run=server` answers
       # "Forbidden" and the job fails for a reason that has nothing to do with the manifests being wrong. The templates

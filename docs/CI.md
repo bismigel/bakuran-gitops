@@ -11,7 +11,7 @@ Four jobs, all required. Their names are the ones you would see in the UI, as th
 | job | what fails if it does not hold |
 |---|---|
 | `checks / validate` | `yamllint` over every manifest; every image reference is pinned by digest |
-| `checks / layout` | `manifests/` has one layout, every Application points into it, no object is defined twice, the Prometheus rules parse and the scrape config parses |
+| `checks / layout` | `manifests/` has one layout, every Application points into it, no object is defined twice, the Prometheus rules parse and the scrape config parses, every alert has an action or a waiver (`check-alert-coverage`), and the generated runbooks are current (`gen-runbooks -check`) |
 | `runbook-links / links` | every alert's `runbook_url` resolves to a page *and an anchor* in the published runbook |
 | `scan / images` | no new CRITICAL CVE beyond the recorded baseline — the baseline is a ratchet, so a stale entry for an image nobody deploys also fails |
 
