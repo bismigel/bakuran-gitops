@@ -1,0 +1,29 @@
+# Found the expensive way on 2026-11-28: a leaked GitHub OAuth app was revoked and a new PAT minted, and every push mirror in
+# the estate broke at once. The mirrors had been created with the token baked into the URL
+# (`https://bismigel:<token>@github.com/...`), which bypasses the `url.*.insteadOf` rewrite that exists precisely so the
+# current token comes from Bitwarden at push time. Ten repositories went stale, and the only signal was a generic lag alert
+# five minutes later; the cause was in Forgejo's own `last_error`, not at GitHub.
+#
+# The rule this leaves: a mirror URL must be credential-free. Forgejo enforces it on creation ("The URL contains credentials"),
+# so any URL that carries credentials predates that check or was written by hand.
+id: forgejo-mirror-auth-in-url
+title: A Forgejo push mirror URL carries credentials, so token rotation breaks it silently
+severity: medium
+blast_radius: node
+reversible: true
+runbook: homelab-context/docs/reference/repos.md
+measured: '2026-11-28'
+detect:
+  commands:
+  - 'kubectl -n forgejo exec deploy/forgejo -- sh -c ''grep -rlq "://[^@/]*@" /data/git/repositories/*/*.git/config'''
+  expect: any-fail
+diagnose:
+  commands:
+  - 'curl -s -H "Authorization: token $TOKEN" http://127.0.0.1:18085/api/v1/repos/bismigel/<repo>/push_mirrors'
+  - 'kubectl -n forgejo exec deploy/forgejo -- sh -c ''sed -n "/remote_mirror/,+3p" /data/git/repositories/bismigel/<repo>.git/config'''
+  verdict: 'If remote_address (or the repo config url) looks like https://user:something@github.com/..., this is it: the token is frozen in the URL and the rewrite in .git-mirror-auth never applies. If the URL is https://github.com/... and pushes still fail, the cause is the token in Bitwarden instead - check `github-pat` and the .git-mirror-auth bare-host rule.'
+remedy:
+  commands:
+  - 'kubectl -n forgejo exec deploy/forgejo -- sh -c ''sed -i -E "s#(https://)[^@/]+@github\.com#\1github.com#g" /data/git/repositories/bismigel/<repo>.git/config'''
+  - 'curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: token $TOKEN" http://127.0.0.1:18085/api/v1/repos/bismigel/<repo>/push_mirrors-sync'
+  why_safe: 'Removes the userinfo from one repository''s mirror URL; the credential then comes from .git-mirror-auth at push time, which is how every other mirror already works. One repository, one URL, reversible by pasting the old URL back - and a failed push is loud, while a stale one is silent.'

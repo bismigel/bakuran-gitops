@@ -44,6 +44,9 @@ spec:
         - - name: etcd-quorum-at-risk
             when: '"{{workflow.parameters.action}}" == "etcd-quorum-at-risk"'
             template: run-etcd-quorum-at-risk
+        - - name: forgejo-mirror-auth-in-url
+            when: '"{{workflow.parameters.action}}" == "forgejo-mirror-auth-in-url"'
+            template: run-forgejo-mirror-auth-in-url
         - - name: jellyfin-transcode-broken
             when: '"{{workflow.parameters.action}}" == "jellyfin-transcode-broken"'
             template: run-jellyfin-transcode-broken
@@ -139,6 +142,24 @@ spec:
           kubectl get endpointslices -n default -l kubernetes.io/service-name=kubernetes -o json | jq -r '.items[].endpoints[] | "endpoint \(.addresses[0]) ready=\(.conditions.ready)"'
           
           printf '\nverdict: %s\n' 'A member with has_leader=0 that is also NotReady on the node list is a machine problem; has_leader=0 on a Ready node is etcd refusing to elect - that is the case where restarting members one at a time is the only safe move, and restarting two is how a recoverable cluster is lost.'
+          ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
+      outputs:
+        parameters:
+          - name: verdict
+            valueFrom:
+              path: /tmp/verdict.txt
+
+    # forgejo-mirror-auth-in-url - A Forgejo push mirror URL carries credentials, so token rotation breaks it silently
+    - name: run-forgejo-mirror-auth-in-url
+      script:
+        image: registry.bismigel.dev/ops-run@sha256:6022b133b68a966c7a73be56604eb3dbc5441638d35b205848c13cc215ed4cfb
+        command: [/bin/sh]
+        source: |
+          (
+          curl -s -H "Authorization: token $TOKEN" http://127.0.0.1:18085/api/v1/repos/bismigel/<repo>/push_mirrors
+          kubectl -n forgejo exec deploy/forgejo -- sh -c 'sed -n "/remote_mirror/,+3p" /data/git/repositories/bismigel/<repo>.git/config'
+          
+          printf '\nverdict: %s\n' 'If remote_address (or the repo config url) looks like https://user:something@github.com/..., this is it: the token is frozen in the URL and the rewrite in .git-mirror-auth never applies. If the URL is https://github.com/... and pushes still fail, the cause is the token in Bitwarden instead - check `github-pat` and the .git-mirror-auth bare-host rule.'
           ) 2>&1 | { mkdir -p /tmp && tee /tmp/verdict.txt; }
       outputs:
         parameters:

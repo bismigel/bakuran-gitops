@@ -133,6 +133,13 @@ spec:
               	insteadOf = https://bismigel@github.com/
               [url "https://oauth2:${GITHUB_MIRROR_TOKEN}@github.com/"]
               	insteadOf = https://oauth2@github.com/
+              # The bare host too, and this is the rule that matters: Forgejo REFUSES a push-mirror URL that contains any
+              # userinfo ("The URL contains credentials", 400), so every mirror it accepts is stored as
+              # https://github.com/<owner>/<repo>.git. Without this rule those URLs are rewritten by nothing, git finds no
+              # credential and the push fails with "could not read Username" - which is what every mirror in this estate did
+              # on 2026-11-28 after a token rotation, because the mirrors had been created with the token baked into the URL.
+              [url "https://bismigel:${GITHUB_MIRROR_TOKEN}@github.com/"]
+              	insteadOf = https://github.com/
               EOF
               printf 'https://bismigel:%s@github.com\n' "$GITHUB_MIRROR_TOKEN" > /data/gitea/home/.git-credentials
               chmod 600 /data/gitea/home/.git-mirror-auth /data/gitea/home/.git-credentials

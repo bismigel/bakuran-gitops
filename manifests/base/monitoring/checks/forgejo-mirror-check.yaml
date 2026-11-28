@@ -103,6 +103,19 @@ spec:
                       fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorLag\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"endsAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]" >/dev/null 2>&1 || true
                     }
 
+                    # A mirror URL that carries credentials is a time bomb, not a style question: the token is then frozen at
+                    # creation time and bypasses the `url.*.insteadOf` rewrite that is supposed to supply the current one from
+                    # Bitwarden. Every mirror in this estate was in that state until 2026-11-28, so a single token rotation
+                    # (revoking a leaked GitHub OAuth app) silently broke all of them at once - 10 repositories, found only
+                    # because this check reads Forgejo's own last_error.
+                    alert_auth_in_url() {   # alert_auth_in_url <repo> <summary>
+                      fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorAuthInURL\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"annotations\":{\"summary\":\"$2\"}}]"
+                    }
+
+                    resolve_auth_in_url() {
+                      fire "[{\"labels\":{\"alertname\":\"ForgejoMirrorAuthInURL\",\"severity\":\"warning\",\"instance\":\"$HOST\",\"repo\":\"$1\"},\"endsAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]" >/dev/null 2>&1 || true
+                    }
+
                     # UTC ISO-8601 (YYYY-MM-DDTHH:MM:SS[.frac]Z) -> epoch seconds, 0 when absent/zero/unparseable.
                     to_epoch() {
                       case "$1" in ""|0001*|1970*) echo 0; return;; esac
@@ -139,6 +152,20 @@ spec:
                                        | tr ',' '\n' | grep -o '"created":"[^"]*"' | head -1 | cut -d'"' -f4)
                           push_ts=$(to_epoch "$push_raw")
                           commit_ts=$(to_epoch "$commit_raw")
+
+                          # Credentials in the mirror URL: report it as its own cause, before anything about lag, because the
+                          # fix is a one-line URL change and the lag alert would send the reader looking at GitHub instead.
+                          push_url=$(printf '%s' "$push_json" | tr ',' '\n' | grep -o '"remote_address":"[^"]*"' | head -1 | cut -d'"' -f4)
+                          case "$push_url" in
+                            *://*@*)
+                              echo "AUTH-IN-URL $r: mirror URL carries credentials"
+                              alert_auth_in_url "$r" "$r push mirror URL embeds credentials: it freezes the token at creation time and bypasses the insteadOf rewrite, so the next rotation breaks it silently. Remove the userinfo from the URL (https://github.com/<owner>/<repo>.git) and rotate the token in Bitwarden instead."
+                              stale=$((stale+1))
+                              ;;
+                            *)
+                              resolve_auth_in_url "$r"
+                              ;;
+                          esac
 
                           # Lag: has the mirror picked up the newest default-branch commit, and recently?
                           if [ -n "$push_err" ]; then
